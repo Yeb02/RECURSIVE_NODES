@@ -9,6 +9,13 @@
 // to the input 
 #define INPUT_ID -1     
 
+inline float ReLU(float x) { return x > 0 ? x : 0; }
+
+GenotypeNode::GenotypeNode() {
+	f = NULL;
+	inputSize = 0;
+	outputSize = 0;
+}
 
 // TODO: neuromodulatory signal.
 void PhenotypeNode::forward(float* input) {
@@ -58,12 +65,11 @@ void PhenotypeNode::forward(float* input) {
 		//  - the child is a bloc
 		//  - the child is a simple neuron
 
-		if (!child->isNeuron) {			    // if the child is a bloc
-			child->forward(&_childInputs[_inputListID]);
-		}
-		else {								// else, it is a base neuron
+		if (child->type->isSimpleNeuron) {
 			child->previousOutput[0] = child->currentOutput[0];
 			child->currentOutput[0] = child->type->f(_childInputs[_inputListID] + child->type->bias[0]);
+		} else {						
+			child->forward(&_childInputs[_inputListID]);
 		}
 
 		_inputListID += child->type->inputSize;
@@ -111,8 +117,84 @@ void PhenotypeNode::forward(float* input) {
 	delete[] _childInputs;
 }
 
-Network::Network() {
+// TODO .
+void Network::save(std::string path) {
 
+}
+
+
+Network::Network(int inputSize, int outputSize) :
+inputSize(inputSize), outputSize(outputSize)
+{
+	genome.resize(4);
+
+	int i = 0;
+	// 0: TanH 
+	{
+		genome[i].isSimpleNeuron = true;
+		genome[i].inputSize = 1;
+		genome[i].outputSize = 1;
+		genome[i].concatenatedChildrenInputLength = 0;
+		genome[i].f = *tanhf;
+		genome[i].bias.reserve(1);
+		genome[i].bias.resize(1);
+		genome[i].bias[0] = 0;
+		genome[i].children.reserve(0);
+		genome[i].childrenConnexions.reserve(0);
+		genome[i].concatenatedChildrenInputBeacons.reserve(0);
+	}
+
+	i++;
+	// 1: ReLU
+	{
+		genome[i].isSimpleNeuron = true;
+		genome[i].inputSize = 1;
+		genome[i].outputSize = 1;
+		genome[i].concatenatedChildrenInputLength = 0;
+		genome[i].f = *ReLU;
+		genome[i].bias.reserve(1);
+		genome[i].bias.resize(1);
+		genome[i].bias[0] = 0;
+		genome[i].children.reserve(0);
+		genome[i].childrenConnexions.reserve(0);
+		genome[i].concatenatedChildrenInputBeacons.reserve(0);
+	}
+
+	i++;
+	// 2: Cos
+	{
+		genome[i].isSimpleNeuron = true;
+		genome[i].inputSize = 1;
+		genome[i].outputSize = 1;
+		genome[i].concatenatedChildrenInputLength = 0;
+		genome[i].f = *cosf;
+		genome[i].bias.reserve(1);
+		genome[i].bias.resize(1);
+		genome[i].bias[0] = 0;
+		genome[i].children.reserve(0);
+		genome[i].childrenConnexions.reserve(0);
+		genome[i].concatenatedChildrenInputBeacons.reserve(0);
+	}
+
+	i++;
+	// 3: The main network
+	{
+		genome[i].isSimpleNeuron = false;
+		genome[i].inputSize = inputSize;
+		genome[i].outputSize = outputSize;
+		genome[i].concatenatedChildrenInputLength = outputSize;
+		genome[i].f = NULL;
+		genome[i].bias.reserve(outputSize);
+		genome[i].bias.resize(outputSize);
+		for (int j = 0; j < outputSize; genome[i].bias[j++] = 0);
+		genome[i].children.resize(1); // contains only the virtual output node
+		genome[i].childrenConnexions.resize(0);
+		genome[i].childrenConnexions.emplace_back(
+			new GenotypeConnexion(INPUT_ID, 0, inputSize, outputSize
+		));
+		genome[i].concatenatedChildrenInputBeacons.resize(1);
+		genome[i].concatenatedChildrenInputBeacons[0] = 0;
+	}
 }
 
 std::vector<float> Network::step(std::vector<float> obs) {

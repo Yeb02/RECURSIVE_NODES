@@ -1,9 +1,10 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <boost/archive/text_iarchive.hpp>
+//#include <boost/archive/text_iarchive.hpp>
 
-struct GenotypeConnexion {   // responsible of its pointers
+// responsible of its pointers lifetime
+struct GenotypeConnexion {  
 
 	int originID, destinationID; // redundant. But still better for efficiency.
 
@@ -12,12 +13,33 @@ struct GenotypeConnexion {   // responsible of its pointers
 	// Corresponds to the dimension of the output of the origin neuron
 	int nColumns;
 
-	float** alpha;
-	float** eta;
-	float** w;
-	float** A;
-	float** B;
-	float** C;
+	float* alpha;
+	float* eta;
+	float* w;
+	float* A;
+	float* B;
+	float* C;
+
+	GenotypeConnexion(int oID, int dID, int nLines, int nColumns) :
+		originID(oID), destinationID(dID), nLines(nLines), nColumns(nColumns)
+	{
+		alpha = new float[nLines*nColumns];
+		eta = new float[nLines*nColumns];
+		w = new float[nLines*nColumns];
+		A = new float[nLines*nColumns];
+		B = new float[nLines*nColumns];
+		C = new float[nLines*nColumns];
+
+		for (int i = 0; i < nLines * nColumns; i++) {
+			alpha[i] = 1;
+			eta[i] = .8;
+			w[i] = 1;
+			A[i] = 1;
+			B[i] = 1;
+			C[i] = 1;
+		}
+		
+	}
 
 	~GenotypeConnexion() 
 	{
@@ -31,8 +53,7 @@ struct GenotypeConnexion {   // responsible of its pointers
 };
 
 struct GenotypeNode {
-	// If one of these is true, the forward method is not called,
-	// the appropriate function pointer is applied instead, on the pre-synaptic activity.
+	bool isSimpleNeuron;
 	float (*f)(float); // NULL if Node is a bloc. Else pointer to tanH, cos, ReLU
 	int inputSize, outputSize; // outputSize is at least 2, since the last node is dedicated to neuromodulation
 	std::vector<float> bias; // length inputSize. 
@@ -47,17 +68,20 @@ struct GenotypeNode {
 	std::vector<GenotypeConnexion*> childrenConnexions;
 
 
-	// Utils for forward. The beacons array has len(children) elements, and contains :
-	// 0, len(children[0]->inputsize), len(children[0]->inputsize)+len(children[1]->inputsize), ....
+	// Utils for forward. 
+	// = sum(child->inputSize for child in children)
 	int concatenatedChildrenInputLength;
+	// Has len(children) elements, and contains :
+	// 0, children[0]->inputsize, children[0]->inputsize+children[1]->inputsize, ....
 	std::vector<int> concatenatedChildrenInputBeacons;
 
+	GenotypeNode() {};
 };
 
 struct PhenotypeConnexion {   // responsible of its pointers
 public:
-	float** H;
-	float** E;
+	float* H;
+	float* E;
 
 	~PhenotypeConnexion()
 	{
@@ -67,8 +91,6 @@ public:
 };
 
 struct PhenotypeNode {
-	// In case the node is a simple neuron and not a bloc.
-	bool isNeuron;
 	GenotypeNode* type;
 	float neuromodulatorySignal; //initialized at 1 at the beginning of a trial
 
@@ -81,7 +103,7 @@ struct PhenotypeNode {
 	// For plasticity based updates, currentOutput must be reset to all 0s at the start of each trial
 	std::vector<float> previousOutput, currentOutput; 
 
-
+	PhenotypeNode() {};
 	void forward(float* input);
 };
 
@@ -89,11 +111,12 @@ struct PhenotypeNode {
 class Network {
 
 public:
-	Network();
+	Network(int inputSize, int outputSize);
 	std::vector<float> step(std::vector<float> obs);
 	void save(std::string path);
 
 private:
+	int inputSize, outputSize;
 	std::vector<GenotypeNode> genome;
 	PhenotypeNode network;
 
