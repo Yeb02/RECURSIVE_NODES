@@ -83,6 +83,18 @@ public:
 	float* H;
 	float* E;
 
+	PhenotypeConnexion() {};
+
+	PhenotypeConnexion(int s) 
+	{
+		H = new float[s];
+		E = new float[s];
+		for (int i = 0; i < s; i++) {
+			H[i] = 0;
+			E[i] = 0;
+		}
+	}
+
 	~PhenotypeConnexion()
 	{
 		delete[] H;
@@ -102,8 +114,38 @@ struct PhenotypeNode {
 
 	// For plasticity based updates, currentOutput must be reset to all 0s at the start of each trial
 	std::vector<float> previousOutput, currentOutput; 
+	//PhenotypeNode() {};
+	PhenotypeNode(int a) {
+		int i = 0; // should not be called
+	}
+	PhenotypeNode(GenotypeNode* type) : type(type)
+	{
+		neuromodulatorySignal = 1.0f;
+		previousOutput.resize(type->outputSize);
+		currentOutput.resize(type->outputSize);
 
-	PhenotypeNode() {};
+		// create children recursively
+		children.resize(type->children.size());
+		for (int i = 0; i < type->children.size()-1; i++) {
+			children[i] = new PhenotypeNode(type->children[i]);;
+		}
+
+		// create connexions structs
+		childrenConnexions.resize(type->childrenConnexions.size());
+		for (int i = 0; i < type->childrenConnexions.size(); i++) {
+			childrenConnexions[i] = PhenotypeConnexion(
+				type->childrenConnexions[i]->nLines *
+				type->childrenConnexions[i]->nColumns
+			);
+		}
+	};
+
+	~PhenotypeNode() {
+		for (PhenotypeNode* child : children) {
+			delete child;
+		}
+	}
+
 	void forward(float* input);
 };
 
@@ -112,12 +154,12 @@ class Network {
 
 public:
 	Network(int inputSize, int outputSize);
-	std::vector<float> step(std::vector<float> obs);
+	std::vector<float> step(float* obs);
 	void save(std::string path);
 
 private:
 	int inputSize, outputSize;
 	std::vector<GenotypeNode> genome;
-	PhenotypeNode network;
+	PhenotypeNode topNodeP;
 
 };

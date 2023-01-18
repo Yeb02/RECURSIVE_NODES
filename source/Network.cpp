@@ -11,12 +11,6 @@
 
 inline float ReLU(float x) { return x > 0 ? x : 0; }
 
-GenotypeNode::GenotypeNode() {
-	f = NULL;
-	inputSize = 0;
-	outputSize = 0;
-}
-
 // TODO: neuromodulatory signal.
 void PhenotypeNode::forward(float* input) {
 	float* _childInputs = new float[type->concatenatedChildrenInputLength];
@@ -32,22 +26,24 @@ void PhenotypeNode::forward(float* input) {
 		destinationID = type->childrenConnexions[id]->destinationID;
 		i0 = type->concatenatedChildrenInputBeacons[destinationID];
 
+		int nl = type->childrenConnexions[id]->nLines;
+		int nc = type->childrenConnexions[id]->nColumns;
 		if (originID == INPUT_ID) {
-			for (int i = 0; i < type->childrenConnexions[id]->nLines; i++) {
-				for (int j = 0; j < type->childrenConnexions[id]->nColumns; j++) {
+			for (int i = 0; i < nl; i++) {
+				for (int j = 0; j < nc; j++) {
 					// += (H * alpha + w) * input
-					_childInputs[i0 + i] += (childrenConnexions[id].H[i][j] * type->childrenConnexions[id]->alpha[i][j]
-						+ type->childrenConnexions[id]->w[i][j])
+					_childInputs[i0 + i] += (childrenConnexions[id].H[i*nc+j] * type->childrenConnexions[id]->alpha[i*nc+j]
+						+ type->childrenConnexions[id]->w[i*nc+j])
 						* input[j];
 				}
 			}
 		}
 		else {
-			for (int i = 0; i < type->childrenConnexions[id]->nLines; i++) {
-				for (int j = 0; j < type->childrenConnexions[id]->nColumns; j++) {
+			for (int i = 0; i < nl; i++) {
+				for (int j = 0; j < nc; j++) {
 					// += (H * alpha + w) * prevAct
-					_childInputs[i0 + i] += (childrenConnexions[id].H[i][j] * type->childrenConnexions[id]->alpha[i][j]
-						+ type->childrenConnexions[id]->w[i][j])
+					_childInputs[i0 + i] += (childrenConnexions[id].H[i*nc+j] * type->childrenConnexions[id]->alpha[i*nc+j]
+						+ type->childrenConnexions[id]->w[i*nc+j])
 						* children[originID]->previousOutput[j];
 				}
 			}
@@ -83,44 +79,47 @@ void PhenotypeNode::forward(float* input) {
 		currentOutput[i] = tanh(_childInputs[_inputListID + i] + type->bias[i]);
 	}
 
+	neuromodulatorySignal = 1.41f * currentOutput[type->outputSize];
+	// neuromodulatorySignal *= currentOutput[type->outputSize]; 
+	// *= because it has been set by its parent.
+
 
 	// Update hebbian and eligibility traces
-	int originID, destinationID;  // For readability only, compiler will optimize them away
+	// int originID, destinationID;  // For readability only, compiler will optimize them away
 	for (int id = 0; id < childrenConnexions.size(); id++) {
 		originID = type->childrenConnexions[id]->originID;
 		destinationID = type->childrenConnexions[id]->destinationID;
 
 		
 		float eta, A, B, C; // For readability only, compiler will optimize them away
-		for (int i = 0; i < type->childrenConnexions[id]->nLines; i++) {
-			for (int j = 0; j < type->childrenConnexions[id]->nColumns; j++) {
-				eta = type->childrenConnexions[id]->eta[i][j];
-				A = type->childrenConnexions[id]->A[i][j];
-				B = type->childrenConnexions[id]->B[i][j];
-				C = type->childrenConnexions[id]->C[i][j];
+		int nl = type->childrenConnexions[id]->nLines;
+		int nc = type->childrenConnexions[id]->nColumns;
+		for (int i = 0; i < nl; i++) {
+			for (int j = 0; j < nc; j++) {
+				eta = type->childrenConnexions[id]->eta[i*nc+j];
+				A = type->childrenConnexions[id]->A[i*nc+j];
+				B = type->childrenConnexions[id]->B[i*nc+j];
+				C = type->childrenConnexions[id]->C[i*nc+j];
 
-				childrenConnexions[id].E[i][j] = (1 - eta) * childrenConnexions[id].E[i][j]
+				childrenConnexions[id].E[i*nc+j] = (1 - eta) * childrenConnexions[id].E[i*nc+j]
 					+ eta * (A * children[destinationID]->currentOutput[i] * children[originID]->previousOutput[j]
 						+ B * children[destinationID]->currentOutput[i]
 						+ C * children[originID]->previousOutput[j]);
 
-				childrenConnexions[id].H[i][j] += childrenConnexions[id].E[i][j] * neuromodulatorySignal;
-				childrenConnexions[id].H[i][j] = std::max(-1.0f, std::min(childrenConnexions[id].H[i][j], 1.0f));
+				childrenConnexions[id].H[i*nc+j] += childrenConnexions[id].E[i*nc+j] * neuromodulatorySignal;
+				childrenConnexions[id].H[i*nc+j] = std::max(-1.0f, std::min(childrenConnexions[id].H[i*nc+j], 1.0f));
 			}
 		}
 	}
 
-	neuromodulatorySignal = 1.41f * currentOutput[type->outputSize];
-	// neuromodulatorySignal *= currentOutput[type->outputSize]; 
-	// *= because it has been set by its parent.
-
 	delete[] _childInputs;
 }
 
-// TODO .
+// TODO , using boost serialize.
 void Network::save(std::string path) {
 
 }
+
 
 
 Network::Network(int inputSize, int outputSize) :
@@ -195,10 +194,14 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i].concatenatedChildrenInputBeacons.resize(1);
 		genome[i].concatenatedChildrenInputBeacons[0] = 0;
 	}
+
+	topNodeP = PhenotypeNode(&genome[3]);
+
 }
 
-std::vector<float> Network::step(std::vector<float> obs) {
-
+std::vector<float> Network::step(float* obs) {
+	topNodeP.forward(obs);
+	return topNodeP.currentOutput;
 }
 
 
