@@ -18,7 +18,7 @@ void PhenotypeNode::forward(float* input) {
 	for (int i = 0; i < l; i++) _childInputs[i] = 0;
 	
 	
-	// propagate the previous steps's outputs:
+	// propagate the previous steps's outputs, by iterating over the connexions between children
 
 	int i0, originID, destinationID;  // for readability, to be optimized away
 	for (int id = 0; id < childrenConnexions.size(); id++) {
@@ -70,18 +70,21 @@ void PhenotypeNode::forward(float* input) {
 
 		_inputListID += child->type->inputSize;
 		_childID++;
-		if (_childID == children.size() - 1) break;
 	}
 
 	// process this node's output, stored in the input of the virtual output node:
 	previousOutput.assign(currentOutput.begin(), currentOutput.end()); // save the previous activations
-	for (int i = 0; i < type->outputSize - 1; i++) {
+	for (int i = 0; i < type->outputSize; i++) {
 		currentOutput[i] = tanh(_childInputs[_inputListID + i] + type->bias[i]);
 	}
 
-	neuromodulatorySignal = 1.41f * currentOutput[type->outputSize];
-	// neuromodulatorySignal *= currentOutput[type->outputSize]; 
-	// *= because it has been set by its parent.
+	// compute the neuromodulatory output
+	float temp = type->neuromodulationBias;
+	for (int i = 0; i < type->outputSize; i++) {
+		temp += type->wNeuromodulation[i] * currentOutput[i];
+	}
+	neuromodulatorySignal *= 1.41f * tanh(temp); 
+	
 
 
 	// Update hebbian and eligibility traces
@@ -91,7 +94,7 @@ void PhenotypeNode::forward(float* input) {
 		destinationID = type->childrenConnexions[id]->destinationID;
 
 		
-		float eta, A, B, C; // For readability only, compiler will optimize them away
+		float eta, A, B, C, yi, yj; // For readability only, compiler will optimize them away
 		int nl = type->childrenConnexions[id]->nLines;
 		int nc = type->childrenConnexions[id]->nColumns;
 		for (int i = 0; i < nl; i++) {
@@ -100,11 +103,15 @@ void PhenotypeNode::forward(float* input) {
 				A = type->childrenConnexions[id]->A[i*nc+j];
 				B = type->childrenConnexions[id]->B[i*nc+j];
 				C = type->childrenConnexions[id]->C[i*nc+j];
+				yi = destinationID != children.size() ?
+					children[destinationID]->currentOutput[i] :
+					currentOutput[i];
+				yj = originID != INPUT_ID ? 
+					children[originID]->previousOutput[j] :
+					previousInput[j];
 
 				childrenConnexions[id].E[i*nc+j] = (1 - eta) * childrenConnexions[id].E[i*nc+j]
-					+ eta * (A * children[destinationID]->currentOutput[i] * children[originID]->previousOutput[j]
-						+ B * children[destinationID]->currentOutput[i]
-						+ C * children[originID]->previousOutput[j]);
+					+ eta * (A * yi * yj + B * yi + C * yj);
 
 				childrenConnexions[id].H[i*nc+j] += childrenConnexions[id].E[i*nc+j] * neuromodulatorySignal;
 				childrenConnexions[id].H[i*nc+j] = std::max(-1.0f, std::min(childrenConnexions[id].H[i*nc+j], 1.0f));
@@ -112,6 +119,9 @@ void PhenotypeNode::forward(float* input) {
 		}
 	}
 
+	for (int i = 0; i < type->inputSize; i++) {
+		previousInput[i] = input[i];
+	}
 	delete[] _childInputs;
 }
 
@@ -125,7 +135,7 @@ void Network::save(std::string path) {
 Network::Network(int inputSize, int outputSize) :
 inputSize(inputSize), outputSize(outputSize)
 {
-	genome.resize(4);
+	genome.resize(3);
 
 	int i = 0;
 	// 0: TanH 
@@ -160,23 +170,7 @@ inputSize(inputSize), outputSize(outputSize)
 	}
 
 	i++;
-	// 2: Cos
-	{
-		genome[i].isSimpleNeuron = true;
-		genome[i].inputSize = 1;
-		genome[i].outputSize = 1;
-		genome[i].concatenatedChildrenInputLength = 0;
-		genome[i].f = *cosf;
-		genome[i].bias.reserve(1);
-		genome[i].bias.resize(1);
-		genome[i].bias[0] = 0;
-		genome[i].children.reserve(0);
-		genome[i].childrenConnexions.reserve(0);
-		genome[i].concatenatedChildrenInputBeacons.reserve(0);
-	}
-
-	i++;
-	// 3: The main network
+	// 3: The initial top node
 	{
 		genome[i].isSimpleNeuron = false;
 		genome[i].inputSize = inputSize;
@@ -186,22 +180,30 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i].bias.reserve(outputSize);
 		genome[i].bias.resize(outputSize);
 		for (int j = 0; j < outputSize; genome[i].bias[j++] = 0);
-		genome[i].children.resize(1); // contains only the virtual output node
+		genome[i].children.resize(0); 
 		genome[i].childrenConnexions.resize(0);
 		genome[i].childrenConnexions.emplace_back(
 			new GenotypeConnexion(INPUT_ID, 0, inputSize, outputSize
 		));
 		genome[i].concatenatedChildrenInputBeacons.resize(1);
 		genome[i].concatenatedChildrenInputBeacons[0] = 0;
+		genome[i].neuromodulationBias = 0;
+		float* v = new float(inputSize);
+		genome[i].wNeuromodulation.resize(outputSize);
 	}
 
-	topNodeP = PhenotypeNode(&genome[3]);
+	topNodeP = new PhenotypeNode(&genome[2]); 
 
 }
 
+Network::~Network() {
+   	delete topNodeP;
+}
+
 std::vector<float> Network::step(float* obs) {
-	topNodeP.forward(obs);
-	return topNodeP.currentOutput;
+	topNodeP->neuromodulatorySignal = 1.0f; // other nodes have it set by their parent
+	topNodeP->forward(obs);
+	return topNodeP->currentOutput; 
 }
 
 

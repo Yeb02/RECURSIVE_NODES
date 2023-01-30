@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <iostream>
 //#include <boost/archive/text_iarchive.hpp>
 
 // responsible of its pointers lifetime
@@ -67,15 +68,21 @@ struct GenotypeNode {
 	// Vector of structs containing pointers to the fixed connexion matrices linking children
 	std::vector<GenotypeConnexion*> childrenConnexions;
 
+	// neuromodulatorySignal = tanh(neuromodulationBias + SUM(w*out))
+	std::vector<float> wNeuromodulation;
+	// neuromodulatorySignal = tanh(neuromodulationBias + SUM(w*out))
+	float neuromodulationBias;
 
-	// Utils for forward. 
+	// Utils for forward:
+	 
 	// = sum(child->inputSize for child in children)
 	int concatenatedChildrenInputLength;
-	// Has len(children) elements, and contains :
+	// Has len(children) + 1 elements, and contains :
 	// 0, children[0]->inputsize, children[0]->inputsize+children[1]->inputsize, ....
 	std::vector<int> concatenatedChildrenInputBeacons;
 
 	GenotypeNode() {};
+	~GenotypeNode() {};
 };
 
 struct PhenotypeConnexion {   // responsible of its pointers
@@ -83,12 +90,16 @@ public:
 	float* H;
 	float* E;
 
-	PhenotypeConnexion() {};
+	//PhenotypeConnexion() {};
 
 	PhenotypeConnexion(int s) 
 	{
 		H = new float[s];
 		E = new float[s];
+		zero(s);
+	}
+
+	void zero(int s) {
 		for (int i = 0; i < s; i++) {
 			H[i] = 0;
 			E[i] = 0;
@@ -112,28 +123,27 @@ struct PhenotypeNode {
 	// Vector of structs containing pointers to the dynamic connexion matrices linking children
 	std::vector<PhenotypeConnexion> childrenConnexions;
 
-	// For plasticity based updates, currentOutput must be reset to all 0s at the start of each trial
-	std::vector<float> previousOutput, currentOutput; 
-	//PhenotypeNode() {};
-	PhenotypeNode(int a) {
-		int i = 0; // should not be called
-	}
+	// For plasticity based updates, "previous" must be reset to all 0s at the start of each trial
+	std::vector<float> previousOutput, currentOutput, previousInput;
+
 	PhenotypeNode(GenotypeNode* type) : type(type)
 	{
 		neuromodulatorySignal = 1.0f;
+		previousInput.resize(type->inputSize);
 		previousOutput.resize(type->outputSize);
 		currentOutput.resize(type->outputSize);
 
-		// create children recursively
+		// create children recursively 
 		children.resize(type->children.size());
-		for (int i = 0; i < type->children.size()-1; i++) {
+		for (int i = 0; i < type->children.size(); i++) {
 			children[i] = new PhenotypeNode(type->children[i]);;
 		}
 
 		// create connexions structs
-		childrenConnexions.resize(type->childrenConnexions.size());
+		// childrenConnexions.resize(0);
+		childrenConnexions.reserve(type->childrenConnexions.size());
 		for (int i = 0; i < type->childrenConnexions.size(); i++) {
-			childrenConnexions[i] = PhenotypeConnexion(
+			childrenConnexions.emplace_back(
 				type->childrenConnexions[i]->nLines *
 				type->childrenConnexions[i]->nColumns
 			);
@@ -146,6 +156,26 @@ struct PhenotypeNode {
 		}
 	}
 
+	void reset() {
+		neuromodulatorySignal = 1.0f;
+		for (int i = 0; i < previousInput.size(); i++) {
+			previousInput[i] = 0;
+		}
+		for (int i = 0; i < previousOutput.size(); i++) {
+			previousInput[i] = 0;
+		}
+
+		for (int i = 0; i < type->children.size() - 1; i++) {
+			children[i]->reset();
+		}
+		for (int i = 0; i < type->childrenConnexions.size(); i++) {
+			childrenConnexions[i].zero(
+				type->childrenConnexions[i]->nLines *
+				type->childrenConnexions[i]->nColumns
+			);
+		}
+	}
+
 	void forward(float* input);
 };
 
@@ -154,12 +184,13 @@ class Network {
 
 public:
 	Network(int inputSize, int outputSize);
+	~Network();
 	std::vector<float> step(float* obs);
 	void save(std::string path);
 
 private:
 	int inputSize, outputSize;
 	std::vector<GenotypeNode> genome;
-	PhenotypeNode topNodeP;
+	PhenotypeNode* topNodeP; 
 
 };
