@@ -22,6 +22,9 @@ struct GenotypeConnexion {
 	float* B;
 	float* C;
 
+	GenotypeConnexion() {
+		return; // TODO erase
+	}
 	GenotypeConnexion(int oID, int dID, int nLines, int nColumns) :
 		originID(oID), destinationID(dID), nLines(nLines), nColumns(nColumns)
 	{
@@ -34,7 +37,7 @@ struct GenotypeConnexion {
 
 		for (int i = 0; i < nLines * nColumns; i++) {
 			alpha[i] = 1;
-			eta[i] = .8;
+			eta[i] = .8f;
 			w[i] = 1;
 			A[i] = 1;
 			B[i] = 1;
@@ -92,17 +95,33 @@ struct GenotypeNode {
 	// Disconnect two children nodes picked randomely. 
 	void disconnect();
 
-	// Has to resize the matrices of every connexion between the children and the input, adding a column.
+	// Resizes the matrices of every connexion between the children and the input, adding a column.
 	void incrementInputSize();
+	// Resizes the connexion matrices linking the children together.
+	void onChildInputSizeIncremented(GenotypeNode* modifiedType);
+	// Util for incrementInputSize and onChildInputSizeIncremented
+	void incrementDestinationInputSize(int i);
 
-	// Has to resize the matrices of every connexion between the children and the output, adding a line.
+	// Resizes the matrices of every connexion between the children and the output, adding a line.
 	void incrementOutputSize();
+	// Resizes the connexion matrices linking the children together.
+	void onChildOutputSizeIncremented(GenotypeNode* modifiedType);
+	// Util for incrementOutputSize and onChildOutputSizeIncremented
+	void incrementOriginOutputSize(int i);
 
-	// Has to resize the matrices of every connexion between the children and the input, deleting the id-th column.
+	// Resizes the matrices of every connexion between the children and the input, deleting the id-th column.
 	void decrementInputSize(int id);
+	// Resizes the connexion matrices linking the children together.
+	void onChildInputSizeDecremented(GenotypeNode* modifiedType, int id);
+	// Util for decrementInputSize and onChildInputSizeDecremented
+	void decrementDestinationInputSize(int i, int id);
 
-	// Has to resize the matrices of every connexion between the children and the output, deleting the id-th line.
+	// Resizes the matrices of every connexion between the children and the output, deleting the id-th line.
 	void decrementOutputSize(int id);
+	// Resizes the connexion matrices linking the children together.
+	void onChildOutputSizeDecremented(GenotypeNode* modifiedType, int id);
+	// Util for decrementOutputSize and onChildOutputSizeDecremented
+	void decrementOriginOutputSize(int i, int id);
 };
 
 // responsible of its pointers lifetime

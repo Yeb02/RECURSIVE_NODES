@@ -22,8 +22,8 @@ inline float ReLU(float x) { return x > 0 ? x : 0; }
 
 void GenotypeNode::mutateFloats() {
 	int rID, listID, matrixID; 
-	const float pMutation = .3; // TODO
-	const float K = .2;
+	const float pMutation = .3f; // TODO
+	const float K = .2f;
 	float r;
 
 	// Mutate int(6*Pmutation*nParam) parameters in the inter-children connexions.
@@ -35,7 +35,7 @@ void GenotypeNode::mutateFloats() {
 		l += c.nLines * c.nColumns * 6;
 	}
 	ids.push_back(l);
-	int _nMutations = std::floor((float)l * pMutation);
+	int _nMutations = (int) std::floor((float)l * pMutation);
 
 	for (int i = 0; i < _nMutations; i++) {
 		rID = fastrand()%l;
@@ -101,7 +101,6 @@ void GenotypeNode::connect() {
 		break;
 	}
 }
-
 void GenotypeNode::disconnect() {
 	int id = fastrand() % childrenConnexions.size();
 	childrenConnexions.erase(childrenConnexions.begin() + id);
@@ -111,83 +110,104 @@ void GenotypeNode::incrementInputSize() {
 	inputSize++;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		if (childrenConnexions[i].originID == INPUT_ID) {
-			GenotypeConnexion newConnexion = GenotypeConnexion(
-				childrenConnexions[i].originID,
-				childrenConnexions[i].destinationID,
-				childrenConnexions[i].nLines,
-				childrenConnexions[i].nColumns + 1
-			);
-
-			int idNew, idOld;
-			for (int j = 0; j < childrenConnexions[i].nLines; j++) {
-				for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
-
-					newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
-					newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
-					newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
-					newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-					newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
-					newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
-
-					idNew++;
-					idOld++;
-				}
-
-				newConnexion.A[idNew] = 0.0f;
-				newConnexion.B[idNew] = 0.0f;
-				newConnexion.C[idNew] = 0.0f;
-				newConnexion.alpha[idNew] = 0.0f;
-				newConnexion.eta[idNew] = 0.0f;
-				newConnexion.w[idNew] = 0.0f;
-				idNew++;
-			}
-
-			childrenConnexions[i] = newConnexion;
+			incrementDestinationInputSize(i);
 		}
 	}
 }
+void GenotypeNode::onChildInputSizeIncremented(GenotypeNode* modifiedType) {
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (children[childrenConnexions[i].destinationID] == modifiedType) {
+			incrementDestinationInputSize(i);
+		}
+	}
+}
+void GenotypeNode::incrementDestinationInputSize(int i) {
+	GenotypeConnexion newConnexion = GenotypeConnexion(
+		childrenConnexions[i].originID,
+		childrenConnexions[i].destinationID,
+		childrenConnexions[i].nLines,
+		childrenConnexions[i].nColumns + 1
+	);
+
+	int idNew=0, idOld=0;
+	for (int j = 0; j < childrenConnexions[i].nLines; j++) {
+		for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
+
+			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
+			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
+			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+
+			idNew++;
+			idOld++;
+		}
+
+		newConnexion.A[idNew] = 0.0f;
+		newConnexion.B[idNew] = 0.0f;
+		newConnexion.C[idNew] = 0.0f;
+		newConnexion.alpha[idNew] = 0.0f;
+		newConnexion.eta[idNew] = 0.0f;
+		newConnexion.w[idNew] = 0.0f;
+		idNew++;
+	}
+
+	childrenConnexions[i] = newConnexion;
+}
+
 
 void GenotypeNode::incrementOutputSize(){
 	outputSize++;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		if (childrenConnexions[i].destinationID == children.size()) {
-			GenotypeConnexion newConnexion = GenotypeConnexion(
-				childrenConnexions[i].originID,
-				childrenConnexions[i].destinationID,
-				childrenConnexions[i].nLines + 1,
-				childrenConnexions[i].nColumns
-			);
-
-			int idNew, idOld;
-			for (int j = 0; j < childrenConnexions[i].nLines; j++) {
-				for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
-
-					newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
-					newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
-					newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
-					newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-					newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
-					newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
-
-					idNew++;
-					idOld++;
-				}
-			}
-			for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
-				newConnexion.A[idNew] = 0.0f;
-				newConnexion.B[idNew] = 0.0f;
-				newConnexion.C[idNew] = 0.0f;
-				newConnexion.alpha[idNew] = 0.0f;
-				newConnexion.eta[idNew] = 0.0f;
-				newConnexion.w[idNew] = 0.0f;
-				idNew++;
-			}
-			childrenConnexions[i] = newConnexion;
+			incrementOriginOutputSize(i);
 		}
 	}
-
 	wNeuromodulation.push_back(0);
 }
+void GenotypeNode::onChildOutputSizeIncremented(GenotypeNode* modifiedType) {
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (children[childrenConnexions[i].originID] == modifiedType) {
+			incrementOriginOutputSize(i);
+		}
+	}
+}
+void GenotypeNode::incrementOriginOutputSize(int i) {
+	GenotypeConnexion newConnexion = GenotypeConnexion(
+		childrenConnexions[i].originID,
+		childrenConnexions[i].destinationID,
+		childrenConnexions[i].nLines + 1,
+		childrenConnexions[i].nColumns
+	);
+
+	int idNew=0, idOld=0;
+	for (int j = 0; j < childrenConnexions[i].nLines; j++) {
+		for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
+
+			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
+			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
+			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+
+			idNew++;
+			idOld++;
+		}
+	}
+	for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
+		newConnexion.A[idNew] = 0.0f;
+		newConnexion.B[idNew] = 0.0f;
+		newConnexion.C[idNew] = 0.0f;
+		newConnexion.alpha[idNew] = 0.0f;
+		newConnexion.eta[idNew] = 0.0f;
+		newConnexion.w[idNew] = 0.0f;
+		idNew++;
+	}
+	childrenConnexions[i] = newConnexion;
+}
+
 
 void GenotypeNode::decrementInputSize(int id){
 	if (inputSize == 1) return;
@@ -195,37 +215,48 @@ void GenotypeNode::decrementInputSize(int id){
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		if (childrenConnexions[i].originID == INPUT_ID) {
-			GenotypeConnexion newConnexion = GenotypeConnexion(
-				childrenConnexions[i].originID,
-				childrenConnexions[i].destinationID,
-				childrenConnexions[i].nLines,
-				childrenConnexions[i].nColumns - 1
-			);
-
-			int idNew, idOld;
-			for (int j = 0; j < childrenConnexions[i].nLines; j++) {
-				for (int k = 0; k < childrenConnexions[i].nColumns-1; k++) {
-
-					if (k == id) {
-						idOld++;
-						continue;
-					}
-					newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
-					newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
-					newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
-					newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-					newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
-					newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
-
-					idNew++;
-					idOld++;
-				}
-			}
-
-			childrenConnexions[i] = newConnexion;
+			decrementDestinationInputSize(i, id);
 		}
 	}
 }
+void GenotypeNode::onChildInputSizeDecremented(GenotypeNode* modifiedType, int id) {
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (children[childrenConnexions[i].destinationID] == modifiedType) {
+			decrementDestinationInputSize(i, id);
+		}
+	}
+}
+void GenotypeNode::decrementDestinationInputSize(int i, int id) {
+	GenotypeConnexion newConnexion = GenotypeConnexion(
+		childrenConnexions[i].originID,
+		childrenConnexions[i].destinationID,
+		childrenConnexions[i].nLines,
+		childrenConnexions[i].nColumns - 1
+	);
+
+	int idNew=0, idOld=0;
+	for (int j = 0; j < childrenConnexions[i].nLines; j++) {
+		for (int k = 0; k < childrenConnexions[i].nColumns - 1; k++) {
+
+			if (k == id) {
+				idOld++;
+				continue;
+			}
+			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
+			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
+			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+
+			idNew++;
+			idOld++;
+		}
+	}
+
+	childrenConnexions[i] = newConnexion;
+}
+
 
 void GenotypeNode::decrementOutputSize(int id){
 	if (outputSize == 1) return;
@@ -233,37 +264,47 @@ void GenotypeNode::decrementOutputSize(int id){
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		if (childrenConnexions[i].originID == childrenConnexions.size()) {
-			GenotypeConnexion newConnexion = GenotypeConnexion(
-				childrenConnexions[i].originID,
-				childrenConnexions[i].destinationID,
-				childrenConnexions[i].nLines - 1,
-				childrenConnexions[i].nColumns
-			);
-
-			int idNew, idOld;
-			for (int j = 0; j < childrenConnexions[i].nLines; j++) {
-				if (j == id) {
-					idOld += childrenConnexions[i].nColumns;
-					continue;
-				}
-				for (int k = 0; k < childrenConnexions[i].nColumns - 1; k++) {
-					newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
-					newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
-					newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
-					newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-					newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
-					newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
-
-					idNew++;
-					idOld++;
-				}
-			}
-
-			childrenConnexions[i] = newConnexion;
+			decrementDestinationInputSize(i, id);
 		}
 	}
 
 	wNeuromodulation.erase(wNeuromodulation.begin() + id);
+}
+void GenotypeNode::onChildOutputSizeDecremented(GenotypeNode* modifiedType, int id){
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (children[childrenConnexions[i].destinationID] == modifiedType) {
+			decrementDestinationInputSize(i, id);
+		}
+	}
+}
+void GenotypeNode::decrementOriginOutputSize(int i, int id) {
+	GenotypeConnexion newConnexion = GenotypeConnexion(
+		childrenConnexions[i].originID,
+		childrenConnexions[i].destinationID,
+		childrenConnexions[i].nLines - 1,
+		childrenConnexions[i].nColumns
+	);
+
+	int idNew=0, idOld=0;
+	for (int j = 0; j < childrenConnexions[i].nLines; j++) {
+		if (j == id) {
+			idOld += childrenConnexions[i].nColumns;
+			continue;
+		}
+		for (int k = 0; k < childrenConnexions[i].nColumns - 1; k++) {
+			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
+			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
+			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+
+			idNew++;
+			idOld++;
+		}
+	}
+
+	childrenConnexions[i] = newConnexion;
 }
 
 
@@ -442,7 +483,7 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i].concatenatedChildrenInputBeacons.resize(1);
 		genome[i].concatenatedChildrenInputBeacons[0] = 0;
 		genome[i].neuromodulationBias = 0;
-		float* v = new float(inputSize);
+		//float* v = new float[inputSize]; ??? TODO understand why this is here
 		genome[i].wNeuromodulation.resize(outputSize);
 	}
 
@@ -472,14 +513,38 @@ void Network::mutate() {
 
 	for (int i = nSimpleNeurons; i < genome.size() - 1; i++) {
 		r = ((float)fastrand()) / 32767.0f;
-		if (r < .002) genome[i].incrementInputSize();
+		if (r < .002) {
+			genome[i].incrementInputSize();
+			for (int j = nSimpleNeurons; j < i; j++) {
+				genome[j].onChildInputSizeIncremented(&genome[i]);
+			}
+		}
+
 		r = ((float)fastrand()) / 32767.0f;
-		if (r < .002) genome[i].incrementOutputSize();
+		if (r < .002) {
+			genome[i].incrementOutputSize();
+			for (int j = nSimpleNeurons; j < i; j++) {
+				genome[j].onChildOutputSizeIncremented(&genome[i]);
+			}
+		}
+
 		r = ((float)fastrand()) / 32767.0f;
-		if (r < .0003) genome[i].decrementInputSize();
+		if (r < .0003) {
+			r = floor((float)fastrand() * inputSize / 32768.0f);
+			genome[i].decrementInputSize((int)r);
+			for (int j = nSimpleNeurons; j < i; j++) {
+				genome[j].onChildInputSizeDecremented(&genome[i], (int)r);
+			}
+		}
+
 		r = ((float)fastrand()) / 32767.0f;
-		if (r < .0003) genome[i].decrementOutputSize();
-		
+		if (r < .0003) {
+			r = floor((float)fastrand() * inputSize / 32768.0f);
+			genome[i].decrementOutputSize((int)r);
+			for (int j = nSimpleNeurons; j < i; j++) {
+				genome[j].onChildOutputSizeDecremented(&genome[i], (int)r);
+			}
+		}
 	}
 }
 
