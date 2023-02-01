@@ -4,6 +4,7 @@
 #include <iostream>
 //#include <boost/archive/text_iarchive.hpp>
 
+
 // responsible of its pointers lifetime
 struct GenotypeConnexion {  
 
@@ -64,9 +65,7 @@ struct GenotypeNode {
 	std::vector<GenotypeNode*> children; 
 
 	// Vector of structs containing pointers to the fixed connexion matrices linking children
-	std::vector<GenotypeConnexion*> childrenConnexions;
-	// total number of parameters in the connexions, an utility for mutations.
-	int NParameters;
+	std::vector<GenotypeConnexion> childrenConnexions;
 
 	// neuromodulatorySignal = tanh(neuromodulationBias + SUM(w*out))
 	std::vector<float> wNeuromodulation;
@@ -83,9 +82,30 @@ struct GenotypeNode {
 
 	GenotypeNode() {};
 	~GenotypeNode() {};
+	
+	// Mutate real-valued floating point parameters
 	void mutateFloats();
+
+	// Try to connect two random children nodes. Is less likely to succed as the connexion density rises.
+	void connect();
+
+	// Disconnect two children nodes picked randomely. 
+	void disconnect();
+
+	// Has to resize the matrices of every connexion between the children and the input, adding a column.
+	void incrementInputSize();
+
+	// Has to resize the matrices of every connexion between the children and the output, adding a line.
+	void incrementOutputSize();
+
+	// Has to resize the matrices of every connexion between the children and the input, deleting the id-th column.
+	void decrementInputSize(int id);
+
+	// Has to resize the matrices of every connexion between the children and the output, deleting the id-th line.
+	void decrementOutputSize(int id);
 };
 
+// responsible of its pointers lifetime
 struct PhenotypeConnexion {   // responsible of its pointers
 public:
 	float* H;
@@ -145,8 +165,8 @@ struct PhenotypeNode {
 		childrenConnexions.reserve(type->childrenConnexions.size());
 		for (int i = 0; i < type->childrenConnexions.size(); i++) {
 			childrenConnexions.emplace_back(
-				type->childrenConnexions[i]->nLines *
-				type->childrenConnexions[i]->nColumns
+				type->childrenConnexions[i].nLines *
+				type->childrenConnexions[i].nColumns
 			);
 		}
 	};
@@ -171,8 +191,8 @@ struct PhenotypeNode {
 		}
 		for (int i = 0; i < type->childrenConnexions.size(); i++) {
 			childrenConnexions[i].zero(
-				type->childrenConnexions[i]->nLines *
-				type->childrenConnexions[i]->nColumns
+				type->childrenConnexions[i].nLines *
+				type->childrenConnexions[i].nColumns
 			);
 		}
 	}
@@ -191,6 +211,7 @@ public:
 	void mutate();
 
 private:
+	int nSimpleNeurons;
 	int inputSize, outputSize;
 	std::vector<GenotypeNode> genome;
 	PhenotypeNode* topNodeP; 

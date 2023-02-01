@@ -10,9 +10,9 @@
 #define INPUT_ID -1     
 
 
+int g_seed = 10000000;
 
 inline int fastrand() {
-	int g_seed = 10000000;
 	g_seed = (214013 * g_seed + 2531011);
 	return (g_seed >> 16) & 0x7FFF;
 }
@@ -32,7 +32,7 @@ void GenotypeNode::mutateFloats() {
 	int l = 0;
 	for (const auto c : childrenConnexions) {
 		ids.push_back(l);
-		l += c->nLines * c->nColumns * 6;
+		l += c.nLines * c.nColumns * 6;
 	}
 	ids.push_back(l);
 	int _nMutations = std::floor((float)l * pMutation);
@@ -48,14 +48,14 @@ void GenotypeNode::mutateFloats() {
 		
 		r = .2f * (((float)(fastrand() - 16383)) / 16383.0f);
 		switch (j) {
-		case 0: childrenConnexions[listID]->A[matrixID] += r;
-		case 1: childrenConnexions[listID]->B[matrixID] += r;
-		case 2: childrenConnexions[listID]->C[matrixID] += r;
-		case 3: childrenConnexions[listID]->alpha[matrixID] += r;
-		case 4: childrenConnexions[listID]->w[matrixID] += r;
+		case 0: childrenConnexions[listID].A[matrixID] += r;
+		case 1: childrenConnexions[listID].B[matrixID] += r;
+		case 2: childrenConnexions[listID].C[matrixID] += r;
+		case 3: childrenConnexions[listID].alpha[matrixID] += r;
+		case 4: childrenConnexions[listID].w[matrixID] += r;
 		case 5: 
-			float eta = childrenConnexions[listID]->eta[matrixID];
-			childrenConnexions[listID]->eta[matrixID] += r>0?
+			float eta = childrenConnexions[listID].eta[matrixID];
+			childrenConnexions[listID].eta[matrixID] += r>0?
 				 K * eta * (1 - eta) :
 				-K * eta * (1 - eta) ;
 		}
@@ -77,6 +77,194 @@ void GenotypeNode::mutateFloats() {
 	}
 }
 
+void GenotypeNode::connect() {
+	int c1, c2;
+	// this implementation makes it less likely to gain connexions when many are already populated
+	const int maxAttempts = 10; 
+	bool alreadyExists;
+	for (int i = 0; i < maxAttempts; i++) {
+		alreadyExists = false;
+		c1 = fastrand() % children.size();
+		c2 = (c1 + 1 + fastrand() % (children.size()-1) ) % children.size(); //guarantees c1 != c2
+		if (fastrand() % children.size() == 0) c1 = INPUT_ID; // so that the input can be linked.
+		
+		for (const GenotypeConnexion c : childrenConnexions) {
+			if (c.originID == c1 && c.destinationID == c2) {
+				alreadyExists = true;
+				break;
+			}
+		}
+
+		if (alreadyExists) continue;
+
+		childrenConnexions.emplace_back(c1, c2, children[c2]->inputSize, children[c1]->outputSize);
+		break;
+	}
+}
+
+void GenotypeNode::disconnect() {
+	int id = fastrand() % childrenConnexions.size();
+	childrenConnexions.erase(childrenConnexions.begin() + id);
+}
+
+void GenotypeNode::incrementInputSize() {
+	inputSize++;
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (childrenConnexions[i].originID == INPUT_ID) {
+			GenotypeConnexion newConnexion = GenotypeConnexion(
+				childrenConnexions[i].originID,
+				childrenConnexions[i].destinationID,
+				childrenConnexions[i].nLines,
+				childrenConnexions[i].nColumns + 1
+			);
+
+			int idNew, idOld;
+			for (int j = 0; j < childrenConnexions[i].nLines; j++) {
+				for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
+
+					newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
+					newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
+					newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+					newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+					newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+					newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+
+					idNew++;
+					idOld++;
+				}
+
+				newConnexion.A[idNew] = 0.0f;
+				newConnexion.B[idNew] = 0.0f;
+				newConnexion.C[idNew] = 0.0f;
+				newConnexion.alpha[idNew] = 0.0f;
+				newConnexion.eta[idNew] = 0.0f;
+				newConnexion.w[idNew] = 0.0f;
+				idNew++;
+			}
+
+			childrenConnexions[i] = newConnexion;
+		}
+	}
+}
+
+void GenotypeNode::incrementOutputSize(){
+	outputSize++;
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (childrenConnexions[i].destinationID == children.size()) {
+			GenotypeConnexion newConnexion = GenotypeConnexion(
+				childrenConnexions[i].originID,
+				childrenConnexions[i].destinationID,
+				childrenConnexions[i].nLines + 1,
+				childrenConnexions[i].nColumns
+			);
+
+			int idNew, idOld;
+			for (int j = 0; j < childrenConnexions[i].nLines; j++) {
+				for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
+
+					newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
+					newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
+					newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+					newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+					newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+					newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+
+					idNew++;
+					idOld++;
+				}
+			}
+			for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
+				newConnexion.A[idNew] = 0.0f;
+				newConnexion.B[idNew] = 0.0f;
+				newConnexion.C[idNew] = 0.0f;
+				newConnexion.alpha[idNew] = 0.0f;
+				newConnexion.eta[idNew] = 0.0f;
+				newConnexion.w[idNew] = 0.0f;
+				idNew++;
+			}
+			childrenConnexions[i] = newConnexion;
+		}
+	}
+
+	wNeuromodulation.push_back(0);
+}
+
+void GenotypeNode::decrementInputSize(int id){
+	if (inputSize == 1) return;
+	inputSize--;
+
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (childrenConnexions[i].originID == INPUT_ID) {
+			GenotypeConnexion newConnexion = GenotypeConnexion(
+				childrenConnexions[i].originID,
+				childrenConnexions[i].destinationID,
+				childrenConnexions[i].nLines,
+				childrenConnexions[i].nColumns - 1
+			);
+
+			int idNew, idOld;
+			for (int j = 0; j < childrenConnexions[i].nLines; j++) {
+				for (int k = 0; k < childrenConnexions[i].nColumns-1; k++) {
+
+					if (k == id) {
+						idOld++;
+						continue;
+					}
+					newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
+					newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
+					newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+					newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+					newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+					newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+
+					idNew++;
+					idOld++;
+				}
+			}
+
+			childrenConnexions[i] = newConnexion;
+		}
+	}
+}
+
+void GenotypeNode::decrementOutputSize(int id){
+	if (outputSize == 1) return;
+	outputSize--;
+
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (childrenConnexions[i].originID == childrenConnexions.size()) {
+			GenotypeConnexion newConnexion = GenotypeConnexion(
+				childrenConnexions[i].originID,
+				childrenConnexions[i].destinationID,
+				childrenConnexions[i].nLines - 1,
+				childrenConnexions[i].nColumns
+			);
+
+			int idNew, idOld;
+			for (int j = 0; j < childrenConnexions[i].nLines; j++) {
+				if (j == id) {
+					idOld += childrenConnexions[i].nColumns;
+					continue;
+				}
+				for (int k = 0; k < childrenConnexions[i].nColumns - 1; k++) {
+					newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
+					newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
+					newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+					newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+					newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+					newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+
+					idNew++;
+					idOld++;
+				}
+			}
+
+			childrenConnexions[i] = newConnexion;
+		}
+	}
+
+	wNeuromodulation.erase(wNeuromodulation.begin() + id);
+}
 
 
 void PhenotypeNode::forward(float* input) {
@@ -89,18 +277,18 @@ void PhenotypeNode::forward(float* input) {
 
 	int i0, originID, destinationID;  // for readability, to be optimized away
 	for (int id = 0; id < childrenConnexions.size(); id++) {
-		originID = type->childrenConnexions[id]->originID;
-		destinationID = type->childrenConnexions[id]->destinationID;
+		originID = type->childrenConnexions[id].originID;
+		destinationID = type->childrenConnexions[id].destinationID;
 		i0 = type->concatenatedChildrenInputBeacons[destinationID];
 
-		int nl = type->childrenConnexions[id]->nLines;
-		int nc = type->childrenConnexions[id]->nColumns;
+		int nl = type->childrenConnexions[id].nLines;
+		int nc = type->childrenConnexions[id].nColumns;
 		if (originID == INPUT_ID) {
 			for (int i = 0; i < nl; i++) {
 				for (int j = 0; j < nc; j++) {
 					// += (H * alpha + w) * input
-					_childInputs[i0 + i] += (childrenConnexions[id].H[i*nc+j] * type->childrenConnexions[id]->alpha[i*nc+j]
-						+ type->childrenConnexions[id]->w[i*nc+j])
+					_childInputs[i0 + i] += (childrenConnexions[id].H[i*nc+j] * type->childrenConnexions[id].alpha[i*nc+j]
+						+ type->childrenConnexions[id].w[i*nc+j])
 						* input[j];
 				}
 			}
@@ -109,8 +297,8 @@ void PhenotypeNode::forward(float* input) {
 			for (int i = 0; i < nl; i++) {
 				for (int j = 0; j < nc; j++) {
 					// += (H * alpha + w) * prevAct
-					_childInputs[i0 + i] += (childrenConnexions[id].H[i*nc+j] * type->childrenConnexions[id]->alpha[i*nc+j]
-						+ type->childrenConnexions[id]->w[i*nc+j])
+					_childInputs[i0 + i] += (childrenConnexions[id].H[i*nc+j] * type->childrenConnexions[id].alpha[i*nc+j]
+						+ type->childrenConnexions[id].w[i*nc+j])
 						* children[originID]->previousOutput[j];
 				}
 			}
@@ -157,19 +345,19 @@ void PhenotypeNode::forward(float* input) {
 	// Update hebbian and eligibility traces
 	// int originID, destinationID;  // For readability only, compiler will optimize them away
 	for (int id = 0; id < childrenConnexions.size(); id++) {
-		originID = type->childrenConnexions[id]->originID;
-		destinationID = type->childrenConnexions[id]->destinationID;
+		originID = type->childrenConnexions[id].originID;
+		destinationID = type->childrenConnexions[id].destinationID;
 
 		
 		float eta, A, B, C, yi, yj; // For readability only, compiler will optimize them away
-		int nl = type->childrenConnexions[id]->nLines;
-		int nc = type->childrenConnexions[id]->nColumns;
+		int nl = type->childrenConnexions[id].nLines;
+		int nc = type->childrenConnexions[id].nColumns;
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
-				eta = type->childrenConnexions[id]->eta[i*nc+j];
-				A = type->childrenConnexions[id]->A[i*nc+j];
-				B = type->childrenConnexions[id]->B[i*nc+j];
-				C = type->childrenConnexions[id]->C[i*nc+j];
+				eta = type->childrenConnexions[id].eta[i*nc+j];
+				A = type->childrenConnexions[id].A[i*nc+j];
+				B = type->childrenConnexions[id].B[i*nc+j];
+				C = type->childrenConnexions[id].C[i*nc+j];
 				yi = destinationID != children.size() ?
 					children[destinationID]->currentOutput[i] :
 					currentOutput[i];
@@ -200,7 +388,8 @@ void Network::save(std::string path) {
 Network::Network(int inputSize, int outputSize) :
 inputSize(inputSize), outputSize(outputSize)
 {
-	genome.resize(3);
+	nSimpleNeurons = 2;
+	genome.resize(nSimpleNeurons + 1);
 
 	int i = 0;
 	// 0: TanH 
@@ -248,8 +437,8 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i].children.resize(0); 
 		genome[i].childrenConnexions.resize(0);
 		genome[i].childrenConnexions.emplace_back(
-			new GenotypeConnexion(INPUT_ID, 0, inputSize, outputSize
-		));
+			INPUT_ID, 0, inputSize, outputSize
+		);
 		genome[i].concatenatedChildrenInputBeacons.resize(1);
 		genome[i].concatenatedChildrenInputBeacons[0] = 0;
 		genome[i].neuromodulationBias = 0;
@@ -257,7 +446,7 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i].wNeuromodulation.resize(outputSize);
 	}
 
-	topNodeP = new PhenotypeNode(&genome[2]); 
+	topNodeP = new PhenotypeNode(&genome[nSimpleNeurons]); 
 
 }
 
@@ -273,5 +462,24 @@ std::vector<float> Network::step(float* obs) {
 
 void Network::mutate() {
 	topNodeP->type->mutateFloats();
+	float r;
+	for (int i = nSimpleNeurons; i < genome.size(); i++) {
+		r = ((float)fastrand()) / 32767.0f;
+		if (r < .001) genome[i].disconnect();
+		r = ((float)fastrand()) / 32767.0f;
+		if (r < .01) genome[i].connect();
+	}
+
+	for (int i = nSimpleNeurons; i < genome.size() - 1; i++) {
+		r = ((float)fastrand()) / 32767.0f;
+		if (r < .002) genome[i].incrementInputSize();
+		r = ((float)fastrand()) / 32767.0f;
+		if (r < .002) genome[i].incrementOutputSize();
+		r = ((float)fastrand()) / 32767.0f;
+		if (r < .0003) genome[i].decrementInputSize();
+		r = ((float)fastrand()) / 32767.0f;
+		if (r < .0003) genome[i].decrementOutputSize();
+		
+	}
 }
 
