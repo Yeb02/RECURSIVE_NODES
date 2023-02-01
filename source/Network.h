@@ -56,17 +56,17 @@ struct GenotypeConnexion {
 struct GenotypeNode {
 	bool isSimpleNeuron;
 	float (*f)(float); // NULL if Node is a bloc. Else pointer to tanH, cos, ReLU
-	int inputSize, outputSize; // outputSize is at least 2, since the last node is dedicated to neuromodulation
-	std::vector<float> bias; // length inputSize. 
-	// Order matters in these vectors !!!
+	int inputSize, outputSize; // >= 1
+	std::vector<float> bias;   // length outputSize. 
 
-	// The last element is the output node, which has no children nor activation function
-	// Instead of calling its forward method, its parent replaces its own output
-	// with the output node's input
+	// Order matters in this vector.
+	// Contains pointers to the genotypes of the children
 	std::vector<GenotypeNode*> children; 
 
 	// Vector of structs containing pointers to the fixed connexion matrices linking children
 	std::vector<GenotypeConnexion*> childrenConnexions;
+	// total number of parameters in the connexions, an utility for mutations.
+	int NParameters;
 
 	// neuromodulatorySignal = tanh(neuromodulationBias + SUM(w*out))
 	std::vector<float> wNeuromodulation;
@@ -83,6 +83,7 @@ struct GenotypeNode {
 
 	GenotypeNode() {};
 	~GenotypeNode() {};
+	void mutateFloats();
 };
 
 struct PhenotypeConnexion {   // responsible of its pointers
@@ -187,10 +188,10 @@ public:
 	~Network();
 	std::vector<float> step(float* obs);
 	void save(std::string path);
+	void mutate();
 
 private:
 	int inputSize, outputSize;
 	std::vector<GenotypeNode> genome;
 	PhenotypeNode* topNodeP; 
-
 };

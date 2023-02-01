@@ -9,9 +9,76 @@
 // to the input 
 #define INPUT_ID -1     
 
+
+
+inline int fastrand() {
+	int g_seed = 10000000;
+	g_seed = (214013 * g_seed + 2531011);
+	return (g_seed >> 16) & 0x7FFF;
+}
+
+
 inline float ReLU(float x) { return x > 0 ? x : 0; }
 
-// TODO: neuromodulatory signal.
+void GenotypeNode::mutateFloats() {
+	int rID, listID, matrixID; 
+	const float pMutation = .3; // TODO
+	const float K = .2;
+	float r;
+
+	// Mutate int(6*Pmutation*nParam) parameters in the inter-children connexions.
+
+	std::vector<int> ids;
+	int l = 0;
+	for (const auto c : childrenConnexions) {
+		ids.push_back(l);
+		l += c->nLines * c->nColumns * 6;
+	}
+	ids.push_back(l);
+	int _nMutations = std::floor((float)l * pMutation);
+
+	for (int i = 0; i < _nMutations; i++) {
+		rID = fastrand()%l;
+
+		int j = 1;
+		while (rID < ids[j]) { j++; }
+		listID = j-1;
+		j = (rID - ids[listID]) % 6;
+		matrixID = (rID - listID - j) / 6;
+		
+		r = .2f * (((float)(fastrand() - 16383)) / 16383.0f);
+		switch (j) {
+		case 0: childrenConnexions[listID]->A[matrixID] += r;
+		case 1: childrenConnexions[listID]->B[matrixID] += r;
+		case 2: childrenConnexions[listID]->C[matrixID] += r;
+		case 3: childrenConnexions[listID]->alpha[matrixID] += r;
+		case 4: childrenConnexions[listID]->w[matrixID] += r;
+		case 5: 
+			float eta = childrenConnexions[listID]->eta[matrixID];
+			childrenConnexions[listID]->eta[matrixID] += r>0?
+				 K * eta * (1 - eta) :
+				-K * eta * (1 - eta) ;
+		}
+	}
+
+	for (int i = 0; i < outputSize; i++) {
+		r = .2f * (((float)(fastrand() - 16383)) / 16383.0f);
+		bias[i] += r;
+		wNeuromodulation[i] += r;
+	}
+
+	r = .2f * (((float)(fastrand() - 16383)) / 16383.0f);
+	neuromodulationBias += r;
+
+	for (int i = 0; i < children.size(); i++) {
+		if (!children[i]->isSimpleNeuron) {
+			children[i]->mutateFloats();
+		}
+	}
+}
+
+
+
 void PhenotypeNode::forward(float* input) {
 	float* _childInputs = new float[type->concatenatedChildrenInputLength];
 	int l = type->concatenatedChildrenInputLength;
@@ -130,8 +197,6 @@ void Network::save(std::string path) {
 
 }
 
-
-
 Network::Network(int inputSize, int outputSize) :
 inputSize(inputSize), outputSize(outputSize)
 {
@@ -206,4 +271,7 @@ std::vector<float> Network::step(float* obs) {
 	return topNodeP->currentOutput; 
 }
 
+void Network::mutate() {
+	topNodeP->type->mutateFloats();
+}
 

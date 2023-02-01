@@ -15,6 +15,15 @@ Plutot que de passer du parent aux enfants, passer de l'enfant aux connexions
 le concernant. Mais comment faire pour les simples neurones ?
 */
 
+int g_seed = 100000000;
+inline int fastrand2() {
+    g_seed = (214013 * g_seed + 2531011);
+    int r = (g_seed >> 16) & 0x7FFF;
+    LOG(r);
+    return g_seed;
+}
+
+
 int main()
 {
     Network n(2, 2);
@@ -22,5 +31,8 @@ int main()
     vector<float> output;
     output = n.step(input);
     LOGV(output);
+    for (int i = 0; i < 100; i++) {
+        fastrand2();
+    }
     return 0;
 }
