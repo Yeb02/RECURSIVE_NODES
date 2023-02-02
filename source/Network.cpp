@@ -9,16 +9,24 @@
 // to the input 
 #define INPUT_ID -1     
 
-
-int g_seed = 10000000;
-
-inline int fastrand() {
-	g_seed = (214013 * g_seed + 2531011);
-	return (g_seed >> 16) & 0x7FFF;
-}
-
+std::default_random_engine generator;
+std::uniform_real_distribution<float> Udistribution(0, 1);
+std::normal_distribution<float> Ndistribution(0.0, 1.0);
+auto uniform01 = std::bind(Udistribution, generator);
+auto normal01 = std::bind(Ndistribution, generator);
 
 inline float ReLU(float x) { return x > 0 ? x : 0; }
+
+void GenotypeNode::computeBeacons() {
+	concatenatedChildrenInputBeacons.resize(children.size() + 1);
+	concatenatedChildrenInputBeacons[0] = 0;
+	int s = 0;
+	for (int i = 0; i < children.size(); i++) {
+		s += children[i]->inputSize;
+		concatenatedChildrenInputBeacons[i + 1] = s;
+	}
+	concatenatedChildrenInputLength = s;
+}
 
 void GenotypeNode::mutateFloats() {
 	int rID, listID, matrixID; 
@@ -35,10 +43,12 @@ void GenotypeNode::mutateFloats() {
 		l += c.nLines * c.nColumns * 6;
 	}
 	ids.push_back(l);
-	int _nMutations = (int) std::floor((float)l * pMutation);
+
+	float _nParams = (float)l;
+	int _nMutations = (int)std::floor(_nParams * pMutation);
 
 	for (int i = 0; i < _nMutations; i++) {
-		rID = fastrand()%l;
+		rID = (int) (uniform01() * (float) _nParams);
 
 		int j = 1;
 		while (rID < ids[j]) { j++; }
@@ -46,7 +56,7 @@ void GenotypeNode::mutateFloats() {
 		j = (rID - ids[listID]) % 6;
 		matrixID = (rID - listID - j) / 6;
 		
-		r = .2f * (((float)(fastrand() - 16383)) / 16383.0f);
+		r = .2f * normal01();
 		switch (j) {
 		case 0: childrenConnexions[listID].A[matrixID] += r;
 		case 1: childrenConnexions[listID].B[matrixID] += r;
@@ -62,12 +72,12 @@ void GenotypeNode::mutateFloats() {
 	}
 
 	for (int i = 0; i < outputSize; i++) {
-		r = .2f * (((float)(fastrand() - 16383)) / 16383.0f);
+		r = .2f * normal01();
 		bias[i] += r;
 		wNeuromodulation[i] += r;
 	}
 
-	r = .2f * (((float)(fastrand() - 16383)) / 16383.0f);
+	r = .2f * normal01();;
 	neuromodulationBias += r;
 
 	for (int i = 0; i < children.size(); i++) {
@@ -84,9 +94,9 @@ void GenotypeNode::connect() {
 	bool alreadyExists;
 	for (int i = 0; i < maxAttempts; i++) {
 		alreadyExists = false;
-		c1 = fastrand() % children.size();
-		c2 = (c1 + 1 + fastrand() % (children.size()-1) ) % children.size(); //guarantees c1 != c2
-		if (fastrand() % children.size() == 0) c1 = INPUT_ID; // so that the input can be linked.
+		c1 = (int) (uniform01() * (float) children.size());
+		c2 = (c1 + 1 + (int)(uniform01() * (float)(children.size() - 1))) % children.size(); //guarantees c1 != c2
+		if ((int)(uniform01() * (float)children.size()) == 0) c1 = INPUT_ID; // so that the input can be linked.
 		
 		for (const GenotypeConnexion c : childrenConnexions) {
 			if (c.originID == c1 && c.destinationID == c2) {
@@ -102,7 +112,7 @@ void GenotypeNode::connect() {
 	}
 }
 void GenotypeNode::disconnect() {
-	int id = fastrand() % childrenConnexions.size();
+	int id = (int)(uniform01() * (float) childrenConnexions.size());
 	childrenConnexions.erase(childrenConnexions.begin() + id);
 }
 
@@ -478,13 +488,12 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i].children.resize(0); 
 		genome[i].childrenConnexions.resize(0);
 		genome[i].childrenConnexions.emplace_back(
-			INPUT_ID, 0, inputSize, outputSize
+			INPUT_ID, genome[i].children.size(), inputSize, outputSize
 		);
-		genome[i].concatenatedChildrenInputBeacons.resize(1);
-		genome[i].concatenatedChildrenInputBeacons[0] = 0;
 		genome[i].neuromodulationBias = 0;
 		//float* v = new float[inputSize]; ??? TODO understand why this is here
 		genome[i].wNeuromodulation.resize(outputSize);
+		genome[i].computeBeacons();
 	}
 
 	topNodeP = new PhenotypeNode(&genome[nSimpleNeurons]); 
@@ -502,17 +511,22 @@ std::vector<float> Network::step(float* obs) {
 }
 
 void Network::mutate() {
-	topNodeP->type->mutateFloats();
 	float r;
+
+	// Floating point mutations.
+	topNodeP->type->mutateFloats();
+
+	// Children interconnection mutations.
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
-		r = ((float)fastrand()) / 32767.0f;
+		r = uniform01();
 		if (r < .001) genome[i].disconnect();
-		r = ((float)fastrand()) / 32767.0f;
+		r = uniform01();
 		if (r < .01) genome[i].connect();
 	}
 
+	// Input and output sizes mutations.
 	for (int i = nSimpleNeurons; i < genome.size() - 1; i++) {
-		r = ((float)fastrand()) / 32767.0f;
+		r = uniform01();
 		if (r < .002) {
 			genome[i].incrementInputSize();
 			for (int j = nSimpleNeurons; j < i; j++) {
@@ -520,7 +534,7 @@ void Network::mutate() {
 			}
 		}
 
-		r = ((float)fastrand()) / 32767.0f;
+		r = uniform01();
 		if (r < .002) {
 			genome[i].incrementOutputSize();
 			for (int j = nSimpleNeurons; j < i; j++) {
@@ -528,23 +542,31 @@ void Network::mutate() {
 			}
 		}
 
-		r = ((float)fastrand()) / 32767.0f;
+		r = uniform01();
 		if (r < .0003) {
-			r = floor((float)fastrand() * inputSize / 32768.0f);
+			r = (int) (uniform01() * (float)inputSize);
 			genome[i].decrementInputSize((int)r);
 			for (int j = nSimpleNeurons; j < i; j++) {
 				genome[j].onChildInputSizeDecremented(&genome[i], (int)r);
 			}
 		}
 
-		r = ((float)fastrand()) / 32767.0f;
+		r = uniform01();
 		if (r < .0003) {
-			r = floor((float)fastrand() * inputSize / 32768.0f);
+			r = (int)(uniform01() * (float)outputSize);
 			genome[i].decrementOutputSize((int)r);
 			for (int j = nSimpleNeurons; j < i; j++) {
 				genome[j].onChildOutputSizeDecremented(&genome[i], (int)r);
 			}
 		}
+	}
+
+	//
+
+
+	// Update beacons for forward().
+	for (int i = nSimpleNeurons; i < genome.size(); i++) {
+		genome[i].computeBeacons();
 	}
 }
 

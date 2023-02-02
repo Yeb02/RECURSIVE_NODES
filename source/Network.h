@@ -1,9 +1,12 @@
 #pragma once
+
 #include <string>
 #include <vector>
 #include <iostream>
-//#include <boost/archive/text_iarchive.hpp>
+#include <random>
+#include <functional> // std::bind
 
+//#include <boost/archive/text_iarchive.hpp>
 
 // responsible of its pointers lifetime
 struct GenotypeConnexion {  
@@ -25,6 +28,7 @@ struct GenotypeConnexion {
 	GenotypeConnexion() {
 		return; // TODO erase
 	}
+
 	GenotypeConnexion(int oID, int dID, int nLines, int nColumns) :
 		originID(oID), destinationID(dID), nLines(nLines), nColumns(nColumns)
 	{
@@ -86,6 +90,9 @@ struct GenotypeNode {
 	GenotypeNode() {};
 	~GenotypeNode() {};
 	
+	// Populates the concatenatedChildrenInputBeacons vector and sets concatenatedChildrenInputLength
+	void computeBeacons();
+
 	// Mutate real-valued floating point parameters
 	void mutateFloats();
 
