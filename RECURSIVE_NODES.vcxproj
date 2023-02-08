@@ -20,10 +20,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\Network.cpp" />
-    <ClCompile Include="source\RECURSIVE_NODES.cpp" />
+    <ClCompile Include="source\Population.cpp" />
+    <ClCompile Include="source\main.cpp" />
+    <ClCompile Include="source\Trial.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\Network.h" />
+    <ClInclude Include="source\Population.h" />
+    <ClInclude Include="source\Trial.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

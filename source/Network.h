@@ -3,8 +3,6 @@
 #include <string>
 #include <vector>
 #include <iostream>
-#include <random>
-#include <functional> // std::bind
 
 //#include <boost/archive/text_iarchive.hpp>
 
@@ -29,26 +27,7 @@ struct GenotypeConnexion {
 		return; // TODO erase
 	}
 
-	GenotypeConnexion(int oID, int dID, int nLines, int nColumns) :
-		originID(oID), destinationID(dID), nLines(nLines), nColumns(nColumns)
-	{
-		alpha = new float[nLines*nColumns];
-		eta = new float[nLines*nColumns];
-		w = new float[nLines*nColumns];
-		A = new float[nLines*nColumns];
-		B = new float[nLines*nColumns];
-		C = new float[nLines*nColumns];
-
-		for (int i = 0; i < nLines * nColumns; i++) {
-			alpha[i] = 1;
-			eta[i] = .8f;
-			w[i] = 1;
-			A[i] = 1;
-			B[i] = 1;
-			C[i] = 1;
-		}
-		
-	}
+	GenotypeConnexion(int oID, int dID, int nLines, int nColumns);
 
 	~GenotypeConnexion() 
 	{
@@ -203,6 +182,16 @@ struct PhenotypeNode {
 		}
 	}
 
+	void zero() {
+		for (PhenotypeNode* c : children) {
+			if (!c->type->isSimpleNeuron) c->zero();
+		}
+		for (int i = 0; i < childrenConnexions.size(); i++) {
+			int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
+			childrenConnexions[i].zero(s);
+		}
+	}
+
 	void reset() {
 		neuromodulatorySignal = 1.0f;
 		for (int i = 0; i < previousInput.size(); i++) {
@@ -231,10 +220,16 @@ class Network {
 
 public:
 	Network(int inputSize, int outputSize);
+	Network(Network* n);
 	~Network();
-	std::vector<float> step(float* obs);
+
+	std::vector<float> getOutput();
+	void step(std::vector<float> obs);
 	void save(std::string path);
 	void mutate();
+
+	// sets to 0 the dynamic elements of the phenotype
+	void intertrialReset();
 
 private:
 	int nSimpleNeurons;

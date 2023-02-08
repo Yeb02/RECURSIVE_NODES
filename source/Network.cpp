@@ -1,3 +1,8 @@
+#pragma once
+
+#include <random>
+#include <functional> // std::bind
+
 #include "Network.h"
 
 #define N_BASE_NEURONS  3				  // ReLu, tanH, cos (or modulo X)
@@ -16,6 +21,26 @@ auto uniform01 = std::bind(Udistribution, generator);
 auto normal01 = std::bind(Ndistribution, generator);
 
 inline float ReLU(float x) { return x > 0 ? x : 0; }
+
+GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns) :
+	originID(oID), destinationID(dID), nLines(nLines), nColumns(nColumns)
+{
+	alpha = new float[nLines * nColumns];
+	eta = new float[nLines * nColumns];
+	w = new float[nLines * nColumns];
+	A = new float[nLines * nColumns];
+	B = new float[nLines * nColumns];
+	C = new float[nLines * nColumns];
+
+	for (int i = 0; i < nLines * nColumns; i++) {
+		alpha[i] = normal01();
+		eta[i] = uniform01()*.5f + .5f;
+		w[i] = normal01();
+		A[i] = normal01();
+		B[i] = normal01()*.2f;
+		C[i] = normal01()*.2f;
+	}
+}
 
 void GenotypeNode::computeBeacons() {
 	concatenatedChildrenInputBeacons.resize(children.size() + 1);
@@ -319,9 +344,8 @@ void GenotypeNode::decrementOriginOutputSize(int i, int id) {
 
 
 void PhenotypeNode::forward(float* input) {
-	float* _childInputs = new float[type->concatenatedChildrenInputLength];
-	int l = type->concatenatedChildrenInputLength;
-	for (int i = 0; i < l; i++) _childInputs[i] = 0;
+	float* _childInputs = new float[type->concatenatedChildrenInputLength + type->outputSize];
+	for (int i = 0; i < type->concatenatedChildrenInputLength + type->outputSize; i++) _childInputs[i] = 0;
 	
 	
 	// propagate the previous steps's outputs, by iterating over the connexions between children
@@ -504,10 +528,13 @@ Network::~Network() {
    	delete topNodeP;
 }
 
-std::vector<float> Network::step(float* obs) {
+std::vector<float> Network::getOutput() {
+	return topNodeP->currentOutput;
+}
+
+void Network::step(std::vector<float> obs) {
 	topNodeP->neuromodulatorySignal = 1.0f; // other nodes have it set by their parent
-	topNodeP->forward(obs);
-	return topNodeP->currentOutput; 
+	topNodeP->forward(&obs[0]);
 }
 
 void Network::mutate() {
@@ -561,12 +588,16 @@ void Network::mutate() {
 		}
 	}
 
-	//
+	// TODO, new nodes.
 
 
 	// Update beacons for forward().
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
 		genome[i].computeBeacons();
 	}
+}
+
+void Network::intertrialReset() {
+	topNodeP->zero();
 }
 

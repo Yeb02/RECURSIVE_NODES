@@ -1,5 +1,7 @@
+#pragma once
+
 #include <iostream>
-#include "Network.h"
+#include "Population.h"
 
 #define LOGV(v) for (const auto e : v) {cout << e << " ";}; cout << "\n"
 #define LOG(x) cout << x << " ";
@@ -18,10 +20,17 @@ le concernant. Mais comment faire pour les simples neurones ?
 
 int main()
 {
+    /* Network est de taille variable (des attributs sont des vecteurs.)
+    vector<Network>  vn(2); // tas ??
+    Network vn[2]; // tas ??
+    vector<Network*> vn2(2); // pile
+    Network n(2, 2); // tas ?
+    Network* n2 = new Network(2, 2); //pile 
+    */
     Network n(2, 2);
     float input[2] = { 0, 1 };
-    vector<float> output;
-    output = n.step(input);
+    n.step(input);
+    vector<float> output = n.getOutput();
     LOGV(output);
     return 0;
 }
