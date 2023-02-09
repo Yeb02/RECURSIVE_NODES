@@ -3,6 +3,7 @@
 #include <vector>
 
 // The base class which any trial should inherit from.
+// The score should be between 0 and 1, 1 corresponding to a perfect run.
 class Trial {
 
 public:
@@ -31,7 +32,7 @@ public:
 
 
 // The observation phase is split in 2 parts, in each of which the observation is a binary vector.
-// During the evaluation phase, the expected output is their XOR, where . Thus inSize = 2*outSize.
+// During the evaluation phase, the expected output is their XOR. Thus inSize = 2*outSize.
 class XorTrial : public Trial {
 
 public:

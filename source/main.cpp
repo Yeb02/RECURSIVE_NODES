@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include "Population.h"
+#include "Random.h"
 
 #define LOGV(v) for (const auto e : v) {cout << e << " ";}; cout << "\n"
 #define LOG(x) cout << x << " ";
@@ -20,15 +21,13 @@ le concernant. Mais comment faire pour les simples neurones ?
 
 int main()
 {
-    /* Network est de taille variable (des attributs sont des vecteurs.)
-    vector<Network>  vn(2); // tas ??
-    Network vn[2]; // tas ??
-    vector<Network*> vn2(2); // pile
-    Network n(2, 2); // tas ?
-    Network* n2 = new Network(2, 2); //pile 
-    */
+    vector<float> trialInput = { 0.1f };
+    XorTrial xorTrial(1);
+    xorTrial.reset();
+    while (!xorTrial.isTrialOver) xorTrial.step(trialInput);
+    LOG(xorTrial.score);
     Network n(2, 2);
-    float input[2] = { 0, 1 };
+    vector<float> input = { 0, 1 };
     n.step(input);
     vector<float> output = n.getOutput();
     LOGV(output);

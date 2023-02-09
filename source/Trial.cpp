@@ -1,19 +1,13 @@
 #pragma once
 
-#include <random>
-#include <functional> // std::bind
-
 #include "Trial.h"
 
-std::default_random_engine generator;
-std::uniform_real_distribution<float> Udistribution(0, 1);
-std::normal_distribution<float> Ndistribution(0.0, 1.0);
-auto uniform01 = std::bind(Udistribution, generator);
-auto normal01 = std::bind(Ndistribution, generator);
+#include "Random.h"
 
 
-XorTrial::XorTrial(int vSize) {
-	vSize = vSize;
+XorTrial::XorTrial(int vSize) :
+	vSize(vSize)
+{
 	netInSize = 2 * vSize;
 	netOutSize = vSize;
 
@@ -31,8 +25,8 @@ void XorTrial::reset() {
 	isTrialOver = false;
 
 	for (int i = 0; i < vSize; i++) {
-		v1[i] = uniform01() < .5;
-		v2[i] = uniform01() < .5;
+		v1[i] = UNIFORM_01 < .5;
+		v2[i] = UNIFORM_01 < .5;
 		v1_xor_v2[i] = v1[i] ^ v2[i];
 		observations[i] = v1[i] ? 1.0f : -1.0f;
 	}
@@ -53,12 +47,18 @@ void XorTrial::step(std::vector<float> actions) {
 		for (int i = 0; i < vSize; i++)  observations[i] = 0.0f;
 	}
 
-	if (currentNStep < endResponsePhase && currentNStep > startResponsePhase) {
+	if (currentNStep < endResponsePhase && currentNStep >= startResponsePhase) {
+		int z = 0;
 		for (int i = 0; i < vSize; i++)  
-			score += (float) (actions[i] < 0) == v1_xor_v2[i]; // TODO check it works as intended
+			score += (float) (actions[i] > 0) == v1_xor_v2[i]; 
 	}
 
-	if (currentNStep > endResponsePhase) isTrialOver = true;
+	if (currentNStep >= endResponsePhase) {
+		isTrialOver = true;
+
+		// score normalization
+		if (currentNStep == endResponsePhase) score /= (endResponsePhase - startResponsePhase) * vSize;
+	}
 
 	currentNStep++;
 }
