@@ -21,7 +21,7 @@ Population::~Population() {
 void Population::step(std::vector<Trial*> trials) {
 
 	std::vector<float> scores;
-	scores.resize(N_SPECIMENS*trials.size);
+	scores.resize(N_SPECIMENS * trials.size());
 
 	// evaluate on trials
 	for (int i = 0; i < N_SPECIMENS; i++) {
