@@ -16,8 +16,9 @@ a generation. The scores are saved into a vector for each individual.
 (The score on a trial is in [0,1], 1 corresponding to the perfect run.)
 
 - Then, a clustering algorithm is applied on the individuals. The fitness of a specimen is
-a combination of the norm of its fitness vector (L2 ? l1 ? other ?) and of how different it has 
-performed compared to the others, i.e. how bad its representation is in the clustering. 
+a combination of the norm of its fitness vector (L2 ? l1 ? other ?), of how different it has 
+performed compared to the others, i.e. how bad its representation is in the clustering, and of 
+a regularization term that penalizes overgrowth (computed by the Network class). 
 Potential clustering methods: K-Means (too hign dim...), PCA, ICA, ?
 
 - A roulettte wheel selection with low pressure is applied to pick a specimen, which is simply copied to be in the next generation.
@@ -35,6 +36,4 @@ public:
 private:
 	int N_SPECIMENS;
 	std::vector<Network*> networks;
-	void mutate();
-	void evaluate();
 };

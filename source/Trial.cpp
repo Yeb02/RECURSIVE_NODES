@@ -19,16 +19,18 @@ XorTrial::XorTrial(int vSize) :
 	reset();
 }
 
-void XorTrial::reset() {
+void XorTrial::reset(bool sameSeed) {
 	currentNStep = 0;
 	score = 0.0f;
 	isTrialOver = false;
 
-	for (int i = 0; i < vSize; i++) {
-		v1[i] = UNIFORM_01 < .5;
-		v2[i] = UNIFORM_01 < .5;
-		v1_xor_v2[i] = v1[i] ^ v2[i];
-		observations[i] = v1[i] ? 1.0f : -1.0f;
+	if (!sameSeed) {
+		for (int i = 0; i < vSize; i++) {
+			v1[i] = UNIFORM_01 < .5;
+			v2[i] = UNIFORM_01 < .5;
+			v1_xor_v2[i] = v1[i] ^ v2[i];
+			observations[i] = v1[i] ? 1.0f : -1.0f;
+		}
 	}
 }
 

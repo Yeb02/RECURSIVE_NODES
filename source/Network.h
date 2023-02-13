@@ -24,10 +24,10 @@ struct GenotypeConnexion {
 	float* C;
 
 	GenotypeConnexion() {
-		return; // TODO erase
+		return;
 	}
 
-	GenotypeConnexion(int oID, int dID, int nLines, int nColumns);
+	GenotypeConnexion(int oID, int dID, int nLines, int nColumns, bool zeroInit = false);
 
 	~GenotypeConnexion() 
 	{
@@ -127,8 +127,8 @@ public:
 
 	void zero(int s) {
 		for (int i = 0; i < s; i++) {
-			H[i] = 0;
-			E[i] = 0;
+			H[i] = 0.0f;
+			E[i] = 0.0f;
 		}
 	}
 
@@ -220,6 +220,7 @@ class Network {
 
 public:
 	Network(int inputSize, int outputSize);
+	// Does NOT create the phenotype tree ! No "topNodeP = new PhenotypeNode(&genome[genome.size()-1]);"
 	Network(Network* n);
 	~Network();
 
@@ -230,6 +231,9 @@ public:
 
 	// sets to 0 the dynamic elements of the phenotype
 	void intertrialReset();
+
+	// a positive float, increasing with the networks number of parameters. (and their magnitude ? TODO )
+	float getRegularizationLoss();
 
 private:
 	int nSimpleNeurons;

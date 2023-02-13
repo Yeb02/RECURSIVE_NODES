@@ -3,7 +3,7 @@
 #include <vector>
 
 // The base class which any trial should inherit from.
-// The score should be between 0 and 1, 1 corresponding to a perfect run.
+// The score must be a positive measure of the success of the run.
 class Trial {
 
 public:
@@ -11,8 +11,9 @@ public:
 	// given the actions of the network, proceeds one step forward in the trial
 	virtual void step(std::vector<float> actions) = 0;
 
-	// to be called at the end of the trial, AFTER fetching the score !
-	virtual void reset() = 0;
+	// To be called at the end of the trial, AFTER fetching the score !
+	// When sameSeed is true, the random values are kept between runs.
+	virtual void reset(bool sameSeed = false) = 0;
 
 	// the required network dimensions
 	int netInSize, netOutSize;
@@ -31,14 +32,16 @@ public:
 };
 
 
-// The observation phase is split in 2 parts, in each of which the observation is a binary vector.
-// During the evaluation phase, the expected output is their XOR. Thus inSize = 2*outSize.
+
+/* The observation phase is split in 2 parts, in each of which the observation is a binary vector.
+During the evaluation phase, the expected output is their XOR.*/
 class XorTrial : public Trial {
 
 public:
+	// Required network sizes: input = vectorSize, output = vectorSize.
 	XorTrial(int vectorSize);
 	void step(std::vector<float> actions) override;
-	void reset() override;
+	void reset(bool sameSeed = false) override;
 
 private:
 	int vSize;

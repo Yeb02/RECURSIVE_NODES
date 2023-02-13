@@ -21,15 +21,19 @@ le concernant. Mais comment faire pour les simples neurones ?
 
 int main()
 {
-    vector<float> trialInput = { 0.1f };
-    XorTrial xorTrial(1);
-    xorTrial.reset();
-    while (!xorTrial.isTrialOver) xorTrial.step(trialInput);
-    LOG(xorTrial.score);
-    Network n(2, 2);
+    
+    /*Network n(2, 2);
     vector<float> input = { 0, 1 };
     n.step(input);
     vector<float> output = n.getOutput();
-    LOGV(output);
+    LOGV(output);*/
+    {
+        vector<Trial*> trials;
+        for (int i = 0; i < 8; i++) trials.push_back(new XorTrial(2));
+        Population population(2, 2, 101);
+        for (int i = 0; i < 1000; i++) {
+            population.step(trials);
+        }
+    }
     return 0;
 }
