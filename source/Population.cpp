@@ -156,7 +156,7 @@ void Population::step(std::vector<Trial*> trials) {
 	
 
 	// compute raw fitnesses 
-	float scoreFactor = 1.0f, distanceFactor = .03f, regularizationFactor = .03f;
+	constexpr float scoreFactor = 1.0f, distanceFactor = .03f, regularizationFactor = .1f;
 	std::vector<float> fitnesses(N_SPECIMENS);
 	float fitnessSum, fitnessMin;
 	{
@@ -171,7 +171,7 @@ void Population::step(std::vector<Trial*> trials) {
 
 		int sumr = 0, sumd = 0;
 		for (int i = 0; i < N_SPECIMENS; i++) {
-			regularization[i] = networks[i]->getRegularizationLoss();
+			regularization[i] = networks[i]->getAmplitudeRegularizationLoss() + networks[i]->getSizeRegularizationLoss();
 			sumr += regularization[i];
 			sumd += distances[i];
 		}
@@ -221,13 +221,12 @@ void Population::step(std::vector<Trial*> trials) {
 	}
 
 	
+	// The higher f0, the lower the selection pressure
+	constexpr float f0 = 5.0f;
 	// create offsprings 
 	{
-		// Th higher f0, the lower the selection pressure
-		float f0 = 1.0f; 
 		//float f0 = .1f / (float) N_SPECIMENS; 
 		fitnessMin -= f0;
-
 		fitnessSum -= fitnessMin * (float)N_SPECIMENS;
 		std::vector<Network*> tempNetworks(0);
 		std::vector<float> probabilities(N_SPECIMENS);

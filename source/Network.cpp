@@ -103,6 +103,7 @@ void GenotypeNode::mutateFloats() {
 	for (int i = 0; i < outputSize; i++) {
 		r = .2f * NORMAL_01;
 		bias[i] += r;
+		r = .2f * NORMAL_01;
 		wNeuromodulation[i] += r;
 	}
 
@@ -122,8 +123,8 @@ void GenotypeNode::connect() {
 		c2 = (c1 + 2 + (int)(UNIFORM_01 * (float)children.size())) % children.size(); //guarantees c1 != c2. in [0, children.size()]
 		if (c1 == -1) c1 = INPUT_ID; 
 		
-		for (const GenotypeConnexion c : childrenConnexions) {
-			if (c.originID == c1 && c.destinationID == c2) {
+		for (int i = 0; i < childrenConnexions.size(); i++) {
+			if (childrenConnexions[i].originID == c1 && childrenConnexions[i].destinationID == c2) {
 				alreadyExists = true;
 				break;
 			}
@@ -141,6 +142,75 @@ void GenotypeNode::disconnect() {
 	if (childrenConnexions.size() == 1 && children.size() == 0) return;
 	int id = (int)(UNIFORM_01 * (float) childrenConnexions.size());
 	childrenConnexions.erase(childrenConnexions.begin() + id);
+}
+
+void GenotypeNode::addChild(GenotypeNode* child) {
+	children.push_back(child);
+
+	// Previously, the output node was at the children.size() position (virtually). It is now being shifted right 1 slot,
+	// so the destination IDs of the connexions must be updated when their destination is the output.
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (childrenConnexions[i].destinationID == children.size() - 1) {
+			childrenConnexions[i].destinationID++;
+		}
+	}
+
+	// There is a bias towards the output node being chosen as dID, and the input as oID. More details in the technical notes.
+	constexpr float parallelBias = 2.0f;
+	int oID, dID;
+	float r;
+	int destinationsInputSize, originOutputSize;
+
+	r = UNIFORM_01;
+	oID = (int)((float)(children.size() + 1) * parallelBias * r);
+	if (oID >= children.size()) {
+		oID = INPUT_ID;
+		originOutputSize = inputSize;
+	} else { 
+		originOutputSize = children[oID]->outputSize;
+	}
+
+	r = UNIFORM_01;
+	dID = (int)((float)(children.size() + 1) * parallelBias * r);
+	if (dID >= children.size()) {
+		dID = children.size();
+		destinationsInputSize = outputSize;
+	} else { 
+		destinationsInputSize = children[dID]->inputSize;
+	}
+
+	childrenConnexions.emplace_back(oID,   children.size()-1, child->inputSize,      originOutputSize,  true);
+	childrenConnexions.emplace_back(children.size() - 1, dID, destinationsInputSize, child->outputSize, true);
+
+	updateDepth();
+}
+void GenotypeNode::removeChild() {
+	int rID = (int)(UNIFORM_01 * (float)children.size());
+	children.erase(children.begin() + rID);
+
+	// Erase connexions that lead to the removed child. Slow algorithm, but does not matter here.
+	int initialSize = childrenConnexions.size();
+	int nRemovals = 0;
+	int i = 0;
+	while (i < initialSize - nRemovals) {
+		if (childrenConnexions[i].destinationID == rID || childrenConnexions[i].originID == rID) {
+			childrenConnexions.erase(childrenConnexions.begin() + i);
+			i--;
+		}
+		i++;
+	}
+
+	// Update the IDs in the connexions
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		if (childrenConnexions[i].destinationID >= rID) {
+			childrenConnexions[i].destinationID--;
+		}
+		if (childrenConnexions[i].originID >= rID) {
+			childrenConnexions[i].originID--;
+		}
+	}
+
+	updateDepth();
 }
 
 void GenotypeNode::incrementInputSize() {
@@ -341,9 +411,16 @@ void GenotypeNode::decrementOriginOutputSize(int i, int id) {
 		}
 	}
 
-	childrenConnexions[i] = newConnexion;
+	childrenConnexions[i] = GenotypeConnexion(newConnexion);
 }
 
+void GenotypeNode::updateDepth() {
+	int dmax = 0;
+	for (int i = 0; i < children.size(); i++) {
+		if (children[i]->depth > dmax) dmax = children[i]->depth;
+	}
+	depth = dmax + 1;
+}
 
 void PhenotypeNode::forward(float* input) {
 	float* _childInputs = new float[type->concatenatedChildrenInputLength + type->outputSize];
@@ -468,60 +545,48 @@ Network::Network(Network* n) {
 	outputSize = n->outputSize;
 
 	genome.resize(n->genome.size());
+	for (int i = 0; i < n->genome.size(); i++) genome[i] = new GenotypeNode();
 	for (int i = 0; i < nSimpleNeurons; i++) {
-		genome[i].isSimpleNeuron = true;
-		genome[i].f = n->genome[i].f; 
-		genome[i].inputSize = n->genome[i].inputSize;
-		genome[i].outputSize = n->genome[i].outputSize; 
-		genome[i].bias.resize(0);   
-		genome[i].children.reserve(0);
-		genome[i].childrenConnexions.reserve(0);
-		genome[i].wNeuromodulation.reserve(0);
-		genome[i].neuromodulationBias=0.0f;
-		genome[i].concatenatedChildrenInputLength = 0;
-		genome[i].concatenatedChildrenInputBeacons.reserve(0);
+		genome[i]->isSimpleNeuron = true;
+		genome[i]->f = n->genome[i]->f; 
+		genome[i]->inputSize = n->genome[i]->inputSize;
+		genome[i]->outputSize = n->genome[i]->outputSize; 
+		genome[i]->bias.resize(0);   
+		genome[i]->children.reserve(0);
+		genome[i]->childrenConnexions.reserve(0);
+		genome[i]->wNeuromodulation.reserve(0);
+		genome[i]->neuromodulationBias=0.0f;
+		genome[i]->concatenatedChildrenInputLength = 0;
+		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
+		genome[i]->depth = 0;
+		genome[i]->position = n->genome[i]->position;
+		genome[i]->closestNode = NULL;
+		genome[i]->mutationalDistance = 0;
 	}
 
 
 	for (int i = nSimpleNeurons; i < n->genome.size(); i++) {
-		genome[i].isSimpleNeuron = false;
-		genome[i].f = NULL;
-		genome[i].inputSize = n->genome[i].inputSize;
-		genome[i].outputSize = n->genome[i].outputSize;
-		genome[i].neuromodulationBias = n->genome[i].neuromodulationBias;
-		genome[i].concatenatedChildrenInputLength = n->genome[i].concatenatedChildrenInputLength;
+		genome[i]->isSimpleNeuron = false;
+		genome[i]->f = NULL;
+		genome[i]->inputSize = n->genome[i]->inputSize;
+		genome[i]->outputSize = n->genome[i]->outputSize;
+		genome[i]->neuromodulationBias = n->genome[i]->neuromodulationBias;
+		genome[i]->concatenatedChildrenInputLength = n->genome[i]->concatenatedChildrenInputLength;
+		genome[i]->depth = n->genome[i]->depth;
+		genome[i]->position = n->genome[i]->position;
+		genome[i]->closestNode = n->genome[i]->closestNode != NULL ? genome[n->genome[i]->closestNode->position] : NULL; // topNode case
+		genome[i]->mutationalDistance = n->genome[i]->mutationalDistance;
 
-		genome[i].bias.assign(n->genome[i].bias.begin(), n->genome[i].bias.end());
-		genome[i].wNeuromodulation.assign(n->genome[i].wNeuromodulation.begin(), n->genome[i].wNeuromodulation.end());
-		genome[i].concatenatedChildrenInputBeacons.assign(n->genome[i].concatenatedChildrenInputBeacons.begin(), n->genome[i].concatenatedChildrenInputBeacons.end());
+		genome[i]->bias.assign(n->genome[i]->bias.begin(), n->genome[i]->bias.end());
+		genome[i]->wNeuromodulation.assign(n->genome[i]->wNeuromodulation.begin(), n->genome[i]->wNeuromodulation.end());
+		genome[i]->concatenatedChildrenInputBeacons.assign(n->genome[i]->concatenatedChildrenInputBeacons.begin(), n->genome[i]->concatenatedChildrenInputBeacons.end());
 
-		genome[i].children.resize(n->genome[i].children.size());
-		for (int j = 0; j < n->genome[i].children.size(); j++) { // TODO problematic if pointers are not equally spaced
-			genome[i].children[j] = &genome[0] + (n->genome[i].children[j] - &n->genome[0]);
+		genome[i]->children.resize(n->genome[i]->children.size());
+		for (int j = 0; j < n->genome[i]->children.size(); j++) { // TODO problematic if pointers are not equally spaced
+			genome[i]->children[j] = genome[n->genome[i]->children[j]->position];
 		}
 
-		genome[i].childrenConnexions.resize(n->genome[i].childrenConnexions.size());
-		for (int j = 0; j < n->genome[i].childrenConnexions.size(); j++) {
-			genome[i].childrenConnexions[j].destinationID = n->genome[i].childrenConnexions[j].destinationID;
-			genome[i].childrenConnexions[j].originID = n->genome[i].childrenConnexions[j].originID;
-			genome[i].childrenConnexions[j].nLines = n->genome[i].childrenConnexions[j].nLines;
-			genome[i].childrenConnexions[j].nColumns = n->genome[i].childrenConnexions[j].nColumns;
-
-			int s = genome[i].childrenConnexions[j].nLines * genome[i].childrenConnexions[j].nColumns;
-			genome[i].childrenConnexions[j].eta = new float[s];
-			genome[i].childrenConnexions[j].alpha = new float[s];
-			genome[i].childrenConnexions[j].A = new float[s];
-			genome[i].childrenConnexions[j].B = new float[s];
-			genome[i].childrenConnexions[j].C = new float[s];
-			genome[i].childrenConnexions[j].w = new float[s];
-
-			memcpy(genome[i].childrenConnexions[j].eta, n->genome[i].childrenConnexions[j].eta, sizeof(float) * s);
-			memcpy(genome[i].childrenConnexions[j].alpha, n->genome[i].childrenConnexions[j].alpha, sizeof(float) * s);
-			memcpy(genome[i].childrenConnexions[j].A, n->genome[i].childrenConnexions[j].A, sizeof(float) * s);
-			memcpy(genome[i].childrenConnexions[j].B, n->genome[i].childrenConnexions[j].B, sizeof(float) * s);
-			memcpy(genome[i].childrenConnexions[j].C, n->genome[i].childrenConnexions[j].C, sizeof(float) * s);
-			memcpy(genome[i].childrenConnexions[j].w, n->genome[i].childrenConnexions[j].w, sizeof(float) * s);
-		}
+		genome[i]->childrenConnexions = n->genome[i]->childrenConnexions; // Hopefully vector copy calls copy constructor
 	}
 
 	topNodeP = NULL;
@@ -532,64 +597,81 @@ inputSize(inputSize), outputSize(outputSize)
 {
 	nSimpleNeurons = 2;
 	genome.resize(nSimpleNeurons + 1);
+	for (int i = 0; i < nSimpleNeurons + 1; i++) genome[i] = new GenotypeNode();
 
 	int i = 0;
+
 	// 0: TanH 
 	{
-		genome[i].isSimpleNeuron = true;
-		genome[i].inputSize = 1;
-		genome[i].outputSize = 1;
-		genome[i].f = *tanhf;
-		genome[i].bias.resize(0);
-		genome[i].children.reserve(0);
-		genome[i].childrenConnexions.reserve(0);
-		genome[i].wNeuromodulation.reserve(0);
-		genome[i].neuromodulationBias = 0.0f;
-		genome[i].concatenatedChildrenInputLength = 0;
-		genome[i].concatenatedChildrenInputBeacons.reserve(0);
+		genome[i]->isSimpleNeuron = true;
+		genome[i]->inputSize = 1;
+		genome[i]->outputSize = 1;
+		genome[i]->f = *tanhf;
+		genome[i]->bias.resize(0);
+		genome[i]->children.reserve(0);
+		genome[i]->childrenConnexions.reserve(0);
+		genome[i]->wNeuromodulation.reserve(0);
+		genome[i]->neuromodulationBias = 0.0f;
+		genome[i]->concatenatedChildrenInputLength = 0;
+		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
+		genome[i]->depth = 0;
+		genome[i]->position = 0;
+		genome[i]->closestNode = NULL;
+		genome[i]->mutationalDistance = 0;
 	}
 
 	i++;
 	// 1: ReLU
 	{
-		genome[i].isSimpleNeuron = true;
-		genome[i].inputSize = 1;
-		genome[i].outputSize = 1;
-		genome[i].f = *ReLU;
-		genome[i].bias.resize(0);
-		genome[i].children.reserve(0);
-		genome[i].childrenConnexions.reserve(0);
-		genome[i].wNeuromodulation.reserve(0);
-		genome[i].neuromodulationBias = 0.0f;
-		genome[i].concatenatedChildrenInputLength = 0;
-		genome[i].concatenatedChildrenInputBeacons.reserve(0);
+		genome[i]->isSimpleNeuron = true;
+		genome[i]->inputSize = 1;
+		genome[i]->outputSize = 1;
+		genome[i]->f = *ReLU;
+		genome[i]->bias.resize(0);
+		genome[i]->children.reserve(0);
+		genome[i]->childrenConnexions.reserve(0);
+		genome[i]->wNeuromodulation.reserve(0);
+		genome[i]->neuromodulationBias = 0.0f;
+		genome[i]->concatenatedChildrenInputLength = 0;
+		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
+		genome[i]->depth = 0;
+		genome[i]->position = 1;
+		genome[i]->closestNode = NULL;
+		genome[i]->mutationalDistance = 0;
 	}
 
 	i++;
 	// 3: The initial top node, 0 initialised
 	{
-		genome[i].isSimpleNeuron = false;
-		genome[i].inputSize = inputSize;
-		genome[i].outputSize = outputSize;
-		genome[i].concatenatedChildrenInputLength = outputSize;
-		genome[i].f = NULL;
-		genome[i].bias.resize(outputSize); 
-		genome[i].children.resize(0); 
-		genome[i].childrenConnexions.resize(0);
-		genome[i].childrenConnexions.emplace_back(
-			INPUT_ID, genome[i].children.size(), inputSize, outputSize
+		genome[i]->isSimpleNeuron = false;
+		genome[i]->inputSize = inputSize;
+		genome[i]->outputSize = outputSize;
+		genome[i]->concatenatedChildrenInputLength = outputSize;
+		genome[i]->f = NULL;
+		genome[i]->depth = 1;
+		genome[i]->position = 2;
+		genome[i]->closestNode = NULL;
+		genome[i]->mutationalDistance = 0;
+		genome[i]->bias.resize(outputSize); 
+		genome[i]->children.resize(0); 
+		genome[i]->childrenConnexions.resize(0);
+		genome[i]->childrenConnexions.emplace_back(
+			INPUT_ID, genome[i]->children.size(), inputSize, outputSize
 		);
-		genome[i].neuromodulationBias = 0.0f;
-		genome[i].wNeuromodulation.resize(outputSize);
-		genome[i].computeBeacons();
+		genome[i]->neuromodulationBias = 0.0f;
+		genome[i]->wNeuromodulation.resize(outputSize);
+		genome[i]->computeBeacons();
 	}
 
-	topNodeP = new PhenotypeNode(&genome[nSimpleNeurons]); 
+	topNodeP = new PhenotypeNode(genome[nSimpleNeurons]); 
 
 }
 
 Network::~Network() {
    	delete topNodeP;
+	for (int i = 0; i < genome.size(); i++) {
+		delete genome[i];
+	}
 }
 
 std::vector<float> Network::getOutput() {
@@ -607,32 +689,32 @@ void Network::mutate() {
 
 	// Floating point mutations.
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
-		genome[i].mutateFloats();
+		genome[i]->mutateFloats();
 	}
 	
 	// Children interconnection mutations.
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
 		r = UNIFORM_01;
-		if (r < .001) genome[i].disconnect();
+		if (r < .001) genome[i]->disconnect();
 		r = UNIFORM_01;
-		if (r < .01) genome[i].connect();
+		if (r < .01) genome[i]->connect();
 	}
-	/*
+	
 	// Input and output sizes mutations.
 	for (int i = nSimpleNeurons; i < genome.size() - 1; i++) {
 		r = UNIFORM_01;
 		if (r < .002) {
-			genome[i].incrementInputSize();
+			genome[i]->incrementInputSize();
 			for (int j = nSimpleNeurons; j < i; j++) {
-				genome[j].onChildInputSizeIncremented(&genome[i]);
+				genome[j]->onChildInputSizeIncremented(genome[i]);
 			}
 		}
 
 		r = UNIFORM_01;
 		if (r < .002) {
-			genome[i].incrementOutputSize();
+			genome[i]->incrementOutputSize();
 			for (int j = nSimpleNeurons; j < i; j++) {
-				genome[j].onChildOutputSizeIncremented(&genome[i]);
+				genome[j]->onChildOutputSizeIncremented(genome[i]);
 			}
 		}
 
@@ -640,26 +722,76 @@ void Network::mutate() {
 		r = UNIFORM_01;
 		if (r < .0003) {
 			rID = (int) (UNIFORM_01 * (float)inputSize);
-			genome[i].decrementInputSize(rID);
+			genome[i]->decrementInputSize(rID);
 			for (int j = i+1; j < genome.size(); j++) {
-				genome[j].onChildInputSizeDecremented(&genome[i], rID);
+				genome[j]->onChildInputSizeDecremented(genome[i], rID);
 			}
 		}
 
 		r = UNIFORM_01;
 		if (r < .0003) {
 			rID = (int)(UNIFORM_01 * (float)outputSize);
-			genome[i].decrementOutputSize(rID); 
+			genome[i]->decrementOutputSize(rID); 
 			for (int j = i+1; j < genome.size(); j++) {
-				genome[j].onChildOutputSizeDecremented(&genome[i], rID);
+				genome[j]->onChildOutputSizeDecremented(genome[i], rID);
 			}
 		}
 	}
-	*/
+	
+
+	// Adding a child node 
+	for (int i = nSimpleNeurons; i < genome.size(); i++) {
+		r = UNIFORM_01;
+		if (r < .005f && genome[i]->children.size() < MAX_CHILDREN_PER_BLOCK) {
+			int prevDepth = genome[i]->depth;
+
+			int childID = genome[i]->position;
+			while (genome[childID]->depth <= genome[i]->depth && childID < genome.size() - 1) childID++;
+			r = UNIFORM_01;
+			childID--;
+			childID = (int) (r * (float)childID);
+			if (childID >= i) childID++; 
+			genome[i]->addChild(genome[childID]);
+			
+			// if the child's depth was equal to this node's, the depth is incremented by one and in must be moved in the genome vector.
+			if (prevDepth < genome[i]->depth && i != genome.size() - 1) {
+				int id = genome[i]->position + 1;
+				while (genome[id]->depth < genome[i]->depth) id++;
+				GenotypeNode* temp = genome[i];
+				genome.erase(genome.begin() + i); //inefficient, but insignificant here.
+				genome.insert(genome.begin() + id - 1, temp); // -1 because of the erasure
+
+				// update positions for affected nodes.
+				for (int j = i; j < id; j++) genome[j]->position = j;   // TODO check correctness when unbroken mentally
+			} 
+		}
+	}
+
+	// Removing a child node
+	for (int i = nSimpleNeurons; i < genome.size(); i++) {
+		r = UNIFORM_01;
+		if (r < .001f && genome[i]->children.size() > 0) {
+
+			int prevDepth = genome[i]->depth;
+			genome[i]->removeChild();
+
+			// if the child's depth was this node's - 1, its depth is decreased and it must be moved in the genome vector.
+			if (prevDepth > genome[i]->depth && i != genome.size() - 1) {
+				int id = genome[i]->position - 1;
+				while (genome[id]->depth > genome[i]->depth) id--;
+				GenotypeNode* temp = genome[i];
+				genome.erase(genome.begin() + i); //inefficient, but insignificant here.
+				genome.insert(genome.begin() + id, temp); 
+
+				// update positions for affected nodes.
+				for (int j = id; j < i+1; j++) genome[j]->position = j;   // TODO check correctness when unbroken mentally
+			}
+		}
+	}
+
+
 	// TODO 's:
 
-	// Add child 
-	// Remove child
 	// Top Node Boxing
 	// Duplication
 	// Child replacement
@@ -667,27 +799,50 @@ void Network::mutate() {
 	
 	// Update beacons for forward().
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
-		genome[i].computeBeacons();
+		genome[i]->computeBeacons();
 	}
-	topNodeP = new PhenotypeNode(&genome[genome.size() - 1]);
+	topNodeP = new PhenotypeNode(genome[genome.size() - 1]);
 }
 
 void Network::intertrialReset() {
 	topNodeP->zero();
 }
 
-float Network::getRegularizationLoss() {
+float Network::getSizeRegularizationLoss() {
 	std::vector<int> nParams(genome.size());
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
 		nParams[i] = 0;
-		for (int j = 0; j < genome[i].childrenConnexions.size(); j++) {
-			nParams[i] += genome[i].childrenConnexions[j].nLines * genome[i].childrenConnexions[j].nColumns;
+		for (int j = 0; j < genome[i]->childrenConnexions.size(); j++) {
+			nParams[i] += genome[i]->childrenConnexions[j].nLines * genome[i]->childrenConnexions[j].nColumns;
 		}
-		for (int j = 0; j < genome[i].children.size(); j++) {
+		for (int j = 0; j < genome[i]->children.size(); j++) {
 			// TODO can vector elements be non contiguous ? The following line could be problematic.
-			nParams[i] += nParams[(int) (genome[i].children[j] - &genome[0])]; 
+			nParams[i] += nParams[genome[i]->children[j]->position]; 
 		}
+		nParams[i] += 2 * genome[i]->outputSize; // to account for the biases and the neuromodulation weights
 	}
 	return nParams[genome.size()-1];
 }
 
+float Network::getAmplitudeRegularizationLoss() {
+	float sum = 0.0f;
+	int size;
+	for (int i = nSimpleNeurons; i < genome.size(); i++) {
+		for (int j = 0; j < genome[i]->childrenConnexions.size(); j++) {
+			size = genome[i]->childrenConnexions[j].nLines * genome[i]->childrenConnexions[j].nColumns;
+			for (int k = 0; k < size; k++) {
+				sum += abs(genome[i]->childrenConnexions[j].w[k]);
+				sum += abs(genome[i]->childrenConnexions[j].A[k]);
+				sum += abs(genome[i]->childrenConnexions[j].B[k]);
+				sum += abs(genome[i]->childrenConnexions[j].C[k]);
+				sum += abs(genome[i]->childrenConnexions[j].alpha[k]);
+				sum += abs(genome[i]->childrenConnexions[j].eta[k]);
+			}
+		}
+		for (int j = 0; j < genome[i]->outputSize; j++) {
+			sum += abs(genome[i]->bias[j]);
+			sum += abs(genome[i]->wNeuromodulation[j]);
+		}
+	}
+	return sum;
+}

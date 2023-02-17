@@ -29,6 +29,52 @@ struct GenotypeConnexion {
 
 	GenotypeConnexion(int oID, int dID, int nLines, int nColumns, bool zeroInit = false);
 
+	// Required because a genotype node has a vector of connexions, not of pointers to connexions. 
+	// This means that on vector reallocation the move constructor is called. But if it is not specified, it does not 
+	// exist because there is a specified destructor. Therefore the constructor and the destructor are called
+	// instead, which causes unwanted freeing of memory.
+	// Moreover, if it is not marked noexcept std::vector will use copy+destructor instead in some cases, WTF ????
+	// https://stackoverflow.com/questions/9249781/are-move-constructors-required-to-be-noexcept
+	GenotypeConnexion(GenotypeConnexion&& gc) noexcept {
+		originID = gc.originID;
+		destinationID = gc.destinationID;
+		nLines = gc.nLines;
+		nColumns = gc.nColumns;
+		alpha = gc.alpha;
+		eta = gc.eta;
+		w = gc.w;
+		A = gc.A;
+		B = gc.B;
+		C = gc.C;
+	}
+
+
+	GenotypeConnexion(GenotypeConnexion& gc) {
+		destinationID = gc.destinationID;
+		originID = gc.originID;
+		nLines = gc.nLines;
+		nColumns = gc.nColumns;
+
+		int s = nLines * nColumns;
+		eta = new float[s];
+		alpha = new float[s];
+		A = new float[s];
+		B = new float[s];
+		C = new float[s];
+		w = new float[s];
+
+		memcpy(eta, gc.eta, sizeof(float) * s);
+		memcpy(alpha, gc.alpha, sizeof(float) * s);
+		memcpy(A, gc.A, sizeof(float) * s);
+		memcpy(B, gc.B, sizeof(float) * s);
+		memcpy(C, gc.C, sizeof(float) * s);
+		memcpy(w, gc.w, sizeof(float) * s);
+	}
+
+	GenotypeConnexion operator=(GenotypeConnexion& gc) {
+
+	}
+
 	~GenotypeConnexion() 
 	{
 		delete[] alpha;
@@ -44,7 +90,7 @@ struct GenotypeNode {
 	bool isSimpleNeuron;
 	float (*f)(float); // NULL if Node is a bloc. Else pointer to tanH, cos, ReLU
 	int inputSize, outputSize; // >= 1
-	std::vector<float> bias;   // length outputSize. 
+	std::vector<float> bias;   // length outputSize. Is added the the presynaptic activations of the tanh of the output node
 
 	// Order matters in this vector.
 	// Contains pointers to the genotypes of the children
@@ -57,6 +103,18 @@ struct GenotypeNode {
 	std::vector<float> wNeuromodulation;
 	// neuromodulatorySignal = tanh(neuromodulationBias + SUM(w*out))
 	float neuromodulationBias;
+
+	// Depth of the children tree. =0 for simple neurons
+	int depth;
+
+	// The position in the genome vector. Must be genome.size() - 1 for the top node.
+	int position;
+
+	// Point towards the node it was cloned from or boxed from on the tree of life. 
+	GenotypeNode* closestNode;
+
+	// How far it went from the closestNode with mutations (does not account 
+	int mutationalDistance;
 
 	// Utils for forward:
 	 
@@ -72,6 +130,8 @@ struct GenotypeNode {
 	// Populates the concatenatedChildrenInputBeacons vector and sets concatenatedChildrenInputLength
 	void computeBeacons();
 
+	void updateDepth();
+
 	// Mutate real-valued floating point parameters
 	void mutateFloats();
 
@@ -80,6 +140,13 @@ struct GenotypeNode {
 
 	// Disconnect two children nodes picked randomely. 
 	void disconnect();
+
+	// Add the specified child to the node. The child's depth is <= to this node's depth (which will be increased by 1 if it was ==)
+	// It is initially connected to 2 random nodes, with a preference for the input and the output.
+	void addChild(GenotypeNode* child);
+
+	// Removes a child at random.
+	void removeChild();
 
 	// Resizes the matrices of every connexion between the children and the input, adding a column.
 	void incrementInputSize();
@@ -232,12 +299,14 @@ public:
 	// sets to 0 the dynamic elements of the phenotype
 	void intertrialReset();
 
-	// a positive float, increasing with the networks number of parameters. (and their magnitude ? TODO )
-	float getRegularizationLoss();
+	// a positive float, increasing with the networks number of parameters.
+	float getSizeRegularizationLoss();
+	// a positive float, increasing with the amplitude of the network's parameters. 
+	float getAmplitudeRegularizationLoss();
 
 private:
 	int nSimpleNeurons;
 	int inputSize, outputSize;
-	std::vector<GenotypeNode> genome;
+	std::vector<GenotypeNode*> genome;
 	PhenotypeNode* topNodeP; 
 };
