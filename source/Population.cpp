@@ -26,7 +26,7 @@ inline float L2Dist(float* a, float* b, int size) {
 
 int binarySearch(std::vector<float>& proba, float value) {
 	int inf = 0;
-	int sup = proba.size() - 1;
+	int sup = (int) proba.size() - 1;
 
 	if (proba[inf] > value) {
 		return inf;
@@ -49,7 +49,6 @@ int binarySearch(std::vector<float>& proba, float value) {
 	throw "Binary search failure !";
 }
 
-
 Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
 	N_SPECIMENS(N_SPECIMENS)
 {
@@ -64,7 +63,6 @@ Population::~Population() {
 		delete n;
 	}
 }
-
 
 void Population::step(std::vector<Trial*> trials) {
 
@@ -104,7 +102,7 @@ void Population::step(std::vector<Trial*> trials) {
 			}
 			if (score > maxScore) maxScore = score;
 		}
-		std::cout << maxScore << std::endl;
+		std::cerr << maxScore << std::endl;
 		// Normalize scores
 		float stddev;
 		for (int j = 0; j < trials.size(); j++) {
@@ -140,13 +138,13 @@ void Population::step(std::vector<Trial*> trials) {
 	// estimate local density by random sampling.  
 	std::vector<float> distances(N_SPECIMENS);
 	{
-		int nSamples = sqrt(N_SPECIMENS);
+		int nSamples = (int) sqrt(N_SPECIMENS);
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			distances[i] = 0;
 			int rID;
 			for (int j = 0; j < nSamples; j++) {
 				rID = (int)(UNIFORM_01 * (float)N_SPECIMENS);
-				distances[i] += L2Dist(&scores[i], &scores[rID], trials.size());
+				distances[i] += L2Dist(&scores[i], &scores[rID], (int)trials.size());
 			}
 			// no /nSamples here, because distances are normalized over all specimens.
 		}
@@ -228,7 +226,6 @@ void Population::step(std::vector<Trial*> trials) {
 		//float f0 = .1f / (float) N_SPECIMENS; 
 		fitnessMin -= f0;
 		fitnessSum -= fitnessMin * (float)N_SPECIMENS;
-		std::vector<Network*> tempNetworks(0);
 		std::vector<float> probabilities(N_SPECIMENS);
 		probabilities[0] = (fitnesses[0] - fitnessMin) / fitnessSum;
 		for (int i = 1; i < N_SPECIMENS; i++) {
@@ -237,11 +234,10 @@ void Population::step(std::vector<Trial*> trials) {
 
 
 		int parentID;
-		Network* child;
+		std::vector<Network*> tempNetworks(N_SPECIMENS);
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			parentID = binarySearch(probabilities, UNIFORM_01);
-			child = new Network(networks[parentID]);
-			tempNetworks.push_back(child);
+			tempNetworks[i] = new Network(networks[parentID]);
 		}
 
 		for (int i = 0; i < N_SPECIMENS; i++) {

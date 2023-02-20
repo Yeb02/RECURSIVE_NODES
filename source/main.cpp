@@ -1,5 +1,9 @@
 #pragma once
 
+
+//#define RISI_NAJARRO_2020
+//#define USING_NEUROMODULATION
+
 #include <iostream>
 #include "Population.h"
 #include "Random.h"
@@ -30,7 +34,7 @@ int main()
     
     vector<Trial*> trials;
     for (int i = 0; i < 4; i++) trials.push_back(new XorTrial(2));
-    Population population(2, 2, 500);
+    Population population(2, 2, 100);
     for (int i = 0; i < 200; i++) {
         population.step(trials);
     }

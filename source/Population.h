@@ -2,6 +2,7 @@
 
 #include "Network.h"
 #include "Trial.h"
+#include <memory>
 
 
 /*

@@ -1,27 +1,39 @@
 #pragma once
 
+#define RISI_NAJARRO_2020
+
 #include <string>
 #include <vector>
 #include <iostream>
+#include <memory>
+
+#include "Random.h"
 
 //#include <boost/archive/text_iarchive.hpp>
 
 // responsible of its pointers lifetime
 struct GenotypeConnexion {  
+	int originID, destinationID;
 
-	int originID, destinationID; // redundant. But still better for efficiency.
-
-	// Corresponds to the dimension of the input of the destination neuron
+	// Corresponds to the dimension of the input of the destination neuron. Redundant but eliminates indirections.
 	int nLines;
-	// Corresponds to the dimension of the output of the origin neuron
+	// Corresponds to the dimension of the output of the origin neuron. Redundant but eliminates indirections.
 	int nColumns;
 
-	float* alpha;
-	float* eta;
-	float* w;
-	float* A;
-	float* B;
-	float* C;
+	std::unique_ptr<float[]> A;
+	std::unique_ptr<float[]> B;
+	std::unique_ptr<float[]> C;
+	std::unique_ptr<float[]> eta;
+
+#if defined RISI_NAJARRO_2020
+	std::unique_ptr<float[]> D;
+
+#elif defined USING_NEUROMODULATION
+	std::unique_ptr<float[]> alpha;
+	std::unique_ptr<float[]> w;
+#endif 
+	
+	
 
 	GenotypeConnexion() {
 		return;
@@ -40,50 +52,83 @@ struct GenotypeConnexion {
 		destinationID = gc.destinationID;
 		nLines = gc.nLines;
 		nColumns = gc.nColumns;
-		alpha = gc.alpha;
-		eta = gc.eta;
-		w = gc.w;
-		A = gc.A;
-		B = gc.B;
-		C = gc.C;
+
+		// move() removes ownership from the original pointer. Its use here is kind of an hacky workaround 
+		// that vector reallocation calls move constructor AND destructor. So the pointee would be destroyed otherwise.
+		// https://stackoverflow.com/questions/41864544/stdvector-calls-contained-objects-destructor-when-reallocating-no-matter-what
+		A = std::move(gc.A);
+		B = std::move(gc.B);
+		C = std::move(gc.C);
+		eta = std::move(gc.eta);
+
+#if defined RISI_NAJARRO_2020
+		D = std::move(gc.D);
+#elif defined USING_NEUROMODULATION
+		w = std::move(gc.w);
+		alpha = std::move(gc.alpha);
+#endif 
 	}
 
-
-	GenotypeConnexion(GenotypeConnexion& gc) {
+	GenotypeConnexion(const GenotypeConnexion& gc) {
 		destinationID = gc.destinationID;
 		originID = gc.originID;
 		nLines = gc.nLines;
 		nColumns = gc.nColumns;
 
 		int s = nLines * nColumns;
-		eta = new float[s];
-		alpha = new float[s];
-		A = new float[s];
-		B = new float[s];
-		C = new float[s];
-		w = new float[s];
+		eta = std::make_unique<float[]>(s);
+		A = std::make_unique<float[]>(s);
+		B = std::make_unique<float[]>(s);
+		C = std::make_unique<float[]>(s);
 
-		memcpy(eta, gc.eta, sizeof(float) * s);
-		memcpy(alpha, gc.alpha, sizeof(float) * s);
-		memcpy(A, gc.A, sizeof(float) * s);
-		memcpy(B, gc.B, sizeof(float) * s);
-		memcpy(C, gc.C, sizeof(float) * s);
-		memcpy(w, gc.w, sizeof(float) * s);
+		memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
+		memcpy(A.get(), gc.A.get(), sizeof(float) * s);
+		memcpy(B.get(), gc.B.get(), sizeof(float) * s);
+		memcpy(C.get(), gc.C.get(), sizeof(float) * s);
+
+#if defined RISI_NAJARRO_2020
+		D = std::make_unique<float[]>(s);
+		memcpy(D.get(), gc.D.get(), sizeof(float) * s);
+
+#elif defined USING_NEUROMODULATION
+		alpha = std::make_unique<float[]>(s);
+		w = std::make_unique<float[]>(s);
+		memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
+		memcpy(w.get(), gc.w.get(), sizeof(float) * s);
+#endif 
 	}
 
-	GenotypeConnexion operator=(GenotypeConnexion& gc) {
+	GenotypeConnexion operator=(const GenotypeConnexion& gc) {
+		destinationID = gc.destinationID;
+		originID = gc.originID;
+		nLines = gc.nLines;
+		nColumns = gc.nColumns;
 
+		int s = nLines * nColumns;
+		eta = std::make_unique<float[]>(s);
+		A = std::make_unique<float[]>(s);
+		B = std::make_unique<float[]>(s);
+		C = std::make_unique<float[]>(s);
+
+		memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
+		memcpy(A.get(), gc.A.get(), sizeof(float) * s);
+		memcpy(B.get(), gc.B.get(), sizeof(float) * s);
+		memcpy(C.get(), gc.C.get(), sizeof(float) * s);
+
+#if defined RISI_NAJARRO_2020
+		D = std::make_unique<float[]>(s);
+		memcpy(D.get(), gc.D.get(), sizeof(float) * s);
+
+#elif defined USING_NEUROMODULATION
+		alpha = std::make_unique<float[]>(s);
+		w = std::make_unique<float[]>(s);
+		memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
+		memcpy(w.get(), gc.w.get(), sizeof(float) * s);
+#endif 
+		return *this;
 	}
 
-	~GenotypeConnexion() 
-	{
-		delete[] alpha;
-		delete[] eta;
-		delete[] w;
-		delete[] A;
-		delete[] B;
-		delete[] C;
-	}
+	~GenotypeConnexion() {};
 };
 
 struct GenotypeNode {
@@ -99,10 +144,12 @@ struct GenotypeNode {
 	// Vector of structs containing pointers to the fixed connexion matrices linking children
 	std::vector<GenotypeConnexion> childrenConnexions;
 
+#ifdef USING_NEUROMODULATION
 	// neuromodulatorySignal = tanh(neuromodulationBias + SUM(w*out))
 	std::vector<float> wNeuromodulation;
 	// neuromodulatorySignal = tanh(neuromodulationBias + SUM(w*out))
 	float neuromodulationBias;
+#endif
 
 	// Depth of the children tree. =0 for simple neurons
 	int depth;
@@ -124,7 +171,9 @@ struct GenotypeNode {
 	// 0, children[0]->inputsize, children[0]->inputsize+children[1]->inputsize, ....
 	std::vector<int> concatenatedChildrenInputBeacons;
 
-	GenotypeNode() {};
+	// Empty definition because many attributes are set by the network owning this. Same reason for no copy constructor.
+	GenotypeNode() {};	
+
 	~GenotypeNode() {};
 	
 	// Populates the concatenatedChildrenInputBeacons vector and sets concatenatedChildrenInputLength
@@ -180,38 +229,54 @@ struct GenotypeNode {
 // responsible of its pointers lifetime
 struct PhenotypeConnexion {   // responsible of its pointers
 public:
-	float* H;
-	float* E;
+	std::unique_ptr<float[]> H;
 
-	//PhenotypeConnexion() {};
+#ifdef USING_NEUROMODULATION
+	std::unique_ptr<float[]> E;
+#endif 
+
+	// Should not be called !
+	PhenotypeConnexion(const PhenotypeConnexion&) {
+		int i = 0;
+	}
 
 	PhenotypeConnexion(int s) 
 	{
-		H = new float[s];
-		E = new float[s];
+		H = std::make_unique<float[]>(s);
+
+#ifdef USING_NEUROMODULATION
+		E = std::make_unique<float[]>(s);
+#endif 
 		zero(s);
 	}
 
 	void zero(int s) {
 		for (int i = 0; i < s; i++) {
 			H[i] = 0.0f;
+#ifdef USING_NEUROMODULATION
 			E[i] = 0.0f;
+#endif 
+		}
+	}
+	
+	void randomH(int s) {
+		for (int i = 0; i < s; i++) {
+			H[i] = NORMAL_01*.1f;
 		}
 	}
 
-	~PhenotypeConnexion()
-	{
-		delete[] H;
-		delete[] E; 
-	}
+	~PhenotypeConnexion() {}
 };
 
 struct PhenotypeNode {
 	GenotypeNode* type;
+
+#ifdef USING_NEUROMODULATION
 	float neuromodulatorySignal; //initialized at 1 at the beginning of a trial
+#endif 
 
 	// Pointers to its children. Responsible for their lifetime !
-	std::vector<PhenotypeNode*> children;
+	std::vector<std::unique_ptr<PhenotypeNode>> children;
 
 	// Vector of structs containing pointers to the dynamic connexion matrices linking children
 	std::vector<PhenotypeConnexion> childrenConnexions;
@@ -221,19 +286,20 @@ struct PhenotypeNode {
 
 	PhenotypeNode(GenotypeNode* type) : type(type)
 	{
+#ifdef USING_NEUROMODULATION
 		neuromodulatorySignal = 1.0f;
+#endif 
 		previousInput.resize(type->inputSize);
 		previousOutput.resize(type->outputSize);
 		currentOutput.resize(type->outputSize);
 
 		// create children recursively 
 		children.resize(type->children.size());
-		for (int i = 0; i < type->children.size(); i++) {
-			children[i] = new PhenotypeNode(type->children[i]);;
+		for (int i = 0; i < type->children.size(); i++) { 
+			children[i] = std::make_unique<PhenotypeNode>(new PhenotypeNode(type->children[i])); // TODO check call numbers to destructor
 		}
 
 		// create connexions structs
-		// childrenConnexions.resize(0);
 		childrenConnexions.reserve(type->childrenConnexions.size());
 		for (int i = 0; i < type->childrenConnexions.size(); i++) {
 			childrenConnexions.emplace_back(
@@ -243,15 +309,11 @@ struct PhenotypeNode {
 		}
 	};
 
-	~PhenotypeNode() {
-		for (PhenotypeNode* child : children) {
-			delete child;
-		}
-	}
+	~PhenotypeNode() {}
 
 	void zero() {
-		for (PhenotypeNode* c : children) {
-			if (!c->type->isSimpleNeuron) c->zero();
+		for (int i = 0; i < children.size(); i++) {
+			if (!children[i]->type->isSimpleNeuron) children[i]->zero();
 		}
 		for (int i = 0; i < childrenConnexions.size(); i++) {
 			int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
@@ -259,8 +321,20 @@ struct PhenotypeNode {
 		}
 	}
 
+	void randomH() {
+		for (int i = 0; i < children.size(); i++) {
+			if (!children[i]->type->isSimpleNeuron) children[i]->randomH();
+		}
+		for (int i = 0; i < childrenConnexions.size(); i++) {
+			int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
+			childrenConnexions[i].randomH(s);
+		}
+	}
+
 	void reset() {
+#ifdef USING_NEUROMODULATION
 		neuromodulatorySignal = 1.0f;
+#endif 
 		for (int i = 0; i < previousInput.size(); i++) {
 			previousInput[i] = 0;
 		}
@@ -289,7 +363,7 @@ public:
 	Network(int inputSize, int outputSize);
 	// Does NOT create the phenotype tree ! No "topNodeP = new PhenotypeNode(&genome[genome.size()-1]);"
 	Network(Network* n);
-	~Network();
+	~Network() {};
 
 	std::vector<float> getOutput();
 	void step(std::vector<float> obs);
@@ -307,6 +381,6 @@ public:
 private:
 	int nSimpleNeurons;
 	int inputSize, outputSize;
-	std::vector<GenotypeNode*> genome;
-	PhenotypeNode* topNodeP; 
+	std::vector<std::unique_ptr<GenotypeNode>> genome;
+	std::unique_ptr<PhenotypeNode> topNodeP;
 };

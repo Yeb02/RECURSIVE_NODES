@@ -18,30 +18,50 @@ inline float ReLU(float x) { return x > 0 ? x : 0; }
 GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns, bool zeroInit) :
 	originID(oID), destinationID(dID), nLines(nLines), nColumns(nColumns)
 {
-	alpha = new float[nLines * nColumns];
-	eta = new float[nLines * nColumns];
-	w = new float[nLines * nColumns];
-	A = new float[nLines * nColumns];
-	B = new float[nLines * nColumns];
-	C = new float[nLines * nColumns];
+	int s = nLines * nColumns;
+	eta = std::make_unique<float[]>(s);
+	A = std::make_unique<float[]>(s);
+	B = std::make_unique<float[]>(s);
+	C = std::make_unique<float[]>(s);
+
+#if defined RISI_NAJARRO_2020
+	D = std::make_unique<float[]>(s);
+#elif defined USING_NEUROMODULATION
+	alpha = std::make_unique<float[]>(s);
+	w = std::make_unique<float[]>(s);
+#endif 
 
 	if (zeroInit) {
 		for (int i = 0; i < nLines * nColumns; i++) {
-			alpha[i] = 0.0f;
 			eta[i] = .8f;
-			w[i] = 0.0f;
 			A[i] = 0.0f;
 			B[i] = 0.0f ;
 			C[i] = 0.0f;
+
+#if defined RISI_NAJARRO_2020
+			D[i] = 0.0f;
+#elif defined USING_NEUROMODULATION
+			alpha[i] = 0.0f;
+			w[i] = 0.0f;
+#endif 
 		}
 	} else {
 		for (int i = 0; i < nLines * nColumns; i++) {
-			alpha[i] = NORMAL_01;
-			eta[i] = UNIFORM_01 *.5f + .5f;
-			w[i] = NORMAL_01;
+
+#if defined RISI_NAJARRO_2020
+			A[i] = UNIFORM_01;
+			B[i] = UNIFORM_01;
+			C[i] = UNIFORM_01;
+			D[i] = UNIFORM_01;
+			eta[i] = UNIFORM_01;
+#elif defined USING_NEUROMODULATION
 			A[i] = NORMAL_01;
 			B[i] = NORMAL_01 * .2f;
-			C[i] = NORMAL_01 *.2f;
+			C[i] = NORMAL_01 * .2f;
+			alpha[i] = NORMAL_01;
+			eta[i] = UNIFORM_01 * .5f + .5f;
+			w[i] = NORMAL_01;
+#endif 
 		}
 	}
 }
@@ -60,16 +80,21 @@ void GenotypeNode::computeBeacons() {
 void GenotypeNode::mutateFloats() {
 	int rID, listID, matrixID; 
 	const float pMutation = .3f; // TODO
-	const float K = .2f;
 	float r;
 
-	// Mutate int(6*Pmutation*nParam) parameters in the inter-children connexions.
+#if defined RISI_NAJARRO_2020
+	constexpr int nArrays = 5;
+#elif defined USING_NEUROMODULATION
+	constexpr int nArrays = 6;
+#endif 
+	
+	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
 
 	std::vector<int> ids;
 	int l = 0;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		ids.push_back(l);
-		l += childrenConnexions[i].nLines * childrenConnexions[i].nColumns * 6;
+		l += childrenConnexions[i].nLines * childrenConnexions[i].nColumns * nArrays;
 	}
 	ids.push_back(l);
 
@@ -82,33 +107,50 @@ void GenotypeNode::mutateFloats() {
 		int j = 0;
 		while (rID >= ids[j+1]) { j++; }
 		listID = j;
-		j = (rID - ids[listID]) % 6;
-		matrixID = (rID - listID - j) / 6;
+		j = (rID - ids[listID]) % nArrays;
+		matrixID = (rID - listID - j) / nArrays;
 		
 		r = .2f * NORMAL_01;
+
+#if defined RISI_NAJARRO_2020
+		switch (j) {
+		case 0: childrenConnexions[listID].A[matrixID] += r;
+		case 1: childrenConnexions[listID].B[matrixID] += r;
+		case 2: childrenConnexions[listID].C[matrixID] += r;
+		case 3: childrenConnexions[listID].D[matrixID] += r;
+		case 4:
+			float eta = childrenConnexions[listID].eta[matrixID];
+			childrenConnexions[listID].eta[matrixID] += r * .3f * eta * (1 - eta); // guarantees eta in [0,1] and slower variations around
+		}
+#elif defined USING_NEUROMODULATION
 		switch (j) {
 		case 0: childrenConnexions[listID].A[matrixID] += r;
 		case 1: childrenConnexions[listID].B[matrixID] += r;
 		case 2: childrenConnexions[listID].C[matrixID] += r;
 		case 3: childrenConnexions[listID].alpha[matrixID] += r;
 		case 4: childrenConnexions[listID].w[matrixID] += r;
-		case 5: 
+		case 5:
 			float eta = childrenConnexions[listID].eta[matrixID];
-			childrenConnexions[listID].eta[matrixID] += r>0?
-				 K * eta * (1 - eta) :
-				-K * eta * (1 - eta) ;
-		}
+			childrenConnexions[listID].eta[matrixID] += r > 0 ?
+				K * eta * (1 - eta) :
+				-K * eta * (1 - eta);
+	}
+#endif 
 	}
 
 	for (int i = 0; i < outputSize; i++) {
 		r = .2f * NORMAL_01;
 		bias[i] += r;
+	}
+
+#ifdef USING_NEUROMODULATION
+	for (int i = 0; i < outputSize; i++) {
 		r = .2f * NORMAL_01;
 		wNeuromodulation[i] += r;
 	}
-
 	r = .2f * NORMAL_01;
 	neuromodulationBias += r;
+#endif 
 }
 
 void GenotypeNode::connect() {
@@ -145,12 +187,11 @@ void GenotypeNode::disconnect() {
 }
 
 void GenotypeNode::addChild(GenotypeNode* child) {
-	children.push_back(child);
 
 	// Previously, the output node was at the children.size() position (virtually). It is now being shifted right 1 slot,
 	// so the destination IDs of the connexions must be updated when their destination is the output.
 	for (int i = 0; i < childrenConnexions.size(); i++) {
-		if (childrenConnexions[i].destinationID == children.size() - 1) {
+		if (childrenConnexions[i].destinationID == children.size()) {
 			childrenConnexions[i].destinationID++;
 		}
 	}
@@ -163,7 +204,7 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 
 	r = UNIFORM_01;
 	oID = (int)((float)(children.size() + 1) * parallelBias * r);
-	if (oID >= children.size()) {
+	if (oID >= children.size()) { // the incoming connexion comes from the parent's input
 		oID = INPUT_ID;
 		originOutputSize = inputSize;
 	} else { 
@@ -172,16 +213,16 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 
 	r = UNIFORM_01;
 	dID = (int)((float)(children.size() + 1) * parallelBias * r);
-	if (dID >= children.size()) {
-		dID = children.size();
+	if (dID >= children.size()) { // the outgoing connexion goes to the parent's output
+		dID = children.size()+1;
 		destinationsInputSize = outputSize;
 	} else { 
 		destinationsInputSize = children[dID]->inputSize;
 	}
 
-	childrenConnexions.emplace_back(oID,   children.size()-1, child->inputSize,      originOutputSize,  true);
-	childrenConnexions.emplace_back(children.size() - 1, dID, destinationsInputSize, child->outputSize, true);
-
+	childrenConnexions.emplace_back(oID,   children.size(), child->inputSize,      originOutputSize,  true);
+	childrenConnexions.emplace_back(children.size(),   dID, destinationsInputSize, child->outputSize, true);
+	children.push_back(child);
 	updateDepth();
 }
 void GenotypeNode::removeChild() {
@@ -243,9 +284,13 @@ void GenotypeNode::incrementDestinationInputSize(int i) {
 			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
-			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+#if defined RISI_NAJARRO_2020
+			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
+#elif defined USING_NEUROMODULATION
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+#endif 
 
 			idNew++;
 			idOld++;
@@ -254,9 +299,14 @@ void GenotypeNode::incrementDestinationInputSize(int i) {
 		newConnexion.A[idNew] = 0.0f;
 		newConnexion.B[idNew] = 0.0f;
 		newConnexion.C[idNew] = 0.0f;
-		newConnexion.alpha[idNew] = 0.0f;
 		newConnexion.eta[idNew] = 0.0f;
+#if defined RISI_NAJARRO_2020
+		newConnexion.D[idNew] = 0.0f;
+#elif defined USING_NEUROMODULATION
+		newConnexion.alpha[idNew] = 0.0f;
 		newConnexion.w[idNew] = 0.0f;
+#endif 
+
 		idNew++;
 	}
 
@@ -271,7 +321,10 @@ void GenotypeNode::incrementOutputSize(){
 			incrementOriginOutputSize(i);
 		}
 	}
+	bias.push_back(0);
+#ifdef USING_NEUROMODULATION
 	wNeuromodulation.push_back(0);
+#endif 
 }
 void GenotypeNode::onChildOutputSizeIncremented(GenotypeNode* modifiedType) {
 	for (int i = 0; i < childrenConnexions.size(); i++) {
@@ -295,9 +348,13 @@ void GenotypeNode::incrementOriginOutputSize(int i) {
 			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
-			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+#if defined RISI_NAJARRO_2020
+			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
+#elif defined USING_NEUROMODULATION
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+#endif 
 
 			idNew++;
 			idOld++;
@@ -307,9 +364,13 @@ void GenotypeNode::incrementOriginOutputSize(int i) {
 		newConnexion.A[idNew] = 0.0f;
 		newConnexion.B[idNew] = 0.0f;
 		newConnexion.C[idNew] = 0.0f;
-		newConnexion.alpha[idNew] = 0.0f;
 		newConnexion.eta[idNew] = 0.0f;
+#if defined RISI_NAJARRO_2020
+		newConnexion.D[idNew] = 0.0f;
+#elif defined USING_NEUROMODULATION
+		newConnexion.alpha[idNew] = 0.0f;
 		newConnexion.w[idNew] = 0.0f;
+#endif 
 		idNew++;
 	}
 	childrenConnexions[i] = newConnexion;
@@ -352,9 +413,13 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
-			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+#if defined RISI_NAJARRO_2020
+			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
+#elif defined USING_NEUROMODULATION
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+#endif 
 
 			idNew++;
 			idOld++;
@@ -375,7 +440,11 @@ void GenotypeNode::decrementOutputSize(int id){
 		}
 	}
 
+#ifdef USING_NEUROMODULATION
 	wNeuromodulation.erase(wNeuromodulation.begin() + id);
+#endif 
+	bias.erase(bias.begin() + id);
+
 }
 void GenotypeNode::onChildOutputSizeDecremented(GenotypeNode* modifiedType, int id){
 	for (int i = 0; i < childrenConnexions.size(); i++) {
@@ -402,16 +471,20 @@ void GenotypeNode::decrementOriginOutputSize(int i, int id) {
 			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
-			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
+#if defined RISI_NAJARRO_2020
+			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
+#elif defined USING_NEUROMODULATION
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
+			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+#endif 
 
 			idNew++;
 			idOld++;
 		}
 	}
 
-	childrenConnexions[i] = GenotypeConnexion(newConnexion);
+	childrenConnexions[i] = newConnexion;
 }
 
 void GenotypeNode::updateDepth() {
@@ -424,7 +497,7 @@ void GenotypeNode::updateDepth() {
 
 void PhenotypeNode::forward(float* input) {
 	float* _childInputs = new float[type->concatenatedChildrenInputLength + type->outputSize];
-	for (int i = 0; i < type->concatenatedChildrenInputLength + type->outputSize; i++) _childInputs[i] = 0;
+	for (int i = 0; i < type->concatenatedChildrenInputLength + type->outputSize; i++) _childInputs[i] = 0.0f;
 	
 	
 	// propagate the previous steps's outputs, by iterating over the connexions between children
@@ -440,20 +513,31 @@ void PhenotypeNode::forward(float* input) {
 		if (originID == INPUT_ID) {
 			for (int i = 0; i < nl; i++) {
 				for (int j = 0; j < nc; j++) {
+
+#if defined RISI_NAJARRO_2020
+					// The article's w is our H. z += w * yj, y = f(z)
+					_childInputs[i0 + i] += childrenConnexions[id].H[i * nc + j] * input[j];
+#elif defined USING_NEUROMODULATION
 					// += (H * alpha + w) * input
 					_childInputs[i0 + i] += (childrenConnexions[id].H[i*nc+j] * type->childrenConnexions[id].alpha[i*nc+j]
 						+ type->childrenConnexions[id].w[i*nc+j])
 						* input[j];
+#endif 
 				}
 			}
 		}
 		else {
 			for (int i = 0; i < nl; i++) {
 				for (int j = 0; j < nc; j++) {
+
+#if defined RISI_NAJARRO_2020
+					_childInputs[i0 + i] += childrenConnexions[id].H[i * nc + j] * children[originID]->previousOutput[j];
+#elif defined USING_NEUROMODULATION
 					// += (H * alpha + w) * prevAct
-					_childInputs[i0 + i] += (childrenConnexions[id].H[i*nc+j] * type->childrenConnexions[id].alpha[i*nc+j]
-						+ type->childrenConnexions[id].w[i*nc+j])
+					_childInputs[i0 + i] += (childrenConnexions[id].H[i * nc + j] * type->childrenConnexions[id].alpha[i * nc + j]
+						+ type->childrenConnexions[id].w[i * nc + j])
 						* children[originID]->previousOutput[j];
+#endif 
 				}
 			}
 		}	
@@ -463,8 +547,10 @@ void PhenotypeNode::forward(float* input) {
 
 	int _childID = 0;
 	int _inputListID = 0;
-	for (PhenotypeNode* child : children) {
+	for (const std::unique_ptr<PhenotypeNode>& child : children) {
+#ifdef USING_NEUROMODULATION
 		child->neuromodulatorySignal = this->neuromodulatorySignal;
+#endif 
 
 		// Depending on the child's nature, we have 2 cases:
 		//  - the child is a bloc
@@ -484,16 +570,23 @@ void PhenotypeNode::forward(float* input) {
 	// process this node's output, stored in the input of the virtual output node:
 	previousOutput.assign(currentOutput.begin(), currentOutput.end()); // save the previous activations
 	for (int i = 0; i < type->outputSize; i++) {
+
+#ifdef RISI_NAJARRO_2020  // TODO experiment. In their feedforward, they do not use a bias.
+		currentOutput[i] = tanh(_childInputs[_inputListID + i]);
+#else
 		currentOutput[i] = tanh(_childInputs[_inputListID + i] + type->bias[i]);
+#endif
+
 	}
 
+#ifdef USING_NEUROMODULATION
 	// compute the neuromodulatory output
 	float temp = type->neuromodulationBias;
 	for (int i = 0; i < type->outputSize; i++) {
 		temp += type->wNeuromodulation[i] * currentOutput[i];
 	}
 	neuromodulatorySignal *= 1.41f * tanh(temp); 
-	
+#endif	
 
 
 	// Update hebbian and eligibility traces
@@ -503,15 +596,21 @@ void PhenotypeNode::forward(float* input) {
 		destinationID = type->childrenConnexions[id].destinationID;
 
 		
-		float eta, A, B, C, yi, yj; // For readability only, compiler will optimize them away
+		float eta, A, B, C, D, yi, yj; // For readability only, compiler will optimize them away
 		int nl = type->childrenConnexions[id].nLines;
 		int nc = type->childrenConnexions[id].nColumns;
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
-				eta = type->childrenConnexions[id].eta[i*nc+j];
-				A = type->childrenConnexions[id].A[i*nc+j];
-				B = type->childrenConnexions[id].B[i*nc+j];
-				C = type->childrenConnexions[id].C[i*nc+j];
+
+				A = type->childrenConnexions[id].A[i * nc + j];
+				B = type->childrenConnexions[id].B[i * nc + j];
+				C = type->childrenConnexions[id].C[i * nc + j];
+				eta = type->childrenConnexions[id].eta[i * nc + j];
+
+#if defined RISI_NAJARRO_2020
+				D = type->childrenConnexions[id].D[i * nc + j];
+#endif 
+				
 				yi = destinationID != children.size() ?
 					children[destinationID]->currentOutput[i] :
 					currentOutput[i];
@@ -519,11 +618,15 @@ void PhenotypeNode::forward(float* input) {
 					children[originID]->previousOutput[j] :
 					previousInput[j];
 
+#if defined RISI_NAJARRO_2020
+				childrenConnexions[id].H[i * nc + j] += eta * (A * yi * yj + B * yi + C * yj + D);
+#elif defined USING_NEUROMODULATION
 				childrenConnexions[id].E[i*nc+j] = (1 - eta) * childrenConnexions[id].E[i*nc+j]
 					+ eta * (A * yi * yj + B * yi + C * yj);
 
 				childrenConnexions[id].H[i*nc+j] += childrenConnexions[id].E[i*nc+j] * neuromodulatorySignal;
 				childrenConnexions[id].H[i*nc+j] = std::max(-1.0f, std::min(childrenConnexions[id].H[i*nc+j], 1.0f));
+#endif 
 			}
 		}
 	}
@@ -545,7 +648,7 @@ Network::Network(Network* n) {
 	outputSize = n->outputSize;
 
 	genome.resize(n->genome.size());
-	for (int i = 0; i < n->genome.size(); i++) genome[i] = new GenotypeNode();
+	for (int i = 0; i < n->genome.size(); i++) genome[i] = std::make_unique<GenotypeNode>(new GenotypeNode());
 	for (int i = 0; i < nSimpleNeurons; i++) {
 		genome[i]->isSimpleNeuron = true;
 		genome[i]->f = n->genome[i]->f; 
@@ -554,8 +657,10 @@ Network::Network(Network* n) {
 		genome[i]->bias.resize(0);   
 		genome[i]->children.reserve(0);
 		genome[i]->childrenConnexions.reserve(0);
+#ifdef USING_NEUROMODULATION
 		genome[i]->wNeuromodulation.reserve(0);
-		genome[i]->neuromodulationBias=0.0f;
+		genome[i]->neuromodulationBias = 0.0f;
+#endif 
 		genome[i]->concatenatedChildrenInputLength = 0;
 		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
 		genome[i]->depth = 0;
@@ -570,20 +675,24 @@ Network::Network(Network* n) {
 		genome[i]->f = NULL;
 		genome[i]->inputSize = n->genome[i]->inputSize;
 		genome[i]->outputSize = n->genome[i]->outputSize;
+#ifdef USING_NEUROMODULATION
+		genome[i]->wNeuromodulation.reserve(0);
+		genome[i]->neuromodulationBias = 0.0f;
 		genome[i]->neuromodulationBias = n->genome[i]->neuromodulationBias;
+		genome[i]->wNeuromodulation.assign(n->genome[i]->wNeuromodulation.begin(), n->genome[i]->wNeuromodulation.end());
+#endif 
 		genome[i]->concatenatedChildrenInputLength = n->genome[i]->concatenatedChildrenInputLength;
 		genome[i]->depth = n->genome[i]->depth;
 		genome[i]->position = n->genome[i]->position;
-		genome[i]->closestNode = n->genome[i]->closestNode != NULL ? genome[n->genome[i]->closestNode->position] : NULL; // topNode case
+		genome[i]->closestNode = n->genome[i]->closestNode != NULL ? genome[n->genome[i]->closestNode->position].get() : NULL; // topNode case
 		genome[i]->mutationalDistance = n->genome[i]->mutationalDistance;
 
 		genome[i]->bias.assign(n->genome[i]->bias.begin(), n->genome[i]->bias.end());
-		genome[i]->wNeuromodulation.assign(n->genome[i]->wNeuromodulation.begin(), n->genome[i]->wNeuromodulation.end());
 		genome[i]->concatenatedChildrenInputBeacons.assign(n->genome[i]->concatenatedChildrenInputBeacons.begin(), n->genome[i]->concatenatedChildrenInputBeacons.end());
 
 		genome[i]->children.resize(n->genome[i]->children.size());
 		for (int j = 0; j < n->genome[i]->children.size(); j++) { // TODO problematic if pointers are not equally spaced
-			genome[i]->children[j] = genome[n->genome[i]->children[j]->position];
+			genome[i]->children[j] = genome[n->genome[i]->children[j]->position].get();
 		}
 
 		genome[i]->childrenConnexions = n->genome[i]->childrenConnexions; // Hopefully vector copy calls copy constructor
@@ -597,7 +706,7 @@ inputSize(inputSize), outputSize(outputSize)
 {
 	nSimpleNeurons = 2;
 	genome.resize(nSimpleNeurons + 1);
-	for (int i = 0; i < nSimpleNeurons + 1; i++) genome[i] = new GenotypeNode();
+	for (int i = 0; i < nSimpleNeurons + 1; i++) genome[i] = std::make_unique< GenotypeNode>(new GenotypeNode());
 
 	int i = 0;
 
@@ -610,8 +719,6 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->bias.resize(0);
 		genome[i]->children.reserve(0);
 		genome[i]->childrenConnexions.reserve(0);
-		genome[i]->wNeuromodulation.reserve(0);
-		genome[i]->neuromodulationBias = 0.0f;
 		genome[i]->concatenatedChildrenInputLength = 0;
 		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
 		genome[i]->depth = 0;
@@ -630,8 +737,6 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->bias.resize(0);
 		genome[i]->children.reserve(0);
 		genome[i]->childrenConnexions.reserve(0);
-		genome[i]->wNeuromodulation.reserve(0);
-		genome[i]->neuromodulationBias = 0.0f;
 		genome[i]->concatenatedChildrenInputLength = 0;
 		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
 		genome[i]->depth = 0;
@@ -658,20 +763,15 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->childrenConnexions.emplace_back(
 			INPUT_ID, genome[i]->children.size(), inputSize, outputSize
 		);
+#ifdef USING_NEUROMODULATION
 		genome[i]->neuromodulationBias = 0.0f;
 		genome[i]->wNeuromodulation.resize(outputSize);
+#endif 
 		genome[i]->computeBeacons();
 	}
 
-	topNodeP = new PhenotypeNode(genome[nSimpleNeurons]); 
+	topNodeP = std::make_unique<PhenotypeNode>(new PhenotypeNode(genome[nSimpleNeurons].get()));
 
-}
-
-Network::~Network() {
-   	delete topNodeP;
-	for (int i = 0; i < genome.size(); i++) {
-		delete genome[i];
-	}
 }
 
 std::vector<float> Network::getOutput() {
@@ -679,12 +779,14 @@ std::vector<float> Network::getOutput() {
 }
 
 void Network::step(std::vector<float> obs) {
+#ifdef USING_NEUROMODULATION
 	topNodeP->neuromodulatorySignal = 1.0f; // other nodes have it set by their parent
-	topNodeP->forward(&obs[0]);
+#endif 
+	topNodeP->forward(&(obs[0]));
 }
 
 void Network::mutate() {
-	delete topNodeP;
+	topNodeP.reset();
 	float r;
 
 	// Floating point mutations.
@@ -706,7 +808,7 @@ void Network::mutate() {
 		if (r < .002) {
 			genome[i]->incrementInputSize();
 			for (int j = nSimpleNeurons; j < i; j++) {
-				genome[j]->onChildInputSizeIncremented(genome[i]);
+				genome[j]->onChildInputSizeIncremented(genome[i].get());
 			}
 		}
 
@@ -714,7 +816,7 @@ void Network::mutate() {
 		if (r < .002) {
 			genome[i]->incrementOutputSize();
 			for (int j = nSimpleNeurons; j < i; j++) {
-				genome[j]->onChildOutputSizeIncremented(genome[i]);
+				genome[j]->onChildOutputSizeIncremented(genome[i].get());
 			}
 		}
 
@@ -724,7 +826,7 @@ void Network::mutate() {
 			rID = (int) (UNIFORM_01 * (float)inputSize);
 			genome[i]->decrementInputSize(rID);
 			for (int j = i+1; j < genome.size(); j++) {
-				genome[j]->onChildInputSizeDecremented(genome[i], rID);
+				genome[j]->onChildInputSizeDecremented(genome[i].get(), rID);
 			}
 		}
 
@@ -733,12 +835,12 @@ void Network::mutate() {
 			rID = (int)(UNIFORM_01 * (float)outputSize);
 			genome[i]->decrementOutputSize(rID); 
 			for (int j = i+1; j < genome.size(); j++) {
-				genome[j]->onChildOutputSizeDecremented(genome[i], rID);
+				genome[j]->onChildOutputSizeDecremented(genome[i].get(), rID);
 			}
 		}
 	}
 	
-
+	
 	// Adding a child node 
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
 		r = UNIFORM_01;
@@ -751,22 +853,22 @@ void Network::mutate() {
 			childID--;
 			childID = (int) (r * (float)childID);
 			if (childID >= i) childID++; 
-			genome[i]->addChild(genome[childID]);
+			genome[i]->addChild(genome[childID].get());
 			
 			// if the child's depth was equal to this node's, the depth is incremented by one and in must be moved in the genome vector.
 			if (prevDepth < genome[i]->depth && i != genome.size() - 1) {
 				int id = genome[i]->position + 1;
 				while (genome[id]->depth < genome[i]->depth) id++;
-				GenotypeNode* temp = genome[i];
+				std::unique_ptr<GenotypeNode> temp = std::move(genome[i]);
 				genome.erase(genome.begin() + i); //inefficient, but insignificant here.
-				genome.insert(genome.begin() + id - 1, temp); // -1 because of the erasure
+				genome.insert(genome.begin() + id - 1, std::move(temp)); // -1 because of the erasure
 
 				// update positions for affected nodes.
 				for (int j = i; j < id; j++) genome[j]->position = j;   // TODO check correctness when unbroken mentally
 			} 
 		}
 	}
-
+	
 	// Removing a child node
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
 		r = UNIFORM_01;
@@ -779,16 +881,15 @@ void Network::mutate() {
 			if (prevDepth > genome[i]->depth && i != genome.size() - 1) {
 				int id = genome[i]->position - 1;
 				while (genome[id]->depth > genome[i]->depth) id--;
-				GenotypeNode* temp = genome[i];
+				std::unique_ptr<GenotypeNode> temp = std::move(genome[i]);
 				genome.erase(genome.begin() + i); //inefficient, but insignificant here.
-				genome.insert(genome.begin() + id, temp); 
+				genome.insert(genome.begin() + id, std::move(temp));
 
 				// update positions for affected nodes.
 				for (int j = id; j < i+1; j++) genome[j]->position = j;   // TODO check correctness when unbroken mentally
 			}
 		}
 	}
-
 
 	// TODO 's:
 
@@ -801,11 +902,15 @@ void Network::mutate() {
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
 		genome[i]->computeBeacons();
 	}
-	topNodeP = new PhenotypeNode(genome[genome.size() - 1]);
+	topNodeP = std::make_unique<PhenotypeNode>(new PhenotypeNode(genome[genome.size() - 1].get()));
 }
 
 void Network::intertrialReset() {
+#if defined RISI_NAJARRO_2020
+	topNodeP->randomH();
+#elif defined USING_NEUROMODULATION
 	topNodeP->zero();
+#endif 
 }
 
 float Network::getSizeRegularizationLoss() {
@@ -831,17 +936,23 @@ float Network::getAmplitudeRegularizationLoss() {
 		for (int j = 0; j < genome[i]->childrenConnexions.size(); j++) {
 			size = genome[i]->childrenConnexions[j].nLines * genome[i]->childrenConnexions[j].nColumns;
 			for (int k = 0; k < size; k++) {
-				sum += abs(genome[i]->childrenConnexions[j].w[k]);
 				sum += abs(genome[i]->childrenConnexions[j].A[k]);
 				sum += abs(genome[i]->childrenConnexions[j].B[k]);
 				sum += abs(genome[i]->childrenConnexions[j].C[k]);
-				sum += abs(genome[i]->childrenConnexions[j].alpha[k]);
 				sum += abs(genome[i]->childrenConnexions[j].eta[k]);
+#if defined RISI_NAJARRO_2020
+				sum += abs(genome[i]->childrenConnexions[j].D[k]);
+#elif defined USING_NEUROMODULATION
+				sum += abs(genome[i]->childrenConnexions[j].alpha[k]);
+				sum += abs(genome[i]->childrenConnexions[j].w[k]);
+#endif 
 			}
 		}
 		for (int j = 0; j < genome[i]->outputSize; j++) {
 			sum += abs(genome[i]->bias[j]);
+#ifdef USING_NEUROMODULATION
 			sum += abs(genome[i]->wNeuromodulation[j]);
+#endif
 		}
 	}
 	return sum;
