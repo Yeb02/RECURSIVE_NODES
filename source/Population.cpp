@@ -1,7 +1,7 @@
 #pragma once
 
-#include <math.h>
-#include <assert.h>
+#include <cmath>
+#include <iostream>
 
 #include "Population.h"
 #include "Random.h"
@@ -102,8 +102,10 @@ void Population::step(std::vector<Trial*> trials) {
 			}
 			if (score > maxScore) maxScore = score;
 		}
+
 		std::cerr << maxScore << std::endl;
 		// Normalize scores
+
 		float stddev;
 		for (int j = 0; j < trials.size(); j++) {
 			avgScores[j] /= (float) N_SPECIMENS;
@@ -167,14 +169,14 @@ void Population::step(std::vector<Trial*> trials) {
 		std::vector<float> distances(N_SPECIMENS);
 #endif 
 
-		int sumr = 0, sumd = 0;
+		float sumr = 0, sumd = 0;
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			regularization[i] = networks[i]->getAmplitudeRegularizationLoss() + networks[i]->getSizeRegularizationLoss();
 			sumr += regularization[i];
 			sumd += distances[i];
 		}
-		float avgr = (float) sumr / (float) N_SPECIMENS;
-		float avgd = (float) sumd / (float) N_SPECIMENS;
+		float avgr = sumr / (float) N_SPECIMENS;
+		float avgd = sumd / (float) N_SPECIMENS;
 		float stddevr = 0.0f, stddevd = 0.0f;
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			stddevr += (regularization[i] - avgr) * (regularization[i] - avgr);

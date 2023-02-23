@@ -1,9 +1,11 @@
 #pragma once
 
+#include <memory>
+#include <cmath>
+#include <string>
+
 #include "Network.h"
 #include "Trial.h"
-#include <memory>
-
 
 /*
 The optimizer is a non canon version of the genetic algorithm, this is how the loop goes:
@@ -33,6 +35,10 @@ public:
 	Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS);
 	~Population();
 	void step(std::vector<Trial*>);
+	std::string save() {
+		return std::string("");
+	};
+	void load(std::string fileName) {};
 
 private:
 	int N_SPECIMENS;

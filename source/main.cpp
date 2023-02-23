@@ -26,17 +26,15 @@ le concernant. Mais comment faire pour les simples neurones ?
 int main()
 {
     
-    /*Network n(2, 2);
-    vector<float> input = { 0, 1 };
-    n.step(input);
-    vector<float> output = n.getOutput();
-    LOGV(output);*/
-    
     vector<Trial*> trials;
     for (int i = 0; i < 4; i++) trials.push_back(new XorTrial(2));
-    Population population(2, 2, 100);
-    for (int i = 0; i < 200; i++) {
+    Population population(2, 2, 300);
+    for (int i = 0; i < 3000; i++) {
         population.step(trials);
+        if (i % 10 == 0) {
+            string fileName = population.save();
+            population.load(fileName);
+        }
     }
     
     return 0;
