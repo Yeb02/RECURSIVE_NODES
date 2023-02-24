@@ -39,8 +39,18 @@ public:
 		return std::string("");
 	};
 	void load(std::string fileName) {};
+	void defragmentate() {
+		std::string fileName = save();
+		// delete population
+		load(fileName);
+		// delete file
+	}
+	Network* getFittestSpecimenPointer() {
+		return networks[fittestSpecimen];
+	}
 
 private:
 	int N_SPECIMENS;
 	std::vector<Network*> networks;
+	int fittestSpecimen;
 };

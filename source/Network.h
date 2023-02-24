@@ -12,7 +12,7 @@
 
 
 class Network {
-
+	friend class Drawer;
 public:
 	Network(int inputSize, int outputSize);
 
@@ -21,10 +21,9 @@ public:
 	~Network() {};
 
 	std::vector<float> getOutput();
-	void step(std::vector<float> obs);
-	void save(std::string path);
+	void step(const std::vector<float>& obs);
 	void mutate();
-
+	
 	// sets to 0 the dynamic elements of the phenotype
 	void intertrialReset();
 
@@ -40,4 +39,8 @@ private:
 	std::unique_ptr<PhenotypeNode> topNodeP;
 
 	void removeUnusedNodes();
+
+	void updateDepths();
+	// assumes the nodes' depths are up to date.
+	void sortGenome();
 };

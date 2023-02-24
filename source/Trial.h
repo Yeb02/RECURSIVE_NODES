@@ -9,7 +9,7 @@ class Trial {
 public:
 
 	// given the actions of the network, proceeds one step forward in the trial
-	virtual void step(std::vector<float> actions) = 0;
+	virtual void step(const std::vector<float>& actions) = 0;
 
 	// To be called at the end of the trial, AFTER fetching the score !
 	// When sameSeed is true, the random values are kept between runs.
@@ -40,7 +40,7 @@ class XorTrial : public Trial {
 public:
 	// Required network sizes: input = vectorSize, output = vectorSize.
 	XorTrial(int vectorSize);
-	void step(std::vector<float> actions) override;
+	void step(const std::vector<float>& actions) override;
 	void reset(bool sameSeed = false) override;
 
 private:

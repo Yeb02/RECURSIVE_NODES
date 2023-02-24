@@ -102,7 +102,7 @@ void PhenotypeNode::reset() {
 	}
 }
 
-void PhenotypeNode::forward(float* input) {
+void PhenotypeNode::forward(const float* input) {
 	float* _childInputs = new float[type->concatenatedChildrenInputLength + type->outputSize];
 	for (int i = 0; i < type->concatenatedChildrenInputLength + type->outputSize; i++) _childInputs[i] = 0.0f;
 

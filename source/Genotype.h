@@ -9,7 +9,6 @@
 
 #define RISI_NAJARRO_2020
 
-#define N_BASE_NEURONS  3				  // ReLu, tanH, cos (or modulo X)
 #define MAX_CHILDREN_PER_BLOCK  10
 #define MAX_BLOCK_INPUT_SIZE  10          // Does not apply to the top one, which is the network itself
 #define MAX_BLOCK_OUTPUT_SIZE  10         // Does not apply to the top one, which is the network itself
@@ -111,7 +110,8 @@ struct GenotypeNode {
 	// Populates the concatenatedChildrenInputBeacons vector and sets concatenatedChildrenInputLength
 	void computeBeacons();
 
-	void updateDepth();
+	// genomeState is an array of the size of the genome, which has 1s where the node's depth is known and 0s elsewhere
+	void updateDepth(std::vector<int>& genomeState);
 
 	// Mutate real-valued floating point parameters
 	void mutateFloats();

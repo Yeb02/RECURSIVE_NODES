@@ -51,5 +51,5 @@ struct PhenotypeNode {
 	void zero();
 	void randomH();
 	void reset();
-	void forward(float* input);
+	void forward(const float* input);
 };

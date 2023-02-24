@@ -8,13 +8,13 @@
 XorTrial::XorTrial(int vSize) :
 	vSize(vSize)
 {
-	netInSize = 2 * vSize;
+	netInSize = vSize;
 	netOutSize = vSize;
 
 	v1.resize(vSize);
 	v2.resize(vSize);
 	v1_xor_v2.resize(vSize);
-	observations.resize(2 * vSize);
+	observations.resize(vSize);
 
 	reset();
 }
@@ -34,10 +34,10 @@ void XorTrial::reset(bool sameSeed) {
 	}
 }
 
-void XorTrial::step(std::vector<float> actions) {
+void XorTrial::step(const std::vector<float>& actions) {
 	constexpr int endV1Phase = 20;
 	constexpr int endV2Phase = 40;
-	constexpr int startResponsePhase = 50;
+	constexpr int startResponsePhase = 40;
 	constexpr int endResponsePhase = 60;
 
 	
@@ -58,7 +58,7 @@ void XorTrial::step(std::vector<float> actions) {
 	if (currentNStep >= endResponsePhase) {
 		isTrialOver = true;
 
-		// score normalization
+		// score normalization, not necessary
 		if (currentNStep == endResponsePhase) score /= (endResponsePhase - startResponsePhase) * vSize;
 	}
 

@@ -56,6 +56,7 @@ Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
 	for (int i = 0; i < N_SPECIMENS; i++) {
 		networks[i] = new Network(IN_SIZE, OUT_SIZE);
 	}
+	fittestSpecimen = 0;
 }
 
 Population::~Population() {
@@ -91,17 +92,23 @@ void Population::step(std::vector<Trial*> trials) {
 				avgScores[j] += trials[j]->score;
 			}
 		}
+		for (int j = 0; j < trials.size(); j++) avgScores[j] /= (float)N_SPECIMENS;
 
 		//std::cout << avgScores[0] << std::endl;
 		float maxScore = 0.0f;
+		int maxScoreID = 0;
 		float score;
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			score = 0;
 			for (int j = 0; j < trials.size(); j++) {
 				score += scores[i * trials.size() + j];
 			}
-			if (score > maxScore) maxScore = score;
+			if (score > maxScore) {
+				maxScore = score;
+				maxScoreID = i;
+			}
 		}
+		fittestSpecimen = maxScoreID;
 
 		std::cerr << maxScore << std::endl;
 		// Normalize scores
@@ -118,7 +125,7 @@ void Population::step(std::vector<Trial*> trials) {
 			stddev = sqrtf(stddev/ (float) N_SPECIMENS);
 			//assert(abs(stddev) > 0.00001f);
 
-			if (abs(stddev) > 0.00001f) {
+			if (abs(stddev) > 0.001f) {
 				for (int i = 0; i < N_SPECIMENS; i++) {
 					scores[i * trials.size() + j] = (scores[i * trials.size() + j] - avgScores[j]) / stddev;
 				}
@@ -156,7 +163,7 @@ void Population::step(std::vector<Trial*> trials) {
 	
 
 	// compute raw fitnesses 
-	constexpr float scoreFactor = 1.0f, distanceFactor = .03f, regularizationFactor = .1f;
+	constexpr float scoreFactor = 1.0f, distanceFactor = .03f, regularizationFactor = .03f;
 	std::vector<float> fitnesses(N_SPECIMENS);
 	float fitnessSum, fitnessMin;
 	{
@@ -222,7 +229,7 @@ void Population::step(std::vector<Trial*> trials) {
 
 	
 	// The higher f0, the lower the selection pressure
-	constexpr float f0 = 5.0f;
+	constexpr float f0 = 0.5f;
 	// create offsprings 
 	{
 		//float f0 = .1f / (float) N_SPECIMENS; 
@@ -234,12 +241,15 @@ void Population::step(std::vector<Trial*> trials) {
 			probabilities[i] =  probabilities[i-1] + (fitnesses[i] - fitnessMin) / fitnessSum;
 		}
 
-
+		bool updated = false;
 		int parentID;
 		std::vector<Network*> tempNetworks(N_SPECIMENS);
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			parentID = binarySearch(probabilities, UNIFORM_01);
 			tempNetworks[i] = new Network(networks[parentID]);
+			if (parentID == fittestSpecimen && !updated) {
+				fittestSpecimen = i; updated = true;
+			}
 		}
 
 		for (int i = 0; i < N_SPECIMENS; i++) {

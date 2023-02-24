@@ -39,10 +39,10 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 		for (int i = 0; i < nLines * nColumns; i++) {
 
 #if defined RISI_NAJARRO_2020
-			A[i] = UNIFORM_01;
-			B[i] = UNIFORM_01;
-			C[i] = UNIFORM_01;
-			D[i] = UNIFORM_01;
+			A[i] = UNIFORM_01 - .5f;
+			B[i] = UNIFORM_01 - .5f;
+			C[i] = UNIFORM_01 - .5f;
+			D[i] = UNIFORM_01 - .5f;
 			eta[i] = UNIFORM_01;
 #elif defined USING_NEUROMODULATION
 			A[i] = NORMAL_01;
@@ -161,7 +161,6 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 }
 
 
-
 void GenotypeNode::computeBeacons() {
 	concatenatedChildrenInputBeacons.resize(children.size() + 1);
 	concatenatedChildrenInputBeacons[0] = 0;
@@ -175,7 +174,7 @@ void GenotypeNode::computeBeacons() {
 
 void GenotypeNode::mutateFloats() {
 	int rID, listID, matrixID;
-	const float pMutation = .3f; // TODO
+	const float pMutation = .5f; // TODO
 	float r;
 
 #if defined RISI_NAJARRO_2020
@@ -328,7 +327,6 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 	childrenConnexions.emplace_back(oID, children.size(), child->inputSize, originOutputSize, GenotypeConnexion::ZERO);
 	childrenConnexions.emplace_back(children.size(), dID, destinationsInputSize, child->outputSize, GenotypeConnexion::ZERO);
 	children.push_back(child);
-	updateDepth();
 }
 void GenotypeNode::removeChild(int rID) {
 	children.erase(children.begin() + rID);
@@ -355,8 +353,6 @@ void GenotypeNode::removeChild(int rID) {
 			childrenConnexions[i].originID--;
 		}
 	}
-
-	updateDepth();
 }
 
 void GenotypeNode::incrementInputSize() {
@@ -642,10 +638,12 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 	childrenConnexions[i] = newConnexion;
 }
 
-void GenotypeNode::updateDepth() {
+void GenotypeNode::updateDepth(std::vector<int>& genomeState) {
 	int dmax = 0;
 	for (int i = 0; i < children.size(); i++) {
+		if (genomeState[children[i]->position] == 0) children[i]->updateDepth(genomeState); // simple neurons state is at 1.
 		if (children[i]->depth > dmax) dmax = children[i]->depth;
 	}
 	depth = dmax + 1;
+	genomeState[position] = 1;
 }
