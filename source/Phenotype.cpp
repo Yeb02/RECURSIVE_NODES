@@ -146,7 +146,7 @@ void PhenotypeNode::forward(const float* input) {
 					_childInputs[i0 + i] += H[matID] * children[originID].previousOutput[j];
 #elif defined USING_NEUROMODULATION
 					// += (H * alpha + w) * prevAct
-					_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID]) * children[originID]->previousOutput[j];
+					_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID]) * children[originID].previousOutput[j];
 #endif 
 					matID++;
 				}
@@ -161,7 +161,7 @@ void PhenotypeNode::forward(const float* input) {
 	int _inputListID = 0;
 	for (int i = 0; i < children.size(); i++) {
 #ifdef USING_NEUROMODULATION
-		child->neuromodulatorySignal = this->neuromodulatorySignal;
+		children[i].neuromodulatorySignal = this->neuromodulatorySignal;
 #endif 
 
 		// Depending on the child's nature, we have 2 cases:
@@ -170,18 +170,14 @@ void PhenotypeNode::forward(const float* input) {
 
 		if (children[i].type->isSimpleNeuron) {
 			children[i].previousOutput[0] = children[i].currentOutput[0];
-#ifdef RISI_NAJARRO_2020 // they do not use the bias
 			children[i].currentOutput[0] = children[i].type->f(_childInputs[_inputListID]);
-#else
-			children[i].currentOutput[0] = children[i].type->f(_childInputs[_inputListID] + inBias[0]);
-#endif
 		}
 		else {
 			int maxJ = _inputListID + children[i].type->inputSize;
 #ifdef RISI_NAJARRO_2020  // they do not use the bias
 			for (int j = _inputListID; j < maxJ; j++) _childInputs[j] = tanh(_childInputs[j]);
-#else
-			for (int j = _inputListID; j < maxJ; j++) _childInputs[j] = tanh(_childInputs[j] + type->inBias[j - _inputListID]);
+#elif defined USING_NEUROMODULATION
+			for (int j = _inputListID; j < maxJ; j++) _childInputs[j] = tanh(_childInputs[j] + children[i].type->inBias[j - _inputListID]);
 #endif
 			children[i].forward(&_childInputs[_inputListID]);
 		}
@@ -195,8 +191,8 @@ void PhenotypeNode::forward(const float* input) {
 	for (int i = 0; i < type->outputSize; i++) {
 #ifdef RISI_NAJARRO_2020  // they do not use the bias
 		currentOutput[i] = tanh(_childInputs[_inputListID + i]);
-#else
-		currentOutput[i] = tanh(_childInputs[_inputListID + i] + outBias[i]);
+#elif defined USING_NEUROMODULATION
+		currentOutput[i] = tanh(_childInputs[_inputListID + i] + type->outBias[i]);
 #endif
 	}
 
@@ -250,7 +246,7 @@ void PhenotypeNode::forward(const float* input) {
 #if defined RISI_NAJARRO_2020
 				H[matID] += eta[matID] * (A[matID] * yi * aj + B[matID] * yi + C[matID] * aj + D[matID]);
 #elif defined USING_NEUROMODULATION
-				E[matID] = (1 - eta) * E[matID] + eta * (A * yi * aj + B * yi + C * aj);
+				E[matID] = (1 - eta[matID]) * E[matID] + eta[matID] * (A[matID] * yi * aj + B[matID] * yi + C[matID] * aj);
 
 				H[matID] += E[matID] * neuromodulatorySignal;
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));

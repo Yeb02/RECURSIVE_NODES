@@ -1,9 +1,10 @@
 #pragma once
 
 
-#include <SFML/Graphics.hpp>
+
 #include <iostream>
 
+#include <SFML/Graphics.hpp>
 #include "sciplot/sciplot.hpp"
 
 #include "Population.h"
@@ -11,9 +12,10 @@
 
 
 #define LOGV(v) for (const auto e : v) {cout << e << " ";}; cout << "\n"
-#define LOG(x) cout << x << " ";
+#define LOG(x) cout << x << endl;
 
 using namespace std;
+using namespace sciplot;
 
 // TODO  !
 /*
@@ -29,6 +31,7 @@ are the 2 mutually exclusive running modes. Change in Genotype.h.
 */
 
 #define DRAWING
+
 
 #ifdef DRAWING
 
@@ -98,17 +101,40 @@ public:
 
 int main()
 {
+
 #ifdef DRAWING
     sf::RenderWindow window(sf::VideoMode(720, 480), "Top Node");
     Drawer drawer(window);
 #endif
-    
+    int nThreads = std::thread::hardware_concurrency();
+    LOG(nThreads << " concurrent threads are supported at hardware level. Using " << nThreads-1 << ".");
+
+    //nThreads = 7; // TODO REMOVE, FOR BENCHMARKING ONLY
+    int N_SPECIMENS = nThreads * 64;
+    //nThreads = 1; // TODO REMOVE, FOR BENCHMARKING ONLY
     int vSize = 1;
+    Population population(vSize, vSize, N_SPECIMENS);
 
+    int nDifferentTrials = 8;   
     vector<Trial*> trials;
-    for (int i = 0; i < 8; i++) trials.push_back(new XorTrial(vSize));
+    for (int i = 0; i < nDifferentTrials; i++) trials.push_back(new XorTrial(vSize));
 
-    Population population(vSize, vSize, 300);
+    LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
+
+    //Vec x = linspace(1, N_SPECIMENS, N_SPECIMENS);
+    //Plot2D plot;
+
+    //plot.xlabel("x");
+    //plot.ylabel("y");
+    //plot.xrange(0.0, N_SPECIMENS);
+    //plot.yrange(-2.0, 2.0);
+
+    //plot.drawCurve(x, population.).label("sin(x)");
+
+    //Figure fig = { {plot} };
+    //Canvas canvas = { {fig} };
+    //canvas.show();
+    population.startThreads(nThreads);
     for (int i = 0; i < 3000; i++) {
 #ifdef DRAWING
         window.clear();
@@ -120,8 +146,9 @@ int main()
         }
         drawer.draw(population.getFittestSpecimenPointer());
 #endif
+
         population.step(trials);
-        if (i % 10 == 0) { // defragmentate.
+        if (i % 100 == 0) { // defragmentate.
             string fileName = population.save();
             population.load(fileName);
         }

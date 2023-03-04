@@ -231,7 +231,9 @@ void GenotypeNode::mutateFloats() {
 
 	for (int i = 0; i < outputSize; i++) {
 		r = .2f * NORMAL_01;
-		bias[i] += r;
+		inBias[i] += r;
+		r = .2f * NORMAL_01;
+		outBias[i] += r;
 	}
 
 #ifdef USING_NEUROMODULATION
@@ -362,6 +364,9 @@ void GenotypeNode::incrementInputSize() {
 			incrementOriginOutputSize(i);
 		}
 	}
+#ifdef USING_NEUROMODULATION
+	inBias.push_back(0);
+#endif 
 }
 void GenotypeNode::onChildInputSizeIncremented(GenotypeNode* modifiedType) {
 	int id;
@@ -435,8 +440,8 @@ void GenotypeNode::incrementOutputSize() {
 			incrementDestinationInputSize(i);
 		}
 	}
-	bias.push_back(0);
 #ifdef USING_NEUROMODULATION
+	outBias.push_back(0);
 	wNeuromodulation.push_back(0);
 #endif 
 }
@@ -512,6 +517,9 @@ void GenotypeNode::decrementInputSize(int id) {
 			decrementOriginOutputSize(i, id);
 		}
 	}
+#ifdef USING_NEUROMODULATION
+	inBias.erase(inBias.begin() + id);
+#endif 
 }
 void GenotypeNode::onChildInputSizeDecremented(GenotypeNode* modifiedType, int id) {
 	int nID;
@@ -580,10 +588,9 @@ void GenotypeNode::decrementOutputSize(int id) {
 	}
 
 #ifdef USING_NEUROMODULATION
+	outBias.erase(outBias.begin() + id);
 	wNeuromodulation.erase(wNeuromodulation.begin() + id);
 #endif 
-	bias.erase(bias.begin() + id);
-
 }
 void GenotypeNode::onChildOutputSizeDecremented(GenotypeNode* modifiedType, int id) {
 	int nID;

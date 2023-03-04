@@ -3,10 +3,10 @@
 #include <memory>
 #include <cmath>
 #include <string>
+#include <thread>
 
 #include "Network.h"
 #include "Trial.h"
-
 /*
 The optimizer is a non canon version of the genetic algorithm, this is how the loop goes:
 
@@ -25,7 +25,7 @@ a regularization term that penalizes overgrowth (computed by the Network class).
 Potential clustering methods: K-Means (too hign dim...), PCA, ICA, ?
 
 - A roulettte wheel selection with low pressure is applied to pick a specimen, which is simply copied to be in the next generation.
-The process is repeated as much times as their are specimens.
+The process is repeated as many times as their are specimens.
 */
 
 // A group of a fixed number of individuals, optimized with a genetic algorithm
@@ -34,7 +34,8 @@ class Population {
 public:
 	Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS);
 	~Population();
-	void step(std::vector<Trial*>);
+	void startThreads(int N_THREADS);
+	void step(std::vector<Trial*> trials);
 	std::string save() {
 		return std::string("");
 	};
@@ -50,7 +51,14 @@ public:
 	}
 
 private:
-	int N_SPECIMENS;
+	void mutateNevaluateThreaded(const int i0, const int subArraySize);
+	int N_SPECIMENS, N_THREADS;
 	std::vector<Network*> networks;
 	int fittestSpecimen;
+
+	// unused if N_THREADS = 0.
+	std::vector<std::thread> threads;
+	std::vector<Trial*> globalTrials;
+	float* pScores;
+	int iteration;
 };

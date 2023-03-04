@@ -1,18 +1,23 @@
 #pragma once
 
-#include <cmath>
 #include <iostream>
+#include <mutex>
+#include <condition_variable>
 
 #include "Population.h"
 #include "Random.h"
 
 
 #ifdef KMEANS
-
 // KMeans implementation: https://github.com/genbattle/dkm.git
 #include "dkm.h"
-
 #endif
+
+std::mutex m;
+std::condition_variable startProcessing;
+std::condition_variable doneProcessing;
+bool bStartProcessing = false;
+int nDoneProcessing = 0;
 
 inline float L2Dist(float* a, float* b, int size) {
 	float sum = 0.0f;
@@ -50,13 +55,32 @@ int binarySearch(std::vector<float>& proba, float value) {
 }
 
 Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
-	N_SPECIMENS(N_SPECIMENS)
+	N_SPECIMENS(N_SPECIMENS), N_THREADS(0), pScores(nullptr), iteration(0)
 {
+	threads.reserve(0);
+	globalTrials.reserve(0);
 	networks.resize(N_SPECIMENS);
 	for (int i = 0; i < N_SPECIMENS; i++) {
 		networks[i] = new Network(IN_SIZE, OUT_SIZE);
 	}
 	fittestSpecimen = 0;
+}
+
+void Population::startThreads(int N_THREADS) {
+
+	this->N_THREADS = N_THREADS;
+	threads.resize(0); // to kill all previously existing threads.
+
+	if (N_THREADS < 2) return;
+
+	threads.reserve(N_THREADS);
+	iteration = -1;
+	int subArraySize = N_SPECIMENS / N_THREADS;
+	int i0;
+	for (int t = 0; t < N_THREADS; t++) {  
+		i0 = t * subArraySize;
+		threads.emplace_back(&Population::mutateNevaluateThreaded, this, i0, subArraySize);
+	}
 }
 
 Population::~Population() {
@@ -65,21 +89,89 @@ Population::~Population() {
 	}
 }
 
+void Population::mutateNevaluateThreaded(const int i0, const int subArraySize) {
+	std::vector<std::unique_ptr<Trial>> localTrials;
+	
+
+	int currentIteration = 0;
+	while (true) {
+		std::unique_lock<std::mutex> ul(m);
+		startProcessing.wait(ul, [&currentIteration,this] {return currentIteration == iteration; });
+		ul.unlock();
+
+		currentIteration++;
+
+		// Copy init. Read only, so no mutex required.
+		if (localTrials.size() != globalTrials.size()) {
+			for (int i = 0; i < globalTrials.size(); i++) {
+				localTrials.emplace_back(globalTrials[i]->clone());
+			}
+		}
+		else {
+			for (int i = 0; i < globalTrials.size(); i++) {
+				localTrials[i]->copy(globalTrials[i]);
+			}
+		}
+		
+
+		for (int i = i0; i < i0 + subArraySize; i++) {
+			networks[i]->mutate();
+			for (int j = 0; j < localTrials.size(); j++) {
+				localTrials[j]->reset(true);
+				networks[i]->intertrialReset();
+				while (!localTrials[j]->isTrialOver) {
+					networks[i]->step(localTrials[j]->observations);
+					localTrials[j]->step(networks[i]->getOutput());
+				}
+				pScores[i * localTrials.size() + j] = localTrials[j]->score;
+			}
+		}
+
+		ul.lock();
+		nDoneProcessing--;
+		if (nDoneProcessing == 0) {
+			ul.unlock();
+			doneProcessing.notify_one();
+		}
+		// Not thread safe :
+		//std::cout << "iteration " << currentIteration-1 << " from thread " << std::this_thread::get_id()  << " over." << std::endl;
+
+	}
+}
+
 void Population::step(std::vector<Trial*> trials) {
 
-	// mutate
-	for (int i = 0; i < N_SPECIMENS; i++) {
-		networks[i]->mutate();
-	}
-
-	// evaluate on trials to get the normalized vector of scores.
 	std::vector<float> scores(trials.size() * N_SPECIMENS);
-	{
+
+	// mutate and evaluate the specimens on trials
+	if (N_THREADS > 1) {
+		pScores = scores.data();
+		globalTrials.resize(trials.size());
 		for (int j = 0; j < trials.size(); j++) {
 			trials[j]->reset();
+			globalTrials[j] = trials[j];
 		}
-		std::vector<float> tempScores(trials.size());
-		std::vector<float> avgScores(trials.size());
+
+		// send msg to workers to start processing
+		{
+			std::lock_guard<std::mutex> lg(m);
+			nDoneProcessing = N_THREADS;
+			iteration++;
+		}
+		startProcessing.notify_all();
+
+		// wait on workers.
+		{
+			std::unique_lock<std::mutex> lg(m);
+			doneProcessing.wait(lg, [] {return nDoneProcessing == 0; });
+		}
+	}
+	else {
+
+		// mutate
+		for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate();
+		
+		// evaluate on trials to get the normalized vector of scores.
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			for (int j = 0; j < trials.size(); j++) {
 				trials[j]->reset(true);
@@ -89,12 +181,14 @@ void Population::step(std::vector<Trial*> trials) {
 					trials[j]->step(networks[i]->getOutput());
 				}
 				scores[i * trials.size() + j] = trials[j]->score;
-				avgScores[j] += trials[j]->score;
 			}
 		}
-		for (int j = 0; j < trials.size(); j++) avgScores[j] /= (float)N_SPECIMENS;
+	}
 
-		//std::cout << avgScores[0] << std::endl;
+	// normalize scores
+	{
+		std::vector<float> avgScores(trials.size());
+
 		float maxScore = 0.0f;
 		int maxScoreID = 0;
 		float score;
@@ -102,6 +196,7 @@ void Population::step(std::vector<Trial*> trials) {
 			score = 0;
 			for (int j = 0; j < trials.size(); j++) {
 				score += scores[i * trials.size() + j];
+				avgScores[j] += scores[i * trials.size() + j];
 			}
 			if (score > maxScore) {
 				maxScore = score;
@@ -109,10 +204,14 @@ void Population::step(std::vector<Trial*> trials) {
 			}
 		}
 		fittestSpecimen = maxScoreID;
+		for (int j = 0; j < trials.size(); j++) avgScores[j] /= (float)N_SPECIMENS;
 
-		std::cerr << maxScore << std::endl;
+		std::cout << "At iteration " << iteration << ", max score = " << maxScore / (float)trials.size() << "\n";
+		for (float f : avgScores) std::cout << f << " ";
+		std::cout << std::endl;
+
+
 		// Normalize scores
-
 		float stddev;
 		for (int j = 0; j < trials.size(); j++) {
 			avgScores[j] /= (float) N_SPECIMENS;
@@ -163,7 +262,7 @@ void Population::step(std::vector<Trial*> trials) {
 	
 
 	// compute raw fitnesses 
-	constexpr float scoreFactor = 1.0f, distanceFactor = .03f, regularizationFactor = .03f;
+	constexpr float scoreFactor = 1.0f, distanceFactor = .05f, regularizationFactor = .00f;
 	std::vector<float> fitnesses(N_SPECIMENS);
 	float fitnessSum, fitnessMin;
 	{
@@ -229,7 +328,9 @@ void Population::step(std::vector<Trial*> trials) {
 
 	
 	// The higher f0, the lower the selection pressure
-	constexpr float f0 = 0.5f;
+	//constexpr float f0 = 0.5f;
+	//float f0 = UNIFORM_01 * 2.0f;
+	float f0 = 1.0f + sinf((float)iteration/5.0f);
 	// create offsprings 
 	{
 		//float f0 = .1f / (float) N_SPECIMENS; 

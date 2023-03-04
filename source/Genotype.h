@@ -7,7 +7,8 @@
 #include "Random.h"
 
 
-#define RISI_NAJARRO_2020
+//#define RISI_NAJARRO_2020
+#define USING_NEUROMODULATION
 
 #define MAX_CHILDREN_PER_BLOCK  10
 #define MAX_BLOCK_INPUT_SIZE  10          // Does not apply to the top one, which is the network itself
@@ -66,7 +67,7 @@ struct GenotypeNode {
 	bool isSimpleNeuron;
 	float (*f)(float); // NULL if Node is a bloc. Else pointer to tanH, cos, ReLU
 	int inputSize, outputSize; // >= 1
-	std::vector<float> bias;   // length outputSize. Is added the the presynaptic activations of the tanh of the output node
+	std::vector<float> inBias, outBias;   // length outputSize. Is added the the presynaptic activations of the tanh of the output node
 
 	// Order matters in this vector.
 	// Contains pointers to the genotypes of the children
