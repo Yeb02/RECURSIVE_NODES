@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath> 
+
 #include "Trial.h"
 
 
@@ -89,5 +91,101 @@ Trial* XorTrial::clone() {
 		t->v1_xor_v2[i] = v1_xor_v2[i];
 		t->observations[i] = observations[i];
 	}
+	return (Trial*)t;
+}
+
+
+
+CartPoleTrial::CartPoleTrial() {
+	observations.resize(4);
+	netInSize = 4;
+	netOutSize = 1;
+
+	reset();
+}
+
+void CartPoleTrial::reset(bool sameSeed) {
+	score = 0.0f;
+	isTrialOver = false;
+	currentNStep = 0;
+
+	if (!sameSeed) {
+		x0 = (UNIFORM_01 - .5f) * 1.0f; // gym initializes all 4 in [-0.05, 0.05].
+		xDot0 = (UNIFORM_01 - .5f) * .2f;
+		theta0 = (UNIFORM_01 - .5f) * .2f;
+		thetaDot0 = (UNIFORM_01 - .5f) * .2f;
+	}
+
+	x = x0;
+	xDot = xDot0;
+	theta = theta0;
+	thetaDot = thetaDot0;
+
+	observations[0] = x;
+	observations[1] = xDot;
+	observations[2] = theta;
+	observations[3] = thetaDot;
+}
+
+void CartPoleTrial::step(const std::vector<float>& actions) {
+	constexpr float tau = .02f ;
+	constexpr float gravity = 9.8;
+	constexpr float masscart = 1.0;
+	constexpr float masspole = 0.1;
+	constexpr float total_mass = masspole + masscart;
+	constexpr float length = 0.5;
+	constexpr float polemass_length = masspole * length;
+	constexpr float force_mag = 10.0;
+
+	if (abs(theta) > .21f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true;
+	if (isTrialOver) return;
+
+	float force;
+	//if (actions[0] > .4f)  force = 1.0f;
+	//else if (actions[0] < -.4f) force = -1.0f;
+	//else force = 0.0f;
+	force = actions[0] > 0 ? 1.0f : -1.0f;
+
+	// update as per https://coneural.org/florian/papers/05_cart_pole.pdf
+
+	float cosTheta = cosf(theta), sinTheta = sinf(theta);
+
+	// I re-ordered the terms in order to minimize the number of division operation.
+	float temp = (force + polemass_length * thetaDot * thetaDot * sinTheta);
+	float thetaacc = (gravity * sinTheta * total_mass - cosTheta * temp) /
+		(length * (1.33333f * total_mass - masspole * cosTheta * cosTheta));
+	float xacc = (temp - polemass_length * thetaacc * cosTheta) / total_mass;
+
+	//euler
+	x = x + tau * xDot;
+	xDot = xDot + tau * xacc;
+	theta = theta + tau * thetaDot;
+	thetaDot = thetaDot + tau * thetaacc;
+
+	score += 1.0f;
+	observations[0] = x;
+	observations[1] = xDot;
+	observations[2] = theta;
+	observations[3] = thetaDot;
+
+	currentNStep++;
+}
+
+void CartPoleTrial::copy(Trial* t0) {
+	CartPoleTrial* t = dynamic_cast<CartPoleTrial*>(t0);
+	x0 = t->x0;
+	xDot0 = t->xDot0;
+	theta0 = t->theta0;
+	thetaDot0 = t->thetaDot0;
+	reset(true);
+}
+
+Trial* CartPoleTrial::clone() {
+	CartPoleTrial* t = new CartPoleTrial();
+	t->x0 = x0;
+	t->xDot0 = xDot0;
+	t->theta0 = theta0;
+	t->thetaDot0 = thetaDot0;
+	t->reset(true);
 	return (Trial*)t;
 }

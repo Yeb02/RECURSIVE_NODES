@@ -51,7 +51,8 @@ int binarySearch(std::vector<float>& proba, float value) {
 			sup = mid;
 		}
 	}
-	throw "Binary search failure !";
+	return 0; // not necessarily a failure, since floating point approximation prevents the sum from reaching 1.
+	//throw "Binary search failure !";
 }
 
 Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
@@ -262,7 +263,7 @@ void Population::step(std::vector<Trial*> trials) {
 	
 
 	// compute raw fitnesses 
-	constexpr float scoreFactor = 1.0f, distanceFactor = .05f, regularizationFactor = .00f;
+	constexpr float scoreFactor = 1.0f, distanceFactor = .2f, regularizationFactor = .04f;
 	std::vector<float> fitnesses(N_SPECIMENS);
 	float fitnessSum, fitnessMin;
 	{
@@ -328,9 +329,9 @@ void Population::step(std::vector<Trial*> trials) {
 
 	
 	// The higher f0, the lower the selection pressure
-	//constexpr float f0 = 0.5f;
+	constexpr float f0 = 0.5f;
 	//float f0 = UNIFORM_01 * 2.0f;
-	float f0 = 1.0f + sinf((float)iteration/5.0f);
+	//float f0 = 1.0f + sinf((float)iteration/5.0f);
 	// create offsprings 
 	{
 		//float f0 = .1f / (float) N_SPECIMENS; 

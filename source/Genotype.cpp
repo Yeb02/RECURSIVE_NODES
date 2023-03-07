@@ -26,10 +26,10 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			C[i] = 0.0f;
 			D[i] = 0.0f;
 #elif defined USING_NEUROMODULATION
-			eta[i] = .8f;
-			A[i] = 0.0f;
-			B[i] = 0.0f;
-			C[i] = 0.0f;
+			eta[i] = UNIFORM_01;
+			A[i] = NORMAL_01 * .2f;
+			B[i] = NORMAL_01 * .2f;
+			C[i] = NORMAL_01 * .2f;
 			alpha[i] = 0.0f;
 			w[i] = 0.0f;
 #endif 
@@ -45,33 +45,37 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			D[i] = UNIFORM_01 - .5f;
 			eta[i] = UNIFORM_01;
 #elif defined USING_NEUROMODULATION
-			A[i] = NORMAL_01;
+			A[i] = NORMAL_01 * .2f;
 			B[i] = NORMAL_01 * .2f;
 			C[i] = NORMAL_01 * .2f;
-			alpha[i] = NORMAL_01;
-			eta[i] = UNIFORM_01 * .5f + .5f;
-			w[i] = NORMAL_01;
+			alpha[i] = NORMAL_01 *.2f;
+			eta[i] = UNIFORM_01;
+			w[i] = NORMAL_01*.2f;
 #endif 
 		}
 	}
-	else { // IDENTITY
+	else { // IDENTITY. Used in top node boxing. Must "invert" tanh ! nLines = nColumns.
+		int i = 0;
 		float v;
-		for (int i = 0; i < nLines * nColumns; i++) {
-			v = i % nLines == 0 ? 1.0f : 0.0f;
-#if defined RISI_NAJARRO_2020
-			A[i] = 0.0f;
-			B[i] = 0.0f;
-			C[i] = v;
-			D[i] = 0.0f;
-			eta[i] = 0.1f;
-#elif defined USING_NEUROMODULATION
-			A[i] = NORMAL_01;
-			B[i] = NORMAL_01 * .2f;
-			C[i] = NORMAL_01 * .2f;
-			alpha[i] = 0.0f;
-			eta[i] = .8f;
-			w[i] = 1.0f;
+		for (int l = 0; l < nLines; l++) {
+			for (int c = 0; c < nColumns; c++) {
+				v = l == c ? 1.2f : 0.0f;
+#if defined RISI_NAJARRO_2020 // there is no way to link 2 nodes with identity in this case.
+				A[i] = 0.0f;
+				B[i] = 0.0f;
+				C[i] = v;
+				D[i] = 0.0f;
+				eta[i] = 0.1f;
+#elif defined USING_NEUROMODULATION // tanh'(0) = 1, so * 1.2 is a correct-ish approximation to invert. 
+				A[i] = NORMAL_01 * .2f;
+				B[i] = NORMAL_01 * .2f;
+				C[i] = NORMAL_01 * .2f;
+				alpha[i] = 0.0f;
+				eta[i] = UNIFORM_01;
+				w[i] = v;
 #endif 
+				i++;
+			}
 		}
 	}
 }
@@ -174,8 +178,8 @@ void GenotypeNode::computeBeacons() {
 
 void GenotypeNode::mutateFloats() {
 	int rID, listID, matrixID;
-	const float pMutation = .5f; // TODO
-	float r;
+	const float pMutation = .15f; // TODO
+	float r, r2;
 
 #if defined RISI_NAJARRO_2020
 	constexpr int nArrays = 5;
@@ -197,7 +201,7 @@ void GenotypeNode::mutateFloats() {
 	int _nMutations = (int)std::floor(_nParams * pMutation);
 
 	for (int i = 0; i < _nMutations; i++) {
-		rID = (int)(UNIFORM_01 * (float)_nParams);
+		rID = (int)(UNIFORM_01 * _nParams);
 
 		int j = 0;
 		while (rID >= ids[j + 1]) { j++; }
@@ -216,33 +220,56 @@ void GenotypeNode::mutateFloats() {
 		case 4: childrenConnexions[listID].eta[matrixID] += r;
 		}
 #elif defined USING_NEUROMODULATION
+		r2 = .2f * NORMAL_01;
 		switch (j) {
-		case 0: childrenConnexions[listID].A[matrixID] += r;
-		case 1: childrenConnexions[listID].B[matrixID] += r;
-		case 2: childrenConnexions[listID].C[matrixID] += r;
-		case 3: childrenConnexions[listID].alpha[matrixID] += r;
-		case 4: childrenConnexions[listID].w[matrixID] += r;
+		case 0: 
+			childrenConnexions[listID].A[matrixID] *= .9+r; //.9 < 1 to drive weights towards 0. Not mandatory since (1+r)*(1-r)=1-r*r < 1
+			childrenConnexions[listID].A[matrixID] += r2;    // to allow sign changes when nearing 0
+		case 1: 
+			childrenConnexions[listID].B[matrixID] *= .9+r;
+			childrenConnexions[listID].B[matrixID] += r2;
+		case 2: 
+			childrenConnexions[listID].C[matrixID] *= .9+r;
+			childrenConnexions[listID].C[matrixID] += r2;
+		case 3: 
+			childrenConnexions[listID].alpha[matrixID] *= .9+r;
+			childrenConnexions[listID].alpha[matrixID] += r2;
+		case 4: 
+			childrenConnexions[listID].w[matrixID] *= .9+r;
+			childrenConnexions[listID].w[matrixID] += r2;
 		case 5:
 			float eta = childrenConnexions[listID].eta[matrixID];
-			childrenConnexions[listID].eta[matrixID] += r * eta * (1 - eta);
+			//childrenConnexions[listID].eta[matrixID] += r * eta * (1 - eta);
+			childrenConnexions[listID].eta[matrixID] = eta*.7f + UNIFORM_01*.3f;
 		}
 #endif 
 	}
 
 	for (int i = 0; i < outputSize; i++) {
 		r = .2f * NORMAL_01;
-		inBias[i] += r;
+		r2 = .2f * NORMAL_01;
+		outBias[i] *= .95 + r;
+		outBias[i] += r2;
+	}
+
+	for (int i = 0; i < inputSize; i++) {
 		r = .2f * NORMAL_01;
-		outBias[i] += r;
+		r2 = .2f * NORMAL_01;
+		inBias[i] *= .95 + r;
+		inBias[i] += r2;
 	}
 
 #ifdef USING_NEUROMODULATION
 	for (int i = 0; i < outputSize; i++) {
 		r = .2f * NORMAL_01;
-		wNeuromodulation[i] += r;
+		r2 = .2f * NORMAL_01;
+		wNeuromodulation[i] *= .95 + r;
+		wNeuromodulation[i] += r2;
 	}
 	r = .2f * NORMAL_01;
-	neuromodulationBias += r;
+	r2 = .2f * NORMAL_01;
+	neuromodulationBias *= .95 + r;
+	neuromodulationBias += r2;
 #endif 
 }
 

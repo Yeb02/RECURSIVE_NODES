@@ -107,17 +107,18 @@ int main()
     Drawer drawer(window);
 #endif
     int nThreads = std::thread::hardware_concurrency();
-    LOG(nThreads << " concurrent threads are supported at hardware level. Using " << nThreads-1 << ".");
+    LOG(nThreads << " concurrent threads are supported at hardware level. Using " << nThreads << ".");
 
-    //nThreads = 7; // TODO REMOVE, FOR BENCHMARKING ONLY
     int N_SPECIMENS = nThreads * 64;
-    //nThreads = 1; // TODO REMOVE, FOR BENCHMARKING ONLY
-    int vSize = 1;
+    int vSize = 4;
     Population population(vSize, vSize, N_SPECIMENS);
 
     int nDifferentTrials = 8;   
     vector<Trial*> trials;
-    for (int i = 0; i < nDifferentTrials; i++) trials.push_back(new XorTrial(vSize));
+    for (int i = 0; i < nDifferentTrials; i++) {
+        trials.push_back(new CartPoleTrial());
+        //trials.push_back(new XorTrial(vSize));
+    }
 
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
 

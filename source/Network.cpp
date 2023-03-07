@@ -68,8 +68,8 @@ Network::Network(Network* n) {
 Network::Network(int inputSize, int outputSize) :
 inputSize(inputSize), outputSize(outputSize)
 {
-	nSimpleNeurons = 2;
-	genome.reserve(nSimpleNeurons + 1);
+	nSimpleNeurons = 1;
+	genome.reserve(nSimpleNeurons + 1 + 3);
 	for (int i = 0; i < nSimpleNeurons + 1; i++) genome.emplace_back(new GenotypeNode());
 
 	int i = 0;
@@ -90,22 +90,22 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->mutationalDistance = 0;
 	}
 
-	i++;
-	// 1: ReLU
-	{
-		genome[i]->isSimpleNeuron = true;
-		genome[i]->inputSize = 1;
-		genome[i]->outputSize = 1;
-		genome[i]->f = *ReLU;
-		genome[i]->children.reserve(0);
-		genome[i]->childrenConnexions.reserve(0);
-		genome[i]->concatenatedChildrenInputLength = 0;
-		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
-		genome[i]->depth = 0;
-		genome[i]->position = 1;
-		genome[i]->closestNode = NULL;
-		genome[i]->mutationalDistance = 0;
-	}
+	//i++;
+	//// 1: ReLU
+	//{
+	//	genome[i]->isSimpleNeuron = true;
+	//	genome[i]->inputSize = 1;
+	//	genome[i]->outputSize = 1;
+	//	genome[i]->f = *ReLU;
+	//	genome[i]->children.reserve(0);
+	//	genome[i]->childrenConnexions.reserve(0);
+	//	genome[i]->concatenatedChildrenInputLength = 0;
+	//	genome[i]->concatenatedChildrenInputBeacons.reserve(0);
+	//	genome[i]->depth = 0;
+	//	genome[i]->position = 1;
+	//	genome[i]->closestNode = NULL;
+	//	genome[i]->mutationalDistance = 0;
+	//}
 
 	i++;
 	// 3: The initial top node
@@ -116,7 +116,7 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->concatenatedChildrenInputLength = outputSize;
 		genome[i]->f = NULL;
 		genome[i]->depth = 1;
-		genome[i]->position = 2;
+		genome[i]->position = i;
 		genome[i]->closestNode = NULL;
 		genome[i]->mutationalDistance = 0;
 		genome[i]->inBias.resize(outputSize); 
@@ -163,7 +163,7 @@ void Network::mutate() {
 	constexpr float incrementOutputSizeProbability = .0005f;
 	constexpr float decrementOutputSizeProbability = .0005f;
 
-	constexpr float addChildProbability = .002f;
+	constexpr float addChildProbability = .007f;
 	constexpr float removeChildProbability = .0005f;
 
 	constexpr float childReplacementProbability = .005f;
@@ -210,7 +210,7 @@ void Network::mutate() {
 			int rID;
 			r = UNIFORM_01;
 			if (r < decrementInputSizeProbability && genome[i]->inputSize > 0) {
-				rID = (int)(UNIFORM_01 * (float)inputSize);
+				rID = (int)(UNIFORM_01 * (float)genome[i]->inputSize);
 				genome[i]->decrementInputSize(rID);
 				for (int j = 0; j < genome.size(); j++) {
 					genome[j]->onChildInputSizeDecremented(genome[i].get(), rID);
@@ -219,7 +219,7 @@ void Network::mutate() {
 
 			r = UNIFORM_01;
 			if (r < decrementOutputSizeProbability && genome[i]->outputSize > 0) {
-				rID = (int)(UNIFORM_01 * (float)outputSize);
+				rID = (int)(UNIFORM_01 * (float)genome[i]->outputSize);
 				genome[i]->decrementOutputSize(rID);
 				for (int j = 0; j < genome.size(); j++) {
 					genome[j]->onChildOutputSizeDecremented(genome[i].get(), rID);
@@ -553,13 +553,15 @@ float Network::getAmplitudeRegularizationLoss() {
 #endif 
 			}
 		}
-		for (int j = 0; j < genome[i]->outputSize; j++) {
 #ifdef USING_NEUROMODULATION
-			sum += abs(genome[i]->inBias[j]);
+		for (int j = 0; j < genome[i]->outputSize; j++) {
 			sum += abs(genome[i]->outBias[j]);
 			sum += abs(genome[i]->wNeuromodulation[j]);
-#endif
 		}
+		for (int j = 0; j < genome[i]->inputSize; j++) {
+			sum += abs(genome[i]->inBias[j]);
+		}
+#endif
 	}
 	return sum;
 }

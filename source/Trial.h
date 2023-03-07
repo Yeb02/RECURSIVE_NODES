@@ -25,9 +25,6 @@ public:
 
 	std::vector<float> observations;
 
-	// the trial should end in less than STEP_LIMIT steps
-	static const int STEP_LIMIT = 200;
-
 	// the required network dimensions
 	int netInSize, netOutSize;
 
@@ -60,5 +57,24 @@ public:
 private:
 	int vSize;
 	std::vector<bool> v1, v2, v1_xor_v2;
+};
+
+// Classic CartPole, adapted from the python version of 
+// https://github.com/openai/gym/blob/master/gym/envs/classic_control/cartpole.py
+class CartPoleTrial : public Trial {
+
+public:
+	// Required network sizes: input = vectorSize, output = vectorSize.
+	CartPoleTrial();
+	void step(const std::vector<float>& actions) override;
+	void reset(bool sameSeed = false) override;
+	void copy(Trial* t) override;
+	Trial* clone() override;
+
+	static const int STEP_LIMIT = 200; // or 500
+
+private:
+	float x, xDot, theta, thetaDot;
+	float x0, xDot0, theta0, thetaDot0;
 };
 
