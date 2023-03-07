@@ -516,52 +516,39 @@ void Network::intertrialReset() {
 }
 
 
-float Network::getSizeRegularizationLoss() {
+float Network::getRegularizationLoss() {
 	std::vector<int> nParams(genome.size());
-	for (int i = nSimpleNeurons; i < genome.size(); i++) {
-		nParams[i] = 0;
-		for (int j = 0; j < genome[i]->childrenConnexions.size(); j++) {
-			nParams[i] += genome[i]->childrenConnexions[j].nLines * genome[i]->childrenConnexions[j].nColumns;
-		}
-		for (int j = 0; j < genome[i]->children.size(); j++) {
-			nParams[i] += nParams[genome[i]->children[j]->position]; 
-		}
-#ifdef USING_NEUROMODULATION
-		nParams[i] += 3 * genome[i]->outputSize; // to account for the biases and the neuromodulation weights
-#endif
-	}
-	return (float) nParams[genome.size()-1];
-}
-
-
-float Network::getAmplitudeRegularizationLoss() {
-	float sum = 0.0f;
+	std::vector<float> amplitudes(genome.size());
 	int size;
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
+		nParams[i] = 0;
+		amplitudes[i] = 0.0f;
 		for (int j = 0; j < genome[i]->childrenConnexions.size(); j++) {
 			size = genome[i]->childrenConnexions[j].nLines * genome[i]->childrenConnexions[j].nColumns;
+			nParams[i] += size;
 			for (int k = 0; k < size; k++) {
-				sum += abs(genome[i]->childrenConnexions[j].A[k]);
-				sum += abs(genome[i]->childrenConnexions[j].B[k]);
-				sum += abs(genome[i]->childrenConnexions[j].C[k]);
-				sum += abs(genome[i]->childrenConnexions[j].eta[k]);
+				amplitudes[i] += abs(genome[i]->childrenConnexions[j].A[k]);
+				amplitudes[i] += abs(genome[i]->childrenConnexions[j].B[k]);
+				amplitudes[i] += abs(genome[i]->childrenConnexions[j].C[k]);
+				amplitudes[i] += abs(genome[i]->childrenConnexions[j].eta[k]);
 #if defined RISI_NAJARRO_2020
-				sum += abs(genome[i]->childrenConnexions[j].D[k]);
+				amplitudes[i] += abs(genome[i]->childrenConnexions[j].D[k]);
 #elif defined USING_NEUROMODULATION
-				sum += abs(genome[i]->childrenConnexions[j].alpha[k]);
-				sum += abs(genome[i]->childrenConnexions[j].w[k]);
+				amplitudes[i] += abs(genome[i]->childrenConnexions[j].alpha[k]);
+				amplitudes[i] += abs(genome[i]->childrenConnexions[j].w[k]);
 #endif 
 			}
 		}
-#ifdef USING_NEUROMODULATION
-		for (int j = 0; j < genome[i]->outputSize; j++) {
-			sum += abs(genome[i]->outBias[j]);
-			sum += abs(genome[i]->wNeuromodulation[j]);
+		for (int j = 0; j < genome[i]->children.size(); j++) {
+			nParams[i] += nParams[genome[i]->children[j]->position]; 
+			amplitudes[i] += amplitudes[genome[i]->children[j]->position];
 		}
-		for (int j = 0; j < genome[i]->inputSize; j++) {
-			sum += abs(genome[i]->inBias[j]);
+#ifdef USING_NEUROMODULATION
+		nParams[i] += genome[i]->outputSize; // to account for the neuromodulation weights
+		for (int j = 0; j < genome[i]->outputSize; j++) {
+			amplitudes[i] += abs(genome[i]->wNeuromodulation[j]);
 		}
 #endif
 	}
-	return sum;
+	return amplitudes[genome.size() - 1] * powf((float) nParams[genome.size()-1], -.7f);
 }

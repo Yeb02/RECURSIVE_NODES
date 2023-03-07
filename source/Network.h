@@ -27,10 +27,8 @@ public:
 	// sets to 0 the dynamic elements of the phenotype
 	void intertrialReset();
 
-	// a positive float, increasing with the networks number of parameters.
-	float getSizeRegularizationLoss();
-	// a positive float, increasing with the amplitude of the network's parameters. 
-	float getAmplitudeRegularizationLoss();
+	// a positive float, increasing with the networks number of parameters and their amplitudes. Ignores biases.
+	float getRegularizationLoss();
 
 private:
 	int nSimpleNeurons;

@@ -278,7 +278,7 @@ void Population::step(std::vector<Trial*> trials) {
 
 		float sumr = 0, sumd = 0;
 		for (int i = 0; i < N_SPECIMENS; i++) {
-			regularization[i] = networks[i]->getAmplitudeRegularizationLoss() + networks[i]->getSizeRegularizationLoss();
+			regularization[i] = networks[i]->getRegularizationLoss();
 			sumr += regularization[i];
 			sumd += distances[i];
 		}

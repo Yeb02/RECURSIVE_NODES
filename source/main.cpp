@@ -113,7 +113,7 @@ int main()
     int vSize = 4;
     Population population(vSize, vSize, N_SPECIMENS);
 
-    int nDifferentTrials = 8;   
+    int nDifferentTrials = 3;   
     vector<Trial*> trials;
     for (int i = 0; i < nDifferentTrials; i++) {
         trials.push_back(new CartPoleTrial());
