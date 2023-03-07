@@ -178,7 +178,7 @@ void GenotypeNode::computeBeacons() {
 
 void GenotypeNode::mutateFloats() {
 	int rID, listID, matrixID;
-	const float pMutation = .15f; // TODO
+	const float pMutation = .1f; // TODO
 	float r, r2;
 
 #if defined RISI_NAJARRO_2020
@@ -240,7 +240,7 @@ void GenotypeNode::mutateFloats() {
 		case 5:
 			float eta = childrenConnexions[listID].eta[matrixID];
 			//childrenConnexions[listID].eta[matrixID] += r * eta * (1 - eta);
-			childrenConnexions[listID].eta[matrixID] = eta*.7f + UNIFORM_01*.3f;
+			childrenConnexions[listID].eta[matrixID] = eta*.8f + UNIFORM_01*.2f;
 		}
 #endif 
 	}

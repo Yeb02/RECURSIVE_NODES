@@ -138,6 +138,12 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 	constexpr float force_mag = 10.0;
 
 	if (abs(theta) > .21f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true;
+	// A final reward improves robustness, but surprisingly increasing the steps limit is the best way to improve
+	// average performance. This is probably because of the dynamic nature of connexions in this model. 
+	/*if (currentNStep == STEP_LIMIT) { 
+		score *= 1.5f;
+		currentNStep++;
+	}*/
 	if (isTrialOver) return;
 
 	float force;

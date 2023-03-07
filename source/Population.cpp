@@ -207,9 +207,14 @@ void Population::step(std::vector<Trial*> trials) {
 		fittestSpecimen = maxScoreID;
 		for (int j = 0; j < trials.size(); j++) avgScores[j] /= (float)N_SPECIMENS;
 
-		std::cout << "At iteration " << iteration << ", max score = " << maxScore / (float)trials.size() << "\n";
-		for (float f : avgScores) std::cout << f << " ";
-		std::cout << std::endl;
+		/*for (float f : avgScores) std::cout << f << " ";
+		std::cout << std::endl;*/
+		float avgavgf = 0.0f;
+		for (float f : avgScores) avgavgf += f;
+		avgavgf /= trials.size();
+		std::cout << "At iteration " << iteration 
+			<< ", max score = " << (int)(maxScore / (float)trials.size() )
+			<< ", avg avg score = " << (int)avgavgf << ".\n";
 
 
 		// Normalize scores
@@ -263,7 +268,7 @@ void Population::step(std::vector<Trial*> trials) {
 	
 
 	// compute raw fitnesses 
-	constexpr float scoreFactor = 1.0f, distanceFactor = .2f, regularizationFactor = .04f;
+	constexpr float scoreFactor = 1.0f, distanceFactor = .0f, regularizationFactor = .15f;
 	std::vector<float> fitnesses(N_SPECIMENS);
 	float fitnessSum, fitnessMin;
 	{
@@ -328,10 +333,11 @@ void Population::step(std::vector<Trial*> trials) {
 	}
 
 	
-	// The higher f0, the lower the selection pressure
-	constexpr float f0 = 0.5f;
-	//float f0 = UNIFORM_01 * 2.0f;
-	//float f0 = 1.0f + sinf((float)iteration/5.0f);
+	// The higher f0, the lower the selection pressure. When f0 = 0, the least fit individual has a probability of 0
+	// to have children.
+	constexpr float f0 = 0.2f;
+	//float f0 = 1.0f + UNIFORM_01 * 1.0f;
+	//float f0 = 1.0f + sinf((float)iteration/3.0f);
 	// create offsprings 
 	{
 		//float f0 = .1f / (float) N_SPECIMENS; 

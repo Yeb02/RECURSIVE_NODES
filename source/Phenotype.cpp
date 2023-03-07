@@ -106,6 +106,14 @@ void PhenotypeNode::forward(const float* input) {
 	float* _childInputs = new float[type->concatenatedChildrenInputLength + type->outputSize];
 	for (int i = 0; i < type->concatenatedChildrenInputLength + type->outputSize; i++) _childInputs[i] = 0.0f;
 
+#ifdef USING_NEUROMODULATION
+	// compute the neuromodulatory output
+	float temp = type->neuromodulationBias;
+	for (int i = 0; i < type->outputSize; i++) {
+		temp += type->wNeuromodulation[i] * currentOutput[i];
+	}
+	neuromodulatorySignal *= 1.41f * tanh(temp);
+#endif	
 
 	// propagate the previous steps's outputs, by iterating over the connexions between children
 
@@ -195,15 +203,6 @@ void PhenotypeNode::forward(const float* input) {
 		currentOutput[i] = tanh(_childInputs[_inputListID + i] + type->outBias[i]);
 #endif
 	}
-
-#ifdef USING_NEUROMODULATION
-	// compute the neuromodulatory output
-	float temp = type->neuromodulationBias;
-	for (int i = 0; i < type->outputSize; i++) {
-		temp += type->wNeuromodulation[i] * currentOutput[i];
-	}
-	neuromodulatorySignal *= 1.41f * tanh(temp);
-#endif	
 
 
 	// Update hebbian and eligibility traces

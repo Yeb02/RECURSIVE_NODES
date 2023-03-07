@@ -110,15 +110,16 @@ int main()
     LOG(nThreads << " concurrent threads are supported at hardware level. Using " << nThreads << ".");
 
     int N_SPECIMENS = nThreads * 64;
-    int vSize = 4;
-    Population population(vSize, vSize, N_SPECIMENS);
 
-    int nDifferentTrials = 3;   
+    // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
+    int nDifferentTrials = 9;   
     vector<Trial*> trials;
     for (int i = 0; i < nDifferentTrials; i++) {
         trials.push_back(new CartPoleTrial());
-        //trials.push_back(new XorTrial(vSize));
+        //trials.push_back(new XorTrial(2));
     }
+
+    Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
 
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
 

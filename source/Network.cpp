@@ -118,17 +118,17 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->depth = 1;
 		genome[i]->position = i;
 		genome[i]->closestNode = NULL;
-		genome[i]->mutationalDistance = 0;
-		genome[i]->inBias.resize(outputSize); 
-		genome[i]->outBias.resize(outputSize); 
+		genome[i]->mutationalDistance = 0; 
 		genome[i]->children.resize(0); 
 		genome[i]->childrenConnexions.resize(0);
 		genome[i]->childrenConnexions.emplace_back(
-			INPUT_ID, genome[i]->children.size(), inputSize, outputSize, GenotypeConnexion::RANDOM
+			INPUT_ID, genome[i]->children.size(), outputSize, inputSize, GenotypeConnexion::RANDOM
 		);
 #ifdef USING_NEUROMODULATION
 		genome[i]->neuromodulationBias = 0.0f;
 		genome[i]->wNeuromodulation.resize(outputSize);
+		genome[i]->inBias.resize(inputSize);
+		genome[i]->outBias.resize(outputSize);
 #endif 
 		genome[i]->computeBeacons();
 	}
@@ -154,8 +154,8 @@ void Network::mutate() {
 
 	// value in pairs should be equal, or at least the first greater than the second, to introduce some kind of regularization.
 
-	constexpr float createConnexionProbability = .03f;
-	constexpr float deleteConnexionProbability = .0005f;
+	constexpr float createConnexionProbability = .01f;
+	constexpr float deleteConnexionProbability = .002f;
 
 	constexpr float incrementInputSizeProbability = .0005f;
 	constexpr float decrementInputSizeProbability = .0005f;
@@ -164,7 +164,7 @@ void Network::mutate() {
 	constexpr float decrementOutputSizeProbability = .0005f;
 
 	constexpr float addChildProbability = .007f;
-	constexpr float removeChildProbability = .0005f;
+	constexpr float removeChildProbability = .002f;
 
 	constexpr float childReplacementProbability = .005f;
 
@@ -380,7 +380,7 @@ void Network::mutate() {
 	// Top Node Boxing
 	{
 		r = UNIFORM_01;
-		float depthFactor = powf(.4f, (float)genome[genome.size() - 1]->depth);
+		float depthFactor = powf(.7f, (float)genome[genome.size() - 1]->depth);
 		if (r < topNodeBoxingProbability * depthFactor) {
 			GenotypeNode* n = new GenotypeNode();
 			GenotypeNode* prev = genome[genome.size() - 1].get();
@@ -392,7 +392,7 @@ void Network::mutate() {
 #ifdef USING_NEUROMODULATION
 			n->wNeuromodulation.resize(outputSize);
 			n->neuromodulationBias = 0.0f;
-			n->inBias.resize(outputSize);
+			n->inBias.resize(inputSize);
 			n->outBias.resize(outputSize);
 
 #endif 
@@ -409,8 +409,8 @@ void Network::mutate() {
 
 
 			n->childrenConnexions.reserve(4);
-			n->childrenConnexions.emplace_back(INPUT_ID, 0, inputSize, outputSize, GenotypeConnexion::IDENTITY);
-			n->childrenConnexions.emplace_back(0, 1, outputSize, inputSize, GenotypeConnexion::IDENTITY);
+			n->childrenConnexions.emplace_back(INPUT_ID, 0, inputSize, inputSize, GenotypeConnexion::IDENTITY);
+			n->childrenConnexions.emplace_back(0, 1, outputSize, outputSize, GenotypeConnexion::IDENTITY);
 
 			genome.emplace_back(n);
 		}
@@ -550,5 +550,5 @@ float Network::getRegularizationLoss() {
 		}
 #endif
 	}
-	return amplitudes[genome.size() - 1] * powf((float) nParams[genome.size()-1], -.7f);
+	return amplitudes[genome.size() - 1] * powf((float) nParams[genome.size()-1], -.8f);
 }

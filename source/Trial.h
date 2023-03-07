@@ -71,7 +71,7 @@ public:
 	void copy(Trial* t) override;
 	Trial* clone() override;
 
-	static const int STEP_LIMIT = 500; // or 200
+	static const int STEP_LIMIT = 30000; // or 200...
 
 private:
 	float x, xDot, theta, thetaDot;
