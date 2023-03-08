@@ -35,6 +35,7 @@ public:
 	Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS);
 	~Population();
 	void startThreads(int N_THREADS);
+	void stopThreads();
 	void step(std::vector<Trial*> trials);
 	std::string save() {
 		return std::string("");
@@ -50,10 +51,11 @@ public:
 		return networks[fittestSpecimen];
 	}
 
+	std::vector<Network*> networks;
+
 private:
 	void mutateNevaluateThreaded(const int i0, const int subArraySize);
 	int N_SPECIMENS, N_THREADS;
-	std::vector<Network*> networks;
 	int fittestSpecimen;
 
 	// unused if N_THREADS = 0.
@@ -61,4 +63,5 @@ private:
 	std::vector<Trial*> globalTrials;
 	float* pScores;
 	int iteration;
+	bool mustTerminate;
 };

@@ -54,19 +54,19 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 #endif 
 		}
 	}
-	else { // IDENTITY. Used in top node boxing. Must "invert" tanh ! nLines = nColumns.
+	else { // IDENTITY. Used in top node boxing. Must "invert" tanh in certain cases ! nLines = nColumns.
 		int i = 0;
 		float v;
 		for (int l = 0; l < nLines; l++) {
 			for (int c = 0; c < nColumns; c++) {
-				v = l == c ? 1.2f : 0.0f;
+				v = l == c ? 1.0f : 0.0f;
 #if defined RISI_NAJARRO_2020 // there is no way to link 2 nodes with identity in this case.
 				A[i] = 0.0f;
 				B[i] = 0.0f;
 				C[i] = v;
 				D[i] = 0.0f;
 				eta[i] = 0.1f;
-#elif defined USING_NEUROMODULATION // tanh'(0) = 1, so * 1.2 is a correct-ish approximation to invert. 
+#elif defined USING_NEUROMODULATION // tanh'(0) = 1, so * 1.0 is a correct-ish approximation to invert. 
 				A[i] = NORMAL_01 * .2f;
 				B[i] = NORMAL_01 * .2f;
 				C[i] = NORMAL_01 * .2f;
@@ -178,7 +178,6 @@ void GenotypeNode::computeBeacons() {
 
 void GenotypeNode::mutateFloats() {
 	int rID, listID, matrixID;
-	const float pMutation = .1f; // TODO
 	float r, r2;
 
 #if defined RISI_NAJARRO_2020
@@ -186,6 +185,11 @@ void GenotypeNode::mutateFloats() {
 #elif defined USING_NEUROMODULATION
 	constexpr int nArrays = 6;
 #endif 
+
+	constexpr float pMutation = .2f; // .1f ??
+	constexpr float normalFactor = .3f; // .2f ??
+	constexpr float sumFactor = .4f; // .2f ??
+
 
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
 
@@ -209,7 +213,7 @@ void GenotypeNode::mutateFloats() {
 		j = (rID - ids[listID]) % nArrays;
 		matrixID = (rID - ids[listID] - j) / nArrays;
 
-		r = .2f * NORMAL_01;
+		r = normalFactor * NORMAL_01;
 
 #if defined RISI_NAJARRO_2020
 		switch (j) {
@@ -220,7 +224,7 @@ void GenotypeNode::mutateFloats() {
 		case 4: childrenConnexions[listID].eta[matrixID] += r;
 		}
 #elif defined USING_NEUROMODULATION
-		r2 = .2f * NORMAL_01;
+		r2 = sumFactor * NORMAL_01;
 		switch (j) {
 		case 0: 
 			childrenConnexions[listID].A[matrixID] *= .9+r; //.9 < 1 to drive weights towards 0. Not mandatory since (1+r)*(1-r)=1-r*r < 1
@@ -246,28 +250,28 @@ void GenotypeNode::mutateFloats() {
 	}
 
 	for (int i = 0; i < outputSize; i++) {
-		r = .2f * NORMAL_01;
-		r2 = .2f * NORMAL_01;
+		r = normalFactor * NORMAL_01;
+		r2 = sumFactor * NORMAL_01;
 		outBias[i] *= .95 + r;
 		outBias[i] += r2;
 	}
 
 	for (int i = 0; i < inputSize; i++) {
-		r = .2f * NORMAL_01;
-		r2 = .2f * NORMAL_01;
+		r = normalFactor * NORMAL_01;
+		r2 = sumFactor * NORMAL_01;
 		inBias[i] *= .95 + r;
 		inBias[i] += r2;
 	}
 
 #ifdef USING_NEUROMODULATION
 	for (int i = 0; i < outputSize; i++) {
-		r = .2f * NORMAL_01;
-		r2 = .2f * NORMAL_01;
+		r = normalFactor * NORMAL_01;
+		r2 = sumFactor * NORMAL_01;
 		wNeuromodulation[i] *= .95 + r;
 		wNeuromodulation[i] += r2;
 	}
-	r = .2f * NORMAL_01;
-	r2 = .2f * NORMAL_01;
+	r = normalFactor * NORMAL_01;
+	r2 = sumFactor * NORMAL_01;
 	neuromodulationBias *= .95 + r;
 	neuromodulationBias += r2;
 #endif 

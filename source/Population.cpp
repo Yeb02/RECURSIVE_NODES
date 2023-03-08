@@ -16,7 +16,9 @@
 std::mutex m;
 std::condition_variable startProcessing;
 std::condition_variable doneProcessing;
+std::condition_variable hasTerminated;
 bool bStartProcessing = false;
+int nTerminated = 0;
 int nDoneProcessing = 0;
 
 inline float L2Dist(float* a, float* b, int size) {
@@ -56,7 +58,7 @@ int binarySearch(std::vector<float>& proba, float value) {
 }
 
 Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
-	N_SPECIMENS(N_SPECIMENS), N_THREADS(0), pScores(nullptr), iteration(0)
+	N_SPECIMENS(N_SPECIMENS), N_THREADS(0), pScores(nullptr), iteration(0), mustTerminate(false)
 {
 	threads.reserve(0);
 	globalTrials.reserve(0);
@@ -67,8 +69,30 @@ Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
 	fittestSpecimen = 0;
 }
 
-void Population::startThreads(int N_THREADS) {
+void Population::stopThreads() {
+	if (threads.size() == 0) return;
 
+	{
+		std::lock_guard<std::mutex> lg(m);
+		mustTerminate = true;
+		nTerminated = threads.size();
+	}
+	startProcessing.notify_all();
+
+	// wait on workers.
+	{
+		std::unique_lock<std::mutex> lg(m);
+		hasTerminated.wait(lg, [] {return nTerminated == 0; });
+	}
+
+	for (int t = 0; t < N_THREADS; t++) threads[t].join();
+
+}
+
+void Population::startThreads(int N_THREADS) {
+	stopThreads();
+
+	mustTerminate = false;
 	this->N_THREADS = N_THREADS;
 	threads.resize(0); // to kill all previously existing threads.
 
@@ -92,12 +116,19 @@ Population::~Population() {
 
 void Population::mutateNevaluateThreaded(const int i0, const int subArraySize) {
 	std::vector<std::unique_ptr<Trial>> localTrials;
-	
 
 	int currentIteration = 0;
 	while (true) {
 		std::unique_lock<std::mutex> ul(m);
-		startProcessing.wait(ul, [&currentIteration,this] {return currentIteration == iteration; });
+		startProcessing.wait(ul, [&currentIteration,this] {return (currentIteration == iteration) || mustTerminate; });
+		if (mustTerminate) {
+			nTerminated--;
+			if (nTerminated == 0) {
+				ul.unlock();
+				hasTerminated.notify_one();
+			}
+			break;
+		}
 		ul.unlock();
 
 		currentIteration++;
@@ -268,7 +299,7 @@ void Population::step(std::vector<Trial*> trials) {
 	
 
 	// compute raw fitnesses 
-	constexpr float scoreFactor = 1.0f, distanceFactor = .0f, regularizationFactor = .15f;
+	constexpr float scoreFactor = 1.0f, distanceFactor = .0f, regularizationFactor = .05f;
 	std::vector<float> fitnesses(N_SPECIMENS);
 	float fitnessSum, fitnessMin;
 	{
@@ -335,9 +366,9 @@ void Population::step(std::vector<Trial*> trials) {
 	
 	// The higher f0, the lower the selection pressure. When f0 = 0, the least fit individual has a probability of 0
 	// to have children.
-	constexpr float f0 = 0.2f;
+	//constexpr float f0 = 0.0f;
 	//float f0 = 1.0f + UNIFORM_01 * 1.0f;
-	//float f0 = 1.0f + sinf((float)iteration/3.0f);
+	float f0 = .2f + .2f*sinf((float)iteration/3.0f);
 	// create offsprings 
 	{
 		//float f0 = .1f / (float) N_SPECIMENS; 

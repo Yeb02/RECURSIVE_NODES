@@ -81,14 +81,20 @@ public:
 
             for (int j = 0; j < n->genome[i]->children.size(); j++) {
                 node.setPosition(sf::Vector2f(Xs[j], Ys[j]));
+                if (n->genome[i]->children[j]->isSimpleNeuron) {
+                    node.setFillColor(sf::Color::White);
+                } 
+                else {
+                    node.setFillColor(sf::Color::Blue);
+                }
                 w.draw(node);
             }
 
-            node.setFillColor(sf::Color::Red);
+            node.setFillColor(sf::Color::Red); //output
             node.setPosition(sf::Vector2f(Xs[n->genome[i]->children.size()], Ys[n->genome[i]->children.size()]));
             w.draw(node);
 
-            node.setFillColor(sf::Color::Green);
+            node.setFillColor(sf::Color::Green); //input
             node.setPosition(sf::Vector2f(Xs[n->genome[i]->children.size()+1], Ys[n->genome[i]->children.size()+1]));
             w.draw(node);
             
@@ -112,7 +118,7 @@ int main()
     int N_SPECIMENS = nThreads * 64;
 
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
-    int nDifferentTrials = 9;   
+    int nDifferentTrials = 5;   
     vector<Trial*> trials;
     for (int i = 0; i < nDifferentTrials; i++) {
         trials.push_back(new CartPoleTrial());
@@ -137,7 +143,7 @@ int main()
     //Canvas canvas = { {fig} };
     //canvas.show();
     population.startThreads(nThreads);
-    for (int i = 0; i < 3000; i++) {
+    for (int i = 0; i < 100; i++) {
 #ifdef DRAWING
         window.clear();
         sf::Event event;
@@ -159,6 +165,18 @@ int main()
         window.display();
 #endif
     }
+    population.stopThreads();
     
+    Network* n = population.getFittestSpecimenPointer();
+    trials[0]->reset();
+    n->intertrialReset();
+    cout << "\n";
+    while (!trials[0]->isTrialOver) {
+        n->step(trials[0]->observations);
+        trials[0]->step(n->getOutput());
+        cout << ", " << trials[0]->observations[0] << ", " << trials[0]->observations[2] ;
+    }
+    cout << "\n" << trials[0]->score;
+
     return 0;
 }

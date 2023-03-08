@@ -110,7 +110,7 @@ void CartPoleTrial::reset(bool sameSeed) {
 	currentNStep = 0;
 
 	if (!sameSeed) {
-		x0 = (UNIFORM_01 - .5f) * 1.0f; // gym initializes all 4 in [-0.05, 0.05].
+		x0 = (UNIFORM_01 - .5f) * .2f; // gym initializes all 4 in [-0.05, 0.05].
 		xDot0 = (UNIFORM_01 - .5f) * .2f;
 		theta0 = (UNIFORM_01 - .5f) * .2f;
 		thetaDot0 = (UNIFORM_01 - .5f) * .2f;
@@ -129,13 +129,13 @@ void CartPoleTrial::reset(bool sameSeed) {
 
 void CartPoleTrial::step(const std::vector<float>& actions) {
 	constexpr float tau = .02f ;
-	constexpr float gravity = 9.8;
-	constexpr float masscart = 1.0;
-	constexpr float masspole = 0.1;
+	constexpr float gravity = 9.8f;
+	constexpr float masscart = 1.0f;
+	constexpr float masspole = 0.1f;
 	constexpr float total_mass = masspole + masscart;
-	constexpr float length = 0.5;
+	constexpr float length = 0.5f;
 	constexpr float polemass_length = masspole * length;
-	constexpr float force_mag = 10.0;
+	constexpr float force_mag = 10.0f;
 
 	if (abs(theta) > .21f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true;
 	// A final reward improves robustness, but surprisingly increasing the steps limit is the best way to improve

@@ -390,11 +390,17 @@ void Network::mutate() {
 			n->inputSize = inputSize;
 			n->outputSize = outputSize;
 #ifdef USING_NEUROMODULATION
-			n->wNeuromodulation.resize(outputSize);
-			n->neuromodulationBias = 0.0f;
+			n->neuromodulationBias = prev->neuromodulationBias;
 			n->inBias.resize(inputSize);
 			n->outBias.resize(outputSize);
-
+			n->wNeuromodulation.resize(outputSize);
+			for (int i = 0; i < n->inputSize; i++) {
+				n->inBias[i] = prev->inBias[i];
+			}
+			for (int i = 0; i < n->outputSize; i++) {
+				n->outBias[i] = prev->outBias[i];
+				n->wNeuromodulation[i] = prev->wNeuromodulation[i];
+			}
 #endif 
 			n->concatenatedChildrenInputLength = outputSize;
 			n->depth = prev->depth + 1;
