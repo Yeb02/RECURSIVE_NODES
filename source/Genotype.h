@@ -9,6 +9,7 @@
 
 //#define RISI_NAJARRO_2020
 #define USING_NEUROMODULATION
+//#define DYNAMIC_MUTATION_P
 
 #define MAX_CHILDREN_PER_BLOCK  10
 #define MAX_BLOCK_INPUT_SIZE  10          // Does not apply to the top one, which is the network itself
@@ -24,6 +25,10 @@ struct GenotypeConnexion {
 	const enum initType { ZERO, IDENTITY, RANDOM };
 
 	int originID, destinationID;
+
+#ifdef DYNAMIC_MUTATION_P
+	float pMutations[6]; // A, B, C, alpha, w, eta
+#endif
 
 	// Corresponds to the dimension of the input of the destination neuron. Redundant but eliminates indirections.
 	int nLines;

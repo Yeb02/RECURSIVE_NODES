@@ -299,7 +299,7 @@ void Population::step(std::vector<Trial*> trials) {
 	
 
 	// compute raw fitnesses 
-	constexpr float scoreFactor = 1.0f, distanceFactor = .0f, regularizationFactor = .05f;
+	constexpr float scoreFactor = 1.0f, distanceFactor = .05f, regularizationFactor = .05f;
 	std::vector<float> fitnesses(N_SPECIMENS);
 	float fitnessSum, fitnessMin;
 	{
@@ -368,7 +368,7 @@ void Population::step(std::vector<Trial*> trials) {
 	// to have children.
 	//constexpr float f0 = 0.0f;
 	//float f0 = 1.0f + UNIFORM_01 * 1.0f;
-	float f0 = .2f + .2f*sinf((float)iteration/3.0f);
+	float f0 = .5f * (1.0f + sinf((float)iteration / 3.0f));
 	// create offsprings 
 	{
 		//float f0 = .1f / (float) N_SPECIMENS; 

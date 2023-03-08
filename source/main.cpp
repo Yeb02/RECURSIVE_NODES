@@ -10,7 +10,6 @@
 #include "Population.h"
 #include "Random.h"
 
-
 #define LOGV(v) for (const auto e : v) {cout << e << " ";}; cout << "\n"
 #define LOG(x) cout << x << endl;
 
@@ -112,13 +111,16 @@ int main()
     sf::RenderWindow window(sf::VideoMode(720, 480), "Top Node");
     Drawer drawer(window);
 #endif
+
     int nThreads = std::thread::hardware_concurrency();
+    int N_SPECIMENS = nThreads * 64;
+    int nDifferentTrials = 5;
+    int nSteps = 5000;
+
+
     LOG(nThreads << " concurrent threads are supported at hardware level. Using " << nThreads << ".");
 
-    int N_SPECIMENS = nThreads * 64;
-
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
-    int nDifferentTrials = 5;   
     vector<Trial*> trials;
     for (int i = 0; i < nDifferentTrials; i++) {
         trials.push_back(new CartPoleTrial());
@@ -129,21 +131,22 @@ int main()
 
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
 
-    //Vec x = linspace(1, N_SPECIMENS, N_SPECIMENS);
-    //Plot2D plot;
+   /* Vec x = linspace(1, N_SPECIMENS, N_SPECIMENS);
+    Plot2D plot;
 
-    //plot.xlabel("x");
-    //plot.ylabel("y");
-    //plot.xrange(0.0, N_SPECIMENS);
-    //plot.yrange(-2.0, 2.0);
+    plot.xlabel("x");
+    plot.ylabel("y");
+    plot.xrange(0.0, N_SPECIMENS);
+    plot.yrange(-2.0, 2.0);
 
-    //plot.drawCurve(x, population.).label("sin(x)");
+    plot.drawCurve(x, population.).label("sin(x)");
 
-    //Figure fig = { {plot} };
-    //Canvas canvas = { {fig} };
-    //canvas.show();
+    Figure fig = { {plot} };
+    Canvas canvas = { {fig} };
+    canvas.show();*/
+
     population.startThreads(nThreads);
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < nSteps; i++) {
 #ifdef DRAWING
         window.clear();
         sf::Event event;

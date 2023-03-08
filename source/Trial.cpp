@@ -110,9 +110,9 @@ void CartPoleTrial::reset(bool sameSeed) {
 	currentNStep = 0;
 
 	if (!sameSeed) {
-		x0 = (UNIFORM_01 - .5f) * .2f; // gym initializes all 4 in [-0.05, 0.05].
+		x0 = (UNIFORM_01 - .5f) * .9f; // gym initializes all 4 in [-0.05, 0.05].
 		xDot0 = (UNIFORM_01 - .5f) * .2f;
-		theta0 = (UNIFORM_01 - .5f) * .2f;
+		theta0 = (UNIFORM_01 - .5f) * .5f;
 		thetaDot0 = (UNIFORM_01 - .5f) * .2f;
 	}
 
@@ -128,7 +128,7 @@ void CartPoleTrial::reset(bool sameSeed) {
 }
 
 void CartPoleTrial::step(const std::vector<float>& actions) {
-	constexpr float tau = .02f ;
+	constexpr float tau = .05f ; // .02f
 	constexpr float gravity = 9.8f;
 	constexpr float masscart = 1.0f;
 	constexpr float masspole = 0.1f;
@@ -137,7 +137,7 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 	constexpr float polemass_length = masspole * length;
 	constexpr float force_mag = 10.0f;
 
-	if (abs(theta) > .21f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true;
+	if (abs(theta) > .5f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true; // abs(theta) > .21f
 	// A final reward improves robustness, but surprisingly increasing the steps limit is the best way to improve
 	// average performance. This is probably because of the dynamic nature of connexions in this model. 
 	/*if (currentNStep == STEP_LIMIT) { 
@@ -145,6 +145,9 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 		currentNStep++;
 	}*/
 	if (isTrialOver) return;
+
+	currentNStep++;
+	if (currentNStep < 10) return; // To give time to the initial observation to propagate to the network.
 
 	float force;
 	//if (actions[0] > .4f)  force = 1.0f;
@@ -174,7 +177,6 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 	observations[2] = theta;
 	observations[3] = thetaDot;
 
-	currentNStep++;
 }
 
 void CartPoleTrial::copy(Trial* t0) {

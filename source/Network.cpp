@@ -16,20 +16,20 @@ Network::Network(Network* n) {
 		genome[i]->f = n->genome[i]->f; 
 		genome[i]->inputSize = n->genome[i]->inputSize;
 		genome[i]->outputSize = n->genome[i]->outputSize; 
-		genome[i]->children.reserve(0);
-		genome[i]->childrenConnexions.reserve(0);
-#ifdef USING_NEUROMODULATION
-		genome[i]->inBias.reserve(0);
-		genome[i]->outBias.reserve(0);
-		genome[i]->wNeuromodulation.reserve(0);
-		genome[i]->neuromodulationBias = 0.0f;
-#endif 
-		genome[i]->concatenatedChildrenInputLength = 0;
-		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
+//		genome[i]->children.reserve(0);
+//		genome[i]->childrenConnexions.reserve(0);
+//#ifdef USING_NEUROMODULATION
+//		genome[i]->inBias.reserve(0);
+//		genome[i]->outBias.reserve(0);
+//		genome[i]->wNeuromodulation.reserve(0);
+//		genome[i]->neuromodulationBias = 0.0f;
+//#endif 
+//		genome[i]->concatenatedChildrenInputLength = 0;
+//		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
 		genome[i]->depth = 0;
 		genome[i]->position = n->genome[i]->position;
-		genome[i]->closestNode = NULL;
-		genome[i]->mutationalDistance = 0;
+		//genome[i]->closestNode = NULL;
+		//genome[i]->mutationalDistance = 0;
 	}
 
 	for (int i = nSimpleNeurons; i < n->genome.size(); i++) {
@@ -80,14 +80,14 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->inputSize = 1;
 		genome[i]->outputSize = 1;
 		genome[i]->f = *tanhf;
-		genome[i]->children.reserve(0);
-		genome[i]->childrenConnexions.reserve(0);
-		genome[i]->concatenatedChildrenInputLength = 0;
-		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
+		//genome[i]->children.reserve(0);
+		//genome[i]->childrenConnexions.reserve(0);
+		//genome[i]->concatenatedChildrenInputLength = 0;
+		//genome[i]->concatenatedChildrenInputBeacons.reserve(0);
 		genome[i]->depth = 0;
 		genome[i]->position = 0;
-		genome[i]->closestNode = NULL;
-		genome[i]->mutationalDistance = 0;
+		//genome[i]->closestNode = NULL;
+		//genome[i]->mutationalDistance = 0;
 	}
 
 	//i++;
@@ -526,6 +526,12 @@ float Network::getRegularizationLoss() {
 	std::vector<int> nParams(genome.size());
 	std::vector<float> amplitudes(genome.size());
 	int size;
+#if defined RISI_NAJARRO_2020
+	constexpr int nArrays = 5;
+#elif defined USING_NEUROMODULATION
+	constexpr int nArrays = 6;
+#endif 
+
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
 		nParams[i] = 0;
 		amplitudes[i] = 0.0f;
@@ -545,6 +551,7 @@ float Network::getRegularizationLoss() {
 #endif 
 			}
 		}
+		nParams[i] *= nArrays;
 		for (int j = 0; j < genome[i]->children.size(); j++) {
 			nParams[i] += nParams[genome[i]->children[j]->position]; 
 			amplitudes[i] += amplitudes[genome[i]->children[j]->position];
@@ -556,5 +563,7 @@ float Network::getRegularizationLoss() {
 		}
 #endif
 	}
-	return amplitudes[genome.size() - 1] * powf((float) nParams[genome.size()-1], -.8f);
+	// the lower the exponent, the stronger the size regularization
+	constexpr float exponent = .8f;
+	return amplitudes[genome.size() - 1] * powf((float) nParams[genome.size()-1] + 10*nArrays, -exponent); 
 }

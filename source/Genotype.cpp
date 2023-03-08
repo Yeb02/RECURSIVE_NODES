@@ -17,6 +17,12 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 	w = std::make_unique<float[]>(s);
 #endif 
 
+#ifdef DYNAMIC_MUTATION_P
+	for (int j = 0; j < 6; j++) {
+		pMutations[j] = .2f;
+	}
+#endif
+
 	if (init == ZERO || (init == IDENTITY && nLines != nColumns)) {
 		for (int i = 0; i < nLines * nColumns; i++) {
 #if defined RISI_NAJARRO_2020
@@ -87,6 +93,11 @@ GenotypeConnexion::GenotypeConnexion(GenotypeConnexion&& gc) noexcept {
 	nLines = gc.nLines;
 	nColumns = gc.nColumns;
 
+#ifdef DYNAMIC_MUTATION_P
+	for (int j = 0; j < 6; j++) {
+		pMutations[j] = gc.pMutations[j];
+	}
+#endif
 	// move() removes ownership from the original pointer. Its use here is kind of an hacky workaround 
 	// that vector reallocation calls move constructor AND destructor. So the pointee would be destroyed otherwise.
 	// https://stackoverflow.com/questions/41864544/stdvector-calls-contained-objects-destructor-when-reallocating-no-matter-what
@@ -109,7 +120,11 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	originID = gc.originID;
 	nLines = gc.nLines;
 	nColumns = gc.nColumns;
-
+#ifdef DYNAMIC_MUTATION_P
+	for (int j = 0; j < 6; j++) {
+		pMutations[j] = gc.pMutations[j];
+	}
+#endif
 	int s = nLines * nColumns;
 	eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
@@ -139,7 +154,11 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	originID = gc.originID;
 	nLines = gc.nLines;
 	nColumns = gc.nColumns;
-
+#ifdef DYNAMIC_MUTATION_P
+	for (int j = 0; j < 6; j++) {
+		pMutations[j] = gc.pMutations[j];
+	}
+#endif
 	int s = nLines * nColumns;
 	eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
@@ -177,20 +196,59 @@ void GenotypeNode::computeBeacons() {
 }
 
 void GenotypeNode::mutateFloats() {
-	int rID, listID, matrixID;
 	float r, r2;
+	
+	constexpr float normalFactor = .3f; // .2f ??
+	constexpr float sumFactor = .4f; // .2f ??
 
+
+#ifdef DYNAMIC_MUTATION_P
+	int nMutations;
+	float size;
+	int rID;
+	float* aPtr = nullptr;
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		size = (float)(childrenConnexions[i].nLines * childrenConnexions[i].nColumns);
+		for (int j = 0; j < 6; j++) {
+			switch (j) {
+			case 0: aPtr = childrenConnexions[i].A.get();
+			case 1: aPtr = childrenConnexions[i].B.get();
+			case 2: aPtr = childrenConnexions[i].C.get();
+			case 3: aPtr = childrenConnexions[i].alpha.get();
+			case 4: aPtr = childrenConnexions[i].w.get();
+			case 5: aPtr = childrenConnexions[i].eta.get();
+			}
+
+			SET_BINOMIAL(size, childrenConnexions[i].pMutations[j]);
+			nMutations = BINOMIAL;
+
+			for (int k = 0; k < nMutations; k++) {
+				rID = (int)(UNIFORM_01 * size); 
+
+				if (j == 5) { 
+					aPtr[rID] = aPtr[rID] * .8f + UNIFORM_01 * .2f;
+				} else {
+					r = normalFactor * NORMAL_01;
+					r2 = sumFactor * NORMAL_01;
+					aPtr[rID] *= .9f + r;
+					aPtr[rID] += r2;
+				}
+				
+			}
+
+			//childrenConnexions[i].pMutations[j] = childrenConnexions[i].pMutations[j] * .9f + UNIFORM_01 * .1f;
+		}
+	}
+
+#else
+
+	int rID, listID, matrixID;
 #if defined RISI_NAJARRO_2020
 	constexpr int nArrays = 5;
 #elif defined USING_NEUROMODULATION
 	constexpr int nArrays = 6;
 #endif 
-
 	constexpr float pMutation = .2f; // .1f ??
-	constexpr float normalFactor = .3f; // .2f ??
-	constexpr float sumFactor = .4f; // .2f ??
-
-
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
 
 	std::vector<int> ids;
@@ -202,7 +260,7 @@ void GenotypeNode::mutateFloats() {
 	ids.push_back(l);
 
 	float _nParams = (float)l;
-	int _nMutations = (int)std::floor(_nParams * pMutation);
+	int _nMutations = (int) (_nParams * pMutation);
 
 	for (int i = 0; i < _nMutations; i++) {
 		rID = (int)(UNIFORM_01 * _nParams);
@@ -249,6 +307,8 @@ void GenotypeNode::mutateFloats() {
 #endif 
 	}
 
+#endif
+
 	for (int i = 0; i < outputSize; i++) {
 		r = normalFactor * NORMAL_01;
 		r2 = sumFactor * NORMAL_01;
@@ -281,13 +341,14 @@ void GenotypeNode::connect() {
 	if (children.size() == 0) return;
 	int c1, c2;
 	// this implementation makes it less likely to gain connexions when many are already populated
-	const int maxAttempts = 10;
+	const int maxAttempts = 3;
 	bool alreadyExists;
 	int dInSize, oOutSize;
 	for (int i = 0; i < maxAttempts; i++) {
 		alreadyExists = false;
 		c1 = (int)(UNIFORM_01 * (float)(children.size() + 1)) - 1; // in [-1, children.size() - 1]
-		c2 = (c1 + 2 + (int)(UNIFORM_01 * (float)children.size())) % children.size(); //guarantees c1 != c2. in [0, children.size()]
+		//c2 = (c1 + 2 + (int)(UNIFORM_01 * (float)children.size())) % children.size(); //guarantees c1 != c2. in [0, children.size()]
+		c2 = (int)(UNIFORM_01 * (float)(children.size() + 1));
 
 		if (c1 == -1) {
 			c1 = INPUT_ID; //INPUT_ID could be != -1
