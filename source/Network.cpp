@@ -179,6 +179,8 @@ void Network::mutate() {
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
 		genome[i]->mutateFloats();
 	}
+	genome[genome.size() - 1]->zeroInBias();
+	
 
 	// Children interconnection mutations.
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {

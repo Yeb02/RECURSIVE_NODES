@@ -159,7 +159,7 @@ int main()
 #endif
 
         population.step(trials);
-        if (i % 100 == 0) { // defragmentate.
+        if ((i+1) % 100 == 0) { // defragmentate.
             string fileName = population.save();
             population.load(fileName);
         }

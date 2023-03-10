@@ -42,8 +42,10 @@ protected:
 
 
 
-/* The observation phase is split in 2 parts, in each of which the observation is a binary vector.
-During the evaluation phase, the expected output is their XOR.*/
+/* v1 and v2 are binary vectors (-1 or 1), randomly initialized. The trial is split in 3 phases. In the first one,
+the observation is the vector v1. In the second, it is v2. In the third, the observation is a vector of 0s.
+During the last phase, the expected output of the network is the termwise XOR of v1 and v2. Only the sign of
+the network's output is used.*/
 class XorTrial : public Trial {
 
 public:
@@ -71,7 +73,8 @@ public:
 	void copy(Trial* t) override;
 	Trial* clone() override;
 
-	static const int STEP_LIMIT = 500; // or 30000...
+	// or 30000... Gym's baseline is either 200 or 500, which is quite short with tau=0.02.
+	static const int STEP_LIMIT = 1000; 
 
 private:
 	float x, xDot, theta, thetaDot;

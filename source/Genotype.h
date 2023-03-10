@@ -113,6 +113,9 @@ struct GenotypeNode {
 
 	~GenotypeNode() {};
 
+	// Used for the top node, as its input bias should not mutate.
+	void zeroInBias() {for (int i = 0; i < inputSize; i++) inBias[i] = 0;}
+
 	// Populates the concatenatedChildrenInputBeacons vector and sets concatenatedChildrenInputLength
 	void computeBeacons();
 

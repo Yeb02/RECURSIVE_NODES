@@ -198,9 +198,11 @@ void GenotypeNode::computeBeacons() {
 void GenotypeNode::mutateFloats() {
 	float r, r2;
 	
-	constexpr float normalFactor = .3f; // .2f ??
-	constexpr float sumFactor = .4f; // .2f ??
-
+	constexpr float normalFactor = .3f; // .3f ??
+	constexpr float sumFactor = .4f; // .4f ??
+	// Lowering those 2 to .1f on cartpole yields intriguing results: not only is convergence
+	// slower, but also worse. And average population score, after mutation, is much worse too !
+	// The found optimum is less stable.
 
 #ifdef DYNAMIC_MUTATION_P
 	int nMutations;
@@ -211,12 +213,12 @@ void GenotypeNode::mutateFloats() {
 		size = (float)(childrenConnexions[i].nLines * childrenConnexions[i].nColumns);
 		for (int j = 0; j < 6; j++) {
 			switch (j) {
-			case 0: aPtr = childrenConnexions[i].A.get();
-			case 1: aPtr = childrenConnexions[i].B.get();
-			case 2: aPtr = childrenConnexions[i].C.get();
-			case 3: aPtr = childrenConnexions[i].alpha.get();
-			case 4: aPtr = childrenConnexions[i].w.get();
-			case 5: aPtr = childrenConnexions[i].eta.get();
+			case 0: aPtr = childrenConnexions[i].A.get(); break;
+			case 1: aPtr = childrenConnexions[i].B.get(); break;
+			case 2: aPtr = childrenConnexions[i].C.get(); break;
+			case 3: aPtr = childrenConnexions[i].alpha.get(); break;
+			case 4: aPtr = childrenConnexions[i].w.get(); break;
+			case 5: aPtr = childrenConnexions[i].eta.get(); break;
 			}
 
 			SET_BINOMIAL(size, childrenConnexions[i].pMutations[j]);
@@ -235,8 +237,7 @@ void GenotypeNode::mutateFloats() {
 				}
 				
 			}
-
-			//childrenConnexions[i].pMutations[j] = childrenConnexions[i].pMutations[j] * .9f + UNIFORM_01 * .1f;
+			childrenConnexions[i].pMutations[j] = childrenConnexions[i].pMutations[j] * .95f + UNIFORM_01 * .05f;
 		}
 	}
 
@@ -251,59 +252,51 @@ void GenotypeNode::mutateFloats() {
 	constexpr float pMutation = .2f; // .1f ??
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
 
-	std::vector<int> ids;
-	int l = 0;
-	for (int i = 0; i < childrenConnexions.size(); i++) {
-		ids.push_back(l);
-		l += childrenConnexions[i].nLines * childrenConnexions[i].nColumns * nArrays;
-	}
-	ids.push_back(l);
+	int _nMutations, _nParams;
+	float* aPtr = nullptr;
+	for (int listID = 0; listID < childrenConnexions.size(); listID++) { 
+		_nParams = childrenConnexions[listID].nLines * childrenConnexions[listID].nColumns * nArrays; 
+		SET_BINOMIAL(_nParams, pMutation);
+		_nMutations = BINOMIAL;
 
-	float _nParams = (float)l;
-	int _nMutations = (int) (_nParams * pMutation);
+		for (int k = 0; k <  _nMutations; k++) {
+			rID = (int)(UNIFORM_01 * _nParams); 
 
-	for (int i = 0; i < _nMutations; i++) {
-		rID = (int)(UNIFORM_01 * _nParams);
+			int j = rID % nArrays;
+			matrixID = rID / nArrays;
 
-		int j = 0;
-		while (rID >= ids[j + 1]) { j++; }
-		listID = j;
-		j = (rID - ids[listID]) % nArrays;
-		matrixID = (rID - ids[listID] - j) / nArrays;
-
-		r = normalFactor * NORMAL_01;
+			r = normalFactor * NORMAL_01;
+			r2 = sumFactor * NORMAL_01;
 
 #if defined RISI_NAJARRO_2020
-		switch (j) {
-		case 0: childrenConnexions[listID].A[matrixID] += r;
-		case 1: childrenConnexions[listID].B[matrixID] += r;
-		case 2: childrenConnexions[listID].C[matrixID] += r;
-		case 3: childrenConnexions[listID].D[matrixID] += r;
-		case 4: childrenConnexions[listID].eta[matrixID] += r;
-		}
+			switch (j) {
+			case 0: childrenConnexions[listID].A[matrixID] += r; break;
+			case 1: childrenConnexions[listID].B[matrixID] += r; break;
+			case 2: childrenConnexions[listID].C[matrixID] += r; break;
+			case 3: childrenConnexions[listID].D[matrixID] += r; break;
+			case 4: childrenConnexions[listID].eta[matrixID] += r; break;
+			}
 #elif defined USING_NEUROMODULATION
-		r2 = sumFactor * NORMAL_01;
-		switch (j) {
-		case 0: 
-			childrenConnexions[listID].A[matrixID] *= .9+r; //.9 < 1 to drive weights towards 0. Not mandatory since (1+r)*(1-r)=1-r*r < 1
-			childrenConnexions[listID].A[matrixID] += r2;    // to allow sign changes when nearing 0
-		case 1: 
-			childrenConnexions[listID].B[matrixID] *= .9+r;
-			childrenConnexions[listID].B[matrixID] += r2;
-		case 2: 
-			childrenConnexions[listID].C[matrixID] *= .9+r;
-			childrenConnexions[listID].C[matrixID] += r2;
-		case 3: 
-			childrenConnexions[listID].alpha[matrixID] *= .9+r;
-			childrenConnexions[listID].alpha[matrixID] += r2;
-		case 4: 
-			childrenConnexions[listID].w[matrixID] *= .9+r;
-			childrenConnexions[listID].w[matrixID] += r2;
-		case 5:
-			float eta = childrenConnexions[listID].eta[matrixID];
-			//childrenConnexions[listID].eta[matrixID] += r * eta * (1 - eta);
-			childrenConnexions[listID].eta[matrixID] = eta*.8f + UNIFORM_01*.2f;
+
+			switch (j) {
+			case 0: aPtr = childrenConnexions[listID].A.get(); break;
+			case 1: aPtr = childrenConnexions[listID].B.get(); break;
+			case 2: aPtr = childrenConnexions[listID].C.get(); break;
+			case 3: aPtr = childrenConnexions[listID].alpha.get(); break;
+			case 4: aPtr = childrenConnexions[listID].w.get(); break;
+			case 5: aPtr = childrenConnexions[listID].eta.get(); break;
+			}
+			if (matrixID == 5) {
+				aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;
+			}
+			else {
+				r = normalFactor * NORMAL_01;
+				r2 = sumFactor * NORMAL_01;
+				aPtr[matrixID] *= .9f + r;
+				aPtr[matrixID] += r2;
+			}
 		}
+
 #endif 
 	}
 

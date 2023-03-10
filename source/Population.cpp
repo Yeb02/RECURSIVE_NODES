@@ -114,6 +114,7 @@ Population::~Population() {
 	}
 }
 
+//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
 void Population::mutateNevaluateThreaded(const int i0, const int subArraySize) {
 	std::vector<std::unique_ptr<Trial>> localTrials;
 
@@ -147,7 +148,7 @@ void Population::mutateNevaluateThreaded(const int i0, const int subArraySize) {
 		
 
 		for (int i = i0; i < i0 + subArraySize; i++) {
-			networks[i]->mutate();
+			//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
 			for (int j = 0; j < localTrials.size(); j++) {
 				localTrials[j]->reset(true);
 				networks[i]->intertrialReset();
@@ -177,6 +178,7 @@ void Population::step(std::vector<Trial*> trials) {
 
 	// mutate and evaluate the specimens on trials
 	if (N_THREADS > 1) {
+		for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate();  // TODO COMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
 		pScores = scores.data();
 		globalTrials.resize(trials.size());
 		for (int j = 0; j < trials.size(); j++) {
@@ -299,7 +301,7 @@ void Population::step(std::vector<Trial*> trials) {
 	
 
 	// compute raw fitnesses 
-	constexpr float scoreFactor = 1.0f, distanceFactor = .05f, regularizationFactor = .05f;
+	constexpr float scoreFactor = 1.0f, distanceFactor = .0f, regularizationFactor = .03f;
 	std::vector<float> fitnesses(N_SPECIMENS);
 	float fitnessSum, fitnessMin;
 	{

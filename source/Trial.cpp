@@ -110,10 +110,11 @@ void CartPoleTrial::reset(bool sameSeed) {
 	currentNStep = 0;
 
 	if (!sameSeed) {
-		x0 = (UNIFORM_01 - .5f) * .9f; // gym initializes all 4 in [-0.05, 0.05].
-		xDot0 = (UNIFORM_01 - .5f) * .2f;
-		theta0 = (UNIFORM_01 - .5f) * .5f;
-		thetaDot0 = (UNIFORM_01 - .5f) * .2f;
+		// gym initializes all 4 in [-0.05, 0.05], so *.1f if we follow their setup. 
+		x0 = (UNIFORM_01 - .5f) * .1f; 
+		xDot0 = (UNIFORM_01 - .5f) * .1f;
+		theta0 = (UNIFORM_01 - .5f) * .1f;
+		thetaDot0 = (UNIFORM_01 - .5f) * .1f;
 	}
 
 	x = x0;
@@ -128,8 +129,8 @@ void CartPoleTrial::reset(bool sameSeed) {
 }
 
 void CartPoleTrial::step(const std::vector<float>& actions) {
-	constexpr float tau = .05f ; // .02f
-	constexpr float gravity = 9.8f;
+	constexpr float tau = .02f ; // .02f baseline
+	constexpr float gravity = 9.8f; //9.8f baseline
 	constexpr float masscart = 1.0f;
 	constexpr float masspole = 0.1f;
 	constexpr float total_mass = masspole + masscart;
@@ -137,9 +138,10 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 	constexpr float polemass_length = masspole * length;
 	constexpr float force_mag = 10.0f;
 
-	if (abs(theta) > .5f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true; // abs(theta) > .21f
-	// A final reward improves robustness, but surprisingly increasing the steps limit is the best way to improve
-	// average performance. This is probably because of the dynamic nature of connexions in this model. 
+	if (abs(theta) > .21f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true; 
+	// A final reward slightly improves robustness, but surprisingly increasing the steps limit is the way to improve
+	// average performance (drastically !). This is probably because of the dynamic nature of connexions in this model. 
+	// TODO investigate !
 	/*if (currentNStep == STEP_LIMIT) { 
 		score *= 1.5f;
 		currentNStep++;
@@ -147,13 +149,22 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 	if (isTrialOver) return;
 
 	currentNStep++;
-	if (currentNStep < 10) return; // To give time to the initial observation to propagate to the network.
+	score += 1.0f;
+
+	// To give time to the initial observation to propagate to the network. Avoiding a cold start,
+	// in case the initial observation requires quick actions. This hinders outer and inner learning though.
+	if (currentNStep < 5) return; 
+
+
+	//if (currentNStep % 2 == 0) return;  Giving the network twice the "time to think" worsens performances. 
+	// Maybe because of the unexpected jump in the physics every other step. Halving the time step (doubling the total
+	// number of steps) has not shown a statistically significant improvement either. More torough tests are needed.
 
 	float force;
-	//if (actions[0] > .4f)  force = 1.0f;
-	//else if (actions[0] < -.4f) force = -1.0f;
-	//else force = 0.0f;
-	force = actions[0] > 0 ? 1.0f : -1.0f;
+	// Gym uses force = sign(actions[0]). It makes convergence much faster (if at all), but has not as good average
+	// performance as a continuous control (i.e. force = actions[0]) when the problem is "easy", or "nearly solved".
+	force = actions[0] > 0 ? 1.0f : -1.0f; 
+	//force = actions[0];  
 
 	// update as per https://coneural.org/florian/papers/05_cart_pole.pdf
 
@@ -165,13 +176,12 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 		(length * (1.33333f * total_mass - masspole * cosTheta * cosTheta));
 	float xacc = (temp - polemass_length * thetaacc * cosTheta) / total_mass;
 
-	//euler
+	// Explicit euler. Could use implicit.
 	x = x + tau * xDot;
 	xDot = xDot + tau * xacc;
 	theta = theta + tau * thetaDot;
 	thetaDot = thetaDot + tau * thetaacc;
 
-	score += 1.0f;
 	observations[0] = x;
 	observations[1] = xDot;
 	observations[2] = theta;
