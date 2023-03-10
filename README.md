@@ -1,6 +1,8 @@
 # RECURSIVE_NODES
 
-Implements a 3 loops optimization algorithm to solve optimal control and memorization problems. 
+Implements a 2 (aiming for 3) loops optimization algorithm to solve optimal control and memorization problems. The neural network is meta-optimized by a custom genetic algorithm, which evolves both topology and floating point parameters. The network itself uses 3 factor Hebbian learning rules. 
+
+2 trials are implemented: XoR with memorization, and gym's cartpole. The algorithm solves both easily.
 
 ## Visual studio setup:
 
