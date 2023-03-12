@@ -35,10 +35,10 @@ void XorTrial::reset(bool sameSeed) {
 }
 
 void XorTrial::step(const std::vector<float>& actions) {
-	constexpr int endV1Phase = 10;
-	constexpr int endV2Phase = 20;
-	constexpr int startResponsePhase = 25;
-	constexpr int endResponsePhase = 35;
+	constexpr int endV1Phase = 5;
+	constexpr int endV2Phase = 10;
+	constexpr int startResponsePhase = 10;
+	constexpr int endResponsePhase = 15;
 
 	
 	if (currentNStep == endV1Phase) {
@@ -50,7 +50,6 @@ void XorTrial::step(const std::vector<float>& actions) {
 	}
 
 	if (currentNStep < endResponsePhase && currentNStep >= startResponsePhase) {
-		int z = 0;
 		for (int i = 0; i < vSize; i++)  
 			score += (float) (actions[i] > 0) == v1_xor_v2[i]; 
 	}
@@ -59,7 +58,7 @@ void XorTrial::step(const std::vector<float>& actions) {
 		isTrialOver = true;
 
 		// score normalization, not necessary
-		if (currentNStep == endResponsePhase) score /= (endResponsePhase - startResponsePhase) * vSize;
+		if (currentNStep == endResponsePhase) score /= (float) ((endResponsePhase - startResponsePhase) * vSize);
 	}
 
 	currentNStep++;

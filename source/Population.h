@@ -31,34 +31,58 @@ The process is repeated as many times as their are specimens.
 // A group of a fixed number of individuals, optimized with a genetic algorithm
 class Population {
 
-public:
-	Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS);
+public:	
+	// Not exposed to the DLL interface:
 	~Population();
 	void startThreads(int N_THREADS);
 	void stopThreads();
-	void step(std::vector<Trial*> trials);
-	std::string save() {
+	void step(std::vector<std::unique_ptr<Trial>>& trials);
+
+	// Exposed to the DLL interface:
+	Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS);
+
+	void computeFitnesses(std::vector<float> avgScorePerSpecimen);
+	void createOffsprings();
+	void mutatePopulation() { for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate(); };
+	Network* getFittestSpecimenPointer() {return networks[fittestSpecimen];}
+	void setEvolutionParameters(float f0 = .2f, float regularizationFactor = .03f) {
+		this->regularizationFactor = regularizationFactor;
+		this->f0 = f0;
+	}
+
+	// TODO (exposed):
+	std::string save() { 
 		return std::string("");
-	};
-	void load(std::string fileName) {};
+	}; 
+	void load(std::string fileName) {}; 
 	void defragmentate() {
 		std::string fileName = save();
 		// delete population
 		load(fileName);
 		// delete file
-	}
-	Network* getFittestSpecimenPointer() {
-		return networks[fittestSpecimen];
-	}
-
-	std::vector<Network*> networks;
+	}  
 
 private:
-	void mutateNevaluateThreaded(const int i0, const int subArraySize);
+
+	void threadLoop(const int i0, const int subArraySize);
+	void evaluate(const int i0, const int subArraySize, std::vector<std::unique_ptr<Trial>>& localTrials);
 	int N_SPECIMENS, N_THREADS;
+	std::vector<Network*> networks;
+	// Indice in the networks list of the fittest specimen at this step.
 	int fittestSpecimen;
 
-	// unused if N_THREADS = 0.
+	// The relative importance of the normalized regularization factor to the score. 0 means no regularization,
+	// 1 means regularization is as important as score. Recommended value varies with the task, .03f is a safe baseline.
+	float regularizationFactor;
+
+	// The higher f0, the lower the selection pressure. When f0 = 0, the least fit individual has a probability of 0
+	// to have children. It can be set at each step with one of the following formulas:
+	// f0 = 1.0f + UNIFORM_01 * 1.0f; OR f0 = .5f * (1.0f + sinf((float)iteration / 3.0f)); OR ...
+	float f0;
+
+	std::vector<float> fitnesses;
+
+	// unused if N_THREADS = 0 or 1:
 	std::vector<std::thread> threads;
 	std::vector<Trial*> globalTrials;
 	float* pScores;

@@ -42,6 +42,9 @@
     <ClCompile Include="source\Trial.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="source\dllMain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\Network.h">
@@ -54,9 +57,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\Random.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="source\dkm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\Genotype.h">
@@ -181,6 +181,9 @@
     </ClInclude>
     <ClInclude Include="source\sciplot\specs\TitleSpecsOf.hpp">
       <Filter>Header Files\sciplot\specs</Filter>
+    </ClInclude>
+    <ClInclude Include="source\dllMain.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

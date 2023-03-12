@@ -1,7 +1,5 @@
 #pragma once
 
-
-
 #include <iostream>
 
 #include <SFML/Graphics.hpp>
@@ -16,17 +14,11 @@
 using namespace std;
 using namespace sciplot;
 
-// TODO  !
 /*
-Connecter les enfants à la neuromodulation, et pas le parent !
-    
-Moins important, essayer d'inverser l'ordre de propagation du signal de neuromodulation.
-Plutot que de passer du parent aux enfants, passer de l'enfant aux connexions 
-le concernant. Mais comment faire pour les simples neurones ?
-
 //#define RISI_NAJARRO_2020
 //#define USING_NEUROMODULATION
 are the 2 mutually exclusive running modes. Change in Genotype.h.
+//#define DYNAMIC_MUTATION_P make mutation rate mutable. Optional, and usually worsens results.
 */
 
 #define DRAWING
@@ -113,24 +105,25 @@ int main()
 #endif
 
     int nThreads = std::thread::hardware_concurrency();
+    LOG(nThreads << " concurrent threads are supported at hardware level. Using " << nThreads << ".");
     int N_SPECIMENS = nThreads * 64;
-    int nDifferentTrials = 5;
+    int nDifferentTrials = 10;
     int nSteps = 5000;
 
-
-    LOG(nThreads << " concurrent threads are supported at hardware level. Using " << nThreads << ".");
+    
 
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
-    vector<Trial*> trials;
+    vector<unique_ptr<Trial>> trials;
     for (int i = 0; i < nDifferentTrials; i++) {
-        trials.push_back(new CartPoleTrial());
-        //trials.push_back(new XorTrial(2));
+        //trials.emplace_back(new CartPoleTrial()); // Set nDifferentTrials to 3
+        trials.emplace_back(new XorTrial(3));  // Set nDifferentTrials to vSize * vSize
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
 
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
 
+    // scipy tests
    /* Vec x = linspace(1, N_SPECIMENS, N_SPECIMENS);
     Plot2D plot;
 
@@ -145,6 +138,8 @@ int main()
     Canvas canvas = { {fig} };
     canvas.show();*/
 
+
+    // evolution
     population.startThreads(nThreads);
     for (int i = 0; i < nSteps; i++) {
 #ifdef DRAWING
@@ -170,6 +165,10 @@ int main()
     }
     population.stopThreads();
     
+
+    // Evaluating an evolved network on cartpole. Copy the console output in the "data" array of 
+    // RECURSIVE_NODES\python\CartPoleData.py    and run   RECURSIVE_NODES\python\CartPoleVisualizer.py
+    // to observe the behaviour !
     Network* n = population.getFittestSpecimenPointer();
     trials[0]->reset();
     n->intertrialReset();

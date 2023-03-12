@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="source\dllMain.cpp" />
     <ClCompile Include="source\Genotype.cpp" />
     <ClCompile Include="source\Network.cpp" />
     <ClCompile Include="source\Phenotype.cpp" />
@@ -28,7 +29,7 @@
     <ClCompile Include="source\Trial.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="source\dkm.h" />
+    <ClInclude Include="source\dllMain.h" />
     <ClInclude Include="source\Genotype.h" />
     <ClInclude Include="source\Network.h" />
     <ClInclude Include="source\Phenotype.h" />

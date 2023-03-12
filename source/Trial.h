@@ -45,7 +45,7 @@ protected:
 /* v1 and v2 are binary vectors (-1 or 1), randomly initialized. The trial is split in 3 phases. In the first one,
 the observation is the vector v1. In the second, it is v2. In the third, the observation is a vector of 0s.
 During the last phase, the expected output of the network is the termwise XOR of v1 and v2. Only the sign of
-the network's output is used.*/
+the network's output is used. There are 2^(2*vSize) different trials possible. */
 class XorTrial : public Trial {
 
 public:
