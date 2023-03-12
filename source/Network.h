@@ -30,9 +30,10 @@ public:
 	// a positive float, increasing with the networks number of parameters and their amplitudes. Ignores biases.
 	float getRegularizationLoss();
 
+	int inputSize, outputSize;
+
 private:
 	int nSimpleNeurons;
-	int inputSize, outputSize;
 	std::vector<std::unique_ptr<GenotypeNode>> genome;
 	std::unique_ptr<PhenotypeNode> topNodeP;
 

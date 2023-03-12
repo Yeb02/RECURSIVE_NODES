@@ -4,10 +4,21 @@
 #include <SFML/Graphics.hpp>
 
 class Drawer {
-    sf::RenderWindow& w;
+    sf::RenderWindow w;
 public:
-    Drawer(sf::RenderWindow& w) : w(w) {};
+    Drawer(int w, int h) :
+        w(sf::VideoMode(w, h), "Top Node")
+    {};
+
     void draw(Network* n) {
+        w.clear();
+        sf::Event event;
+        while (w.pollEvent(event))
+        {
+            if (event.type == sf::Event::Closed)
+                w.close();
+        }
+
         static sf::CircleShape node(10.0f);
         static sf::Vertex line[] =
         {
@@ -68,5 +79,7 @@ public:
 
             x0 += offset;
         }
+
+        w.display();
     }
 };

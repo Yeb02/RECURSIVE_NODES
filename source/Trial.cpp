@@ -129,7 +129,7 @@ void CartPoleTrial::reset(bool sameSeed) {
 
 void CartPoleTrial::step(const std::vector<float>& actions) {
 	constexpr float tau = .02f ; // .02f baseline
-	constexpr float gravity = 9.8f; //9.8f baseline
+	constexpr float gravity = 19.8f; //9.8f baseline
 	constexpr float masscart = 1.0f;
 	constexpr float masspole = 0.1f;
 	constexpr float total_mass = masspole + masscart;

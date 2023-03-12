@@ -79,6 +79,7 @@ int binarySearch(std::vector<float>& proba, float value) {
 Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
 	N_SPECIMENS(N_SPECIMENS), N_THREADS(0), pScores(nullptr), iteration(0), mustTerminate(false)
 {
+	std::cout << "Population created";
 	threads.reserve(0);
 	globalTrials.reserve(0);
 	networks.resize(N_SPECIMENS);

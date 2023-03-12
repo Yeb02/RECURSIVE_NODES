@@ -18,6 +18,12 @@ are the 2 mutually exclusive running modes. Change in Genotype.h.
 */
 
 #define DRAWING
+//#define XOR
+#ifndef XOR
+#define CARTPOLE
+#endif 
+
+
 #ifdef DRAWING
 #include "Drawer.h"
 #endif 
@@ -29,23 +35,23 @@ int main()
 {
 
 #ifdef DRAWING
-    sf::RenderWindow window(sf::VideoMode(720, 480), "Top Node");
-    Drawer drawer(window);
+    Drawer drawer(720, 480);
 #endif
 
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
     int N_SPECIMENS = nThreads * 64;
     int nDifferentTrials = 10;
-    int nSteps = 5000;
-
-
+    int nSteps = 100;
 
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
     vector<unique_ptr<Trial>> trials;
     for (int i = 0; i < nDifferentTrials; i++) {
-        //trials.emplace_back(new CartPoleTrial()); // Set nDifferentTrials to 3
+#ifdef CARTPOLE
+        trials.emplace_back(new CartPoleTrial()); // Set nDifferentTrials to 3
+#elif defined XOR 
         trials.emplace_back(new XorTrial(3));  // Set nDifferentTrials to vSize * vSize
+#endif
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
@@ -53,18 +59,14 @@ int main()
     LOG("Using " << nThreads << ".")
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
 
-    // evolution loop
+
+
+    // Evolution loop :
+
     population.startThreads(nThreads);
     for (int i = 0; i < nSteps; i++) {
 #ifdef DRAWING
-        window.clear();
-        sf::Event event;
-        while (window.pollEvent(event))
-        {
-            if (event.type == sf::Event::Closed)
-                window.close();
-        }
-        drawer.draw(population.getFittestSpecimenPointer());
+        drawer.draw(population.getSpecimenPointer(population.fittestSpecimen));
 #endif
 
         population.step(trials);
@@ -72,29 +74,27 @@ int main()
             string fileName = population.save();
             population.load(fileName);
         }
-
-#ifdef DRAWING
-        window.display();
-#endif
     }
     population.stopThreads();
 
-    {
-        // If the Cartpole trial was used, copy the console output in the "data" array of 
-        // RECURSIVE_NODES\python\CartPoleData.py    and run   RECURSIVE_NODES\python\CartPoleVisualizer.py
-        // to observe the behaviour !
-        Network* n = population.getFittestSpecimenPointer();
-        trials[0]->reset();
-        n->intertrialReset();
-        cout << "\n";
-        while (!trials[0]->isTrialOver) {
-            n->step(trials[0]->observations);
-            trials[0]->step(n->getOutput());
-            cout << ", " << trials[0]->observations[0] << ", " << trials[0]->observations[2];
-        }
-        cout << "\n" << trials[0]->score;
-        delete n;
+
+
+#ifdef CARTPOLE
+    // If the Cartpole trial was used, copy the console output in the "data" array of 
+    // RECURSIVE_NODES\python\CartPoleData.py    and run   RECURSIVE_NODES\python\CartPoleVisualizer.py
+    // to observe the behaviour !
+    Network* n = population.getSpecimenPointer(population.fittestSpecimen);
+    trials[0]->reset();
+    n->intertrialReset();
+    cout << "\n";
+    while (!trials[0]->isTrialOver) {
+        n->step(trials[0]->observations);
+        trials[0]->step(n->getOutput());
+        cout << ", " << trials[0]->observations[0] << ", " << trials[0]->observations[2];
     }
+    cout << "\n" << trials[0]->score;
+#endif
+
 
     return 0;
 

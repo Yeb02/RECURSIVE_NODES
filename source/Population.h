@@ -40,11 +40,9 @@ public:
 
 	// Exposed to the DLL interface:
 	Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS);
-
 	void computeFitnesses(std::vector<float> avgScorePerSpecimen);
 	void createOffsprings();
 	void mutatePopulation() { for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate(); };
-	Network* getFittestSpecimenPointer() {return networks[fittestSpecimen];}
 	void setEvolutionParameters(float f0 = .2f, float regularizationFactor = .03f) {
 		this->regularizationFactor = regularizationFactor;
 		this->f0 = f0;
@@ -62,6 +60,12 @@ public:
 		// delete file
 	}  
 
+	// I dont like getters and setters, but it seems to me like a justified use here. Meant to be called from the DLL part.
+	int get_N_SPECIMENS() { return N_SPECIMENS; };
+	Network* getSpecimenPointer(int i) { return networks[i]; };
+
+	int fittestSpecimen;
+
 private:
 
 	void threadLoop(const int i0, const int subArraySize);
@@ -69,7 +73,6 @@ private:
 	int N_SPECIMENS, N_THREADS;
 	std::vector<Network*> networks;
 	// Indice in the networks list of the fittest specimen at this step.
-	int fittestSpecimen;
 
 	// The relative importance of the normalized regularization factor to the score. 0 means no regularization,
 	// 1 means regularization is as important as score. Recommended value varies with the task, .03f is a safe baseline.
