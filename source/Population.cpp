@@ -97,7 +97,7 @@ void Population::stopThreads() {
 	{
 		std::lock_guard<std::mutex> lg(m);
 		mustTerminate = true;
-		nTerminated = threads.size();
+		nTerminated = (int) threads.size();
 	}
 	startProcessing.notify_all();
 

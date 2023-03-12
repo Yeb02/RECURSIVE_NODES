@@ -198,6 +198,12 @@ void GenotypeNode::computeBeacons() {
 void GenotypeNode::mutateFloats() {
 	float r, r2;
 	
+#if defined RISI_NAJARRO_2020
+	constexpr int nArrays = 5;
+#elif defined USING_NEUROMODULATION
+	constexpr int nArrays = 6;
+#endif 
+
 	constexpr float normalFactor = .3f; // .3f ??
 	constexpr float sumFactor = .4f; // .4f ??
 	// Lowering those 2 to .1f on cartpole yields intriguing results: not only is convergence
@@ -242,16 +248,10 @@ void GenotypeNode::mutateFloats() {
 	}
 
 #else
-
-	int rID, listID, matrixID;
-#if defined RISI_NAJARRO_2020
-	constexpr int nArrays = 5;
-#elif defined USING_NEUROMODULATION
-	constexpr int nArrays = 6;
-#endif 
 	constexpr float pMutation = .2f; // .1f ??
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
 
+	int rID, matrixID;
 	int _nMutations, _nParams;
 	float* aPtr = nullptr;
 	for (int listID = 0; listID < childrenConnexions.size(); listID++) { 
@@ -305,14 +305,14 @@ void GenotypeNode::mutateFloats() {
 	for (int i = 0; i < outputSize; i++) {
 		r = normalFactor * NORMAL_01;
 		r2 = sumFactor * NORMAL_01;
-		outBias[i] *= .95 + r;
+		outBias[i] *= .95f + r;
 		outBias[i] += r2;
 	}
 
 	for (int i = 0; i < inputSize; i++) {
 		r = normalFactor * NORMAL_01;
 		r2 = sumFactor * NORMAL_01;
-		inBias[i] *= .95 + r;
+		inBias[i] *= .95f + r;
 		inBias[i] += r2;
 	}
 
@@ -320,12 +320,12 @@ void GenotypeNode::mutateFloats() {
 	for (int i = 0; i < outputSize; i++) {
 		r = normalFactor * NORMAL_01;
 		r2 = sumFactor * NORMAL_01;
-		wNeuromodulation[i] *= .95 + r;
+		wNeuromodulation[i] *= .95f + r;
 		wNeuromodulation[i] += r2;
 	}
 	r = normalFactor * NORMAL_01;
 	r2 = sumFactor * NORMAL_01;
-	neuromodulationBias *= .95 + r;
+	neuromodulationBias *= .95f + r;
 	neuromodulationBias += r2;
 #endif 
 }
@@ -411,8 +411,8 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 		destinationsInputSize = children[dID]->inputSize;
 	}
 
-	childrenConnexions.emplace_back(oID, children.size(), child->inputSize, originOutputSize, GenotypeConnexion::ZERO);
-	childrenConnexions.emplace_back(children.size(), dID, destinationsInputSize, child->outputSize, GenotypeConnexion::ZERO);
+	childrenConnexions.emplace_back(oID, (int)children.size(), child->inputSize,      originOutputSize, GenotypeConnexion::ZERO);
+	childrenConnexions.emplace_back((int)children.size(), dID, destinationsInputSize, child->outputSize, GenotypeConnexion::ZERO);
 	children.push_back(child);
 }
 void GenotypeNode::removeChild(int rID) {

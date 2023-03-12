@@ -15,7 +15,7 @@ To switch between dll and exe, go to Project Properties -> Configurations Proper
 ISO C++20, requires AdressSanitizer to run in debug mode. 
 
 
-IF the project is compiled with the DRAWING flag, and IF it is compiled into an exe (not dll), the following DLLs must be placed in the same folder as the executable 
+IF the project is compiled with the DRAWING preprocessor directive, and IF it is compiled into an exe (not dll), the following DLLs must be placed in the same folder as the executable 
 ### In debug mode, in RECURSIVE_NODES\x64\Debug:
 
   sfml-graphics-d-2.dll     sfml-system-d-2.dll     sfml-window-d-2.dll

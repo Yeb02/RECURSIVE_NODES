@@ -30,6 +30,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\dllMain.h" />
+    <ClInclude Include="source\Drawer.h" />
     <ClInclude Include="source\Genotype.h" />
     <ClInclude Include="source\Network.h" />
     <ClInclude Include="source\Phenotype.h" />

@@ -185,5 +185,8 @@
     <ClInclude Include="source\dllMain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="source\Drawer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

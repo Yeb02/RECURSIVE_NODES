@@ -122,7 +122,7 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->children.resize(0); 
 		genome[i]->childrenConnexions.resize(0);
 		genome[i]->childrenConnexions.emplace_back(
-			INPUT_ID, genome[i]->children.size(), outputSize, inputSize, GenotypeConnexion::RANDOM
+			INPUT_ID, (int)genome[i]->children.size(), outputSize, inputSize, GenotypeConnexion::RANDOM
 		);
 #ifdef USING_NEUROMODULATION
 		genome[i]->neuromodulationBias = 0.0f;
@@ -443,7 +443,7 @@ void Network::updateDepths() {
 
 
 void Network::sortGenome() {
-#ifdef DEBUG
+#ifdef _DEBUG
 	int dmax = 0;
 	for (int i = 0; i < genome.size()-1; i++) if (genome[i]->depth > dmax) dmax = genome[i]->depth;
 	if (dmax >= genome[genome.size() - 1]->depth) {
@@ -453,7 +453,7 @@ void Network::sortGenome() {
 #endif // DEBUG
 
 	std::vector<std::pair<int, int>> depthXposition;
-	int size = genome.size() - nSimpleNeurons - 1;
+	int size = (int)genome.size() - nSimpleNeurons - 1;
 	depthXposition.resize(size);
 
 	for (int i = 0; i < size; i++) {
@@ -487,7 +487,7 @@ void Network::sortGenome() {
 void Network::removeUnusedNodes() {
 	std::vector<int> occurences(genome.size());
 	occurences[genome.size() - 1] = 1;
-	for (int i = genome.size()-1; i >= nSimpleNeurons; i--) {
+	for (int i = (int)genome.size()-1; i >= nSimpleNeurons; i--) {
 
 		if (occurences[i] == 0) { // genome[i] is unused. It must be removed.
 
