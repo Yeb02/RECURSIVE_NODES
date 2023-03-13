@@ -6,16 +6,16 @@ Implements a 2 (aiming for 3) loops optimization algorithm to solve optimal cont
 
 The code can be compiled into an executable, to experiment on the implemented c++ trials. As of now, 2 trials are implemented: XoR with memorization, and gym's cartpole. The algorithm solves both easily. More to come !
 
-It can also be compiled into a dll, to use in python with ctypes. One can then evaluate the algorithm on any python trial, like openAI's gym's for instance. Work in progress.
-
-To switch between dll and exe, go to Project Properties -> Configurations Properties -> General -> Configuration Type. 
+It can also be compiled into a dll, to use in python with ctypes. One can then evaluate the algorithm on any python trial, like on openAI's gym's for instance. A demo can be found in python\gym_cartpole.py (slower convergence than this repo's c++ implementation because gym offers no way to reset an env to its initial state, which introduces significant noise in the fitness function).
 
 ## Visual studio 2022 setup:
 
-ISO C++20, requires AdressSanitizer to run in debug mode. 
+ISO C++20. To switch between dll and exe, go to Project Properties -> Configurations Properties -> General -> Configuration Type. I recommend toggling adress Sanitizer on (if you have it installed) when debuging the .exe . It MUST be disabled when debuging the DLL because of a VS bug. Found in  Project Properties -> C/C++ -> General -> Enable Adress Sanitizer  .
+Using SFML 2.5.1 for node topology display. It can be toggled on and off with the DRAWING preprocessor directive in dllMain.cpp or main.cpp before building. Sciplot's headers are in the repo but unused yet.
 
 
-IF the project is compiled with the DRAWING preprocessor directive, and IF it is compiled into an exe (not dll), the following DLLs must be placed in the same folder as the executable 
+If SFML is used, the following DLLs must be placed in the same folder as the executable, whether compiling a .exe or a .dll :
+
 ### In debug mode, in RECURSIVE_NODES\x64\Debug:
 
   sfml-graphics-d-2.dll     sfml-system-d-2.dll     sfml-window-d-2.dll
