@@ -20,7 +20,9 @@ extern "C" {
 
 	RECURSIVE_NODES_API Population* create_population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS)
 	{
-		return new Population(IN_SIZE, OUT_SIZE, N_SPECIMENS);
+		Population* p = new Population(IN_SIZE, OUT_SIZE, N_SPECIMENS);
+		//void* p2 = reinterpret_cast<void*>(p);
+		return p;
 	}
 	RECURSIVE_NODES_API void destroy_population(Population* population)
 	{
@@ -49,13 +51,11 @@ extern "C" {
 	RECURSIVE_NODES_API void prepare_network(Network* n) {
 		n->intertrialReset();
 	}
-	RECURSIVE_NODES_API float* get_actions(Network* n, float* observations) {
+	RECURSIVE_NODES_API void get_actions(Network* n, float* observations, float* actions) {
 		std::vector<float> observationsV(observations, observations + n->inputSize);
 		n->step(observationsV);
 		std::vector<float> actionsV = n->getOutput();
-		float* actions = new float[actionsV.size()];
 		memcpy(actions, actionsV.data(), actionsV.size());
-		return actions;
 	}
 
 #ifdef DRAWING

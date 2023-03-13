@@ -1,49 +1,46 @@
 import gym
-import os
+from RECURSIVE_NODES import *
 import ctypes
-
-dll_path = os.path.normpath(os.getcwd() + os.sep + os.pardir) + r"\\x64\\Release\\RECURSIVE_NODES.dll"
-libc = ctypes.cdll.LoadLibrary(dll_path)
 
 env = gym.make("CartPole-v1")
 
-N_SPECIMENS = 100
-N_TRIALS = 3
+N_SPECIMENS = 500
+N_TRIALS = 5
 in_size = env.observation_space.shape[0]
-# out_size = env.action_space
+# out_size = env.action_space.shape[0] // does not work for cartpole
 out_size = 1
 
-population = libc.create_population(4, 1, 10)
+population = create_population(in_size, out_size, N_SPECIMENS)
+set_evolution_parameters(population, .2, .05)
+drawer = initialize_drawer(720, 480)
 
-FloatArrayNSpecimens = ctypes.c_float * N_SPECIMENS  # define new type, compatible with c++ arrays.
-scores = FloatArrayNSpecimens()                      # instantiate this new type
-
-FloatArrayObsSize = ctypes.c_float * in_size         
-observation = FloatArrayObsSize()                      
-
-FloatArrayActionSize = ctypes.c_float * out_size         
-action = FloatArrayActionSize()  
+#  Use type compatible with c++ arrays
+scores = (ctypes.c_float * N_SPECIMENS)()                      
+observation = (ctypes.c_float * in_size)()                          
+action = (ctypes.c_float * out_size)()      
 
 inv_N_TRIALS = 1/N_TRIALS
 
+step = 0
 while True:
     maxScore = 0
 
-    libc.mutate_population(population)
+    mutate_population(population)
     
     for i in range(N_SPECIMENS):
-        network = libc.get_network_handle(population, i)
+        network = get_network_handle(population, i)
 
         for j in range(N_TRIALS):
-            libc.prepare_network(network)
+            prepare_network(network)
             state = env.reset()
             score = 0
             while True:
                 # env.render()
                 for k in range(in_size):
                     observation[k] = state[k]
-                action = libc.get_actions(network, observation)
-                state, reward, terminal, info = env.step(action)
+                get_actions(network, observation, action)
+                a = 1 if action[0] > 0 else 0
+                state, reward, terminal, info = env.step(a)
                 score += reward 
                 if terminal:
                     break
@@ -52,10 +49,15 @@ while True:
             scores[i] += score
         scores[i] *= inv_N_TRIALS
 
-    libc.compute_fitnesses(population, scores)
-    libc.create_offsprings(population)
-
-    if maxScore > 500 : 
+    compute_fitnesses(population, scores)
+    create_offsprings(population)
+    draw_network(drawer, get_fittest_network_handle(population))
+    print(f"At iteration {step}, max score was {maxScore}")
+    step += 1
+    if maxScore >= 500 : 
         break
 
-libc.destroy_population(population)
+
+destroy_population(population)
+
+
