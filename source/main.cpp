@@ -14,7 +14,6 @@
 //#define RISI_NAJARRO_2020
 //#define USING_NEUROMODULATION
 are the 2 mutually exclusive running modes. Change in Genotype.h.
-//#define DYNAMIC_MUTATION_P make mutation rate mutable. Optional, and usually worsens results.
 */
 
 #define DRAWING

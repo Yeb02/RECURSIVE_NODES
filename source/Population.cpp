@@ -183,9 +183,10 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 void Population::evaluate(const int i0, const int subArraySize, std::vector<std::unique_ptr<Trial>>& localTrials) {
 	for (int i = i0; i < i0 + subArraySize; i++) {
 		//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
+		networks[i]->intertrialReset(); // remove
 		for (int j = 0; j < localTrials.size(); j++) {
 			localTrials[j]->reset(true);
-			networks[i]->intertrialReset();
+			//networks[i]->intertrialReset(); // add
 			while (!localTrials[j]->isTrialOver) {
 				networks[i]->step(localTrials[j]->observations);
 				localTrials[j]->step(networks[i]->getOutput());
@@ -237,7 +238,8 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials) {
 		float score, avgFactor=1.0f/(float) trials.size();
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			score = 0;
-			for (int j = 0; j < trials.size(); j++) {
+			for (int j = 0; j < trials.size(); j++) { 
+			//for (int j = trials.size() - 1; j < trials.size(); j++) { // all trials but the last are used for life-long learning
 				score += scores[i * trials.size() + j];
 				avgScoresPerTrial[j] += scores[i * trials.size() + j];
 			}

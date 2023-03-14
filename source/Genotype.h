@@ -7,16 +7,17 @@
 #include "Random.h"
 
 
+// Compilation options:
+
 //#define RISI_NAJARRO_2020
 #define USING_NEUROMODULATION
-//#define DYNAMIC_MUTATION_P
 
+
+// Constants:
 #define MAX_CHILDREN_PER_BLOCK  10
 #define MAX_BLOCK_INPUT_SIZE  10          // Does not apply to the top one, which is the network itself
 #define MAX_BLOCK_OUTPUT_SIZE  10         // Does not apply to the top one, which is the network itself
-// In the genotype, denotes the fact that a child is connected
-// to the input 
-#define INPUT_ID -1     
+#define INPUT_ID -1     // In the genotype, denotes the fact that a child is connected to the input 
 
 inline float ReLU(float x) { return x > 0 ? x : 0; }
 
@@ -26,9 +27,6 @@ struct GenotypeConnexion {
 
 	int originID, destinationID;
 
-#ifdef DYNAMIC_MUTATION_P
-	float pMutations[6]; // A, B, C, alpha, w, eta
-#endif
 
 	// Corresponds to the dimension of the input of the destination neuron. Redundant but eliminates indirections.
 	int nLines;

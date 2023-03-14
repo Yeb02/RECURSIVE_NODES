@@ -17,12 +17,6 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 	w = std::make_unique<float[]>(s);
 #endif 
 
-#ifdef DYNAMIC_MUTATION_P
-	for (int j = 0; j < 6; j++) {
-		pMutations[j] = .2f;
-	}
-#endif
-
 	if (init == ZERO || (init == IDENTITY && nLines != nColumns)) {
 		for (int i = 0; i < nLines * nColumns; i++) {
 #if defined RISI_NAJARRO_2020
@@ -93,11 +87,6 @@ GenotypeConnexion::GenotypeConnexion(GenotypeConnexion&& gc) noexcept {
 	nLines = gc.nLines;
 	nColumns = gc.nColumns;
 
-#ifdef DYNAMIC_MUTATION_P
-	for (int j = 0; j < 6; j++) {
-		pMutations[j] = gc.pMutations[j];
-	}
-#endif
 	// move() removes ownership from the original pointer. Its use here is kind of an hacky workaround 
 	// that vector reallocation calls move constructor AND destructor. So the pointee would be destroyed otherwise.
 	// https://stackoverflow.com/questions/41864544/stdvector-calls-contained-objects-destructor-when-reallocating-no-matter-what
@@ -120,11 +109,7 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	originID = gc.originID;
 	nLines = gc.nLines;
 	nColumns = gc.nColumns;
-#ifdef DYNAMIC_MUTATION_P
-	for (int j = 0; j < 6; j++) {
-		pMutations[j] = gc.pMutations[j];
-	}
-#endif
+
 	int s = nLines * nColumns;
 	eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
@@ -154,11 +139,7 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	originID = gc.originID;
 	nLines = gc.nLines;
 	nColumns = gc.nColumns;
-#ifdef DYNAMIC_MUTATION_P
-	for (int j = 0; j < 6; j++) {
-		pMutations[j] = gc.pMutations[j];
-	}
-#endif
+
 	int s = nLines * nColumns;
 	eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
@@ -210,44 +191,7 @@ void GenotypeNode::mutateFloats() {
 	// slower, but also worse. And average population score, after mutation, is much worse too !
 	// The found optimum is less stable.
 
-#ifdef DYNAMIC_MUTATION_P
-	int nMutations;
-	float size;
-	int rID;
-	float* aPtr = nullptr;
-	for (int i = 0; i < childrenConnexions.size(); i++) {
-		size = (float)(childrenConnexions[i].nLines * childrenConnexions[i].nColumns);
-		for (int j = 0; j < 6; j++) {
-			switch (j) {
-			case 0: aPtr = childrenConnexions[i].A.get(); break;
-			case 1: aPtr = childrenConnexions[i].B.get(); break;
-			case 2: aPtr = childrenConnexions[i].C.get(); break;
-			case 3: aPtr = childrenConnexions[i].alpha.get(); break;
-			case 4: aPtr = childrenConnexions[i].w.get(); break;
-			case 5: aPtr = childrenConnexions[i].eta.get(); break;
-			}
 
-			SET_BINOMIAL(size, childrenConnexions[i].pMutations[j]);
-			nMutations = BINOMIAL;
-
-			for (int k = 0; k < nMutations; k++) {
-				rID = (int)(UNIFORM_01 * size); 
-
-				if (j == 5) { 
-					aPtr[rID] = aPtr[rID] * .8f + UNIFORM_01 * .2f;
-				} else {
-					r = normalFactor * NORMAL_01;
-					r2 = sumFactor * NORMAL_01;
-					aPtr[rID] *= .9f + r;
-					aPtr[rID] += r2;
-				}
-				
-			}
-			childrenConnexions[i].pMutations[j] = childrenConnexions[i].pMutations[j] * .95f + UNIFORM_01 * .05f;
-		}
-	}
-
-#else
 	constexpr float pMutation = .2f; // .1f ??
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
 
@@ -287,6 +231,13 @@ void GenotypeNode::mutateFloats() {
 			case 5: aPtr = childrenConnexions[listID].eta.get(); break;
 			}
 			if (matrixID == 5) {
+				//if (UNIFORM_01 < .05f) {
+				//	aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;
+				//}
+				//else { // this allows for high precision mutations when eta (or 1- eta) is close to 1.
+				//	aPtr[matrixID] += aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01-.5f);
+				//}
+				// Both are worth a shot.
 				aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;
 			}
 			else {
@@ -300,7 +251,6 @@ void GenotypeNode::mutateFloats() {
 #endif 
 	}
 
-#endif
 
 	for (int i = 0; i < outputSize; i++) {
 		r = normalFactor * NORMAL_01;
@@ -330,30 +280,33 @@ void GenotypeNode::mutateFloats() {
 #endif 
 }
 
+// This implementation makes it less likely to gain connexions when many are already populated.
+// It also favors connecting from the input or to the output, to encourage parallelism.
+// Note that a child node can be connected to itself.
 void GenotypeNode::connect() {
 	if (children.size() == 0) return;
+	int inputBias = (int)((float)children.size() / 3.0f);
+	int outputBias = (int)((float)children.size() / 3.0f);
 	int c1, c2;
-	// this implementation makes it less likely to gain connexions when many are already populated
 	const int maxAttempts = 3;
 	bool alreadyExists;
 	int dInSize, oOutSize;
 	for (int i = 0; i < maxAttempts; i++) {
-		alreadyExists = false;
-		c1 = (int)(UNIFORM_01 * (float)(children.size() + 1)) - 1; // in [-1, children.size() - 1]
-		//c2 = (c1 + 2 + (int)(UNIFORM_01 * (float)children.size())) % children.size(); //guarantees c1 != c2. in [0, children.size()]
-		c2 = (int)(UNIFORM_01 * (float)(children.size() + 1));
+		c1 = (int)(UNIFORM_01 * (float)(children.size() + 1 + inputBias)) - 1 - inputBias; // in [-1-inputBias, children.size() - 1]
+		c2 = (int)(UNIFORM_01 * (float)(children.size() + 1 + outputBias)); // in [0, children.size() + outputBias]
 
-		if (c1 == -1) {
-			c1 = INPUT_ID; //INPUT_ID could be != -1
+		if (c1 <= -1) {
+			c1 = INPUT_ID; //INPUT_ID could be != -1 in future versions.
 			oOutSize = inputSize;
 		}
 		else oOutSize = children[c1]->outputSize;
 
-		if (c2 == children.size()) {
+		if (c2 >= children.size()) {
 			dInSize = outputSize;
 		}
 		else dInSize = children[c2]->inputSize;
 
+		alreadyExists = false;
 		for (int i = 0; i < childrenConnexions.size(); i++) {
 			if (childrenConnexions[i].originID == c1 && childrenConnexions[i].destinationID == c2) {
 				alreadyExists = true;
