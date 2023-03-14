@@ -303,6 +303,7 @@ void GenotypeNode::connect() {
 
 		if (c2 >= children.size()) {
 			dInSize = outputSize;
+			c2 = (int)children.size();
 		}
 		else dInSize = children[c2]->inputSize;
 
