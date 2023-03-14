@@ -8,14 +8,11 @@
 #include "Genotype.h"
 
 
-
 struct PhenotypeConnexion {   // responsible of its pointers
 
 	std::unique_ptr<float[]> H;
 
-#ifdef USING_NEUROMODULATION
 	std::unique_ptr<float[]> E;
-#endif 
 
 	// Should not be called !
 	PhenotypeConnexion(const PhenotypeConnexion&) {};
@@ -24,18 +21,14 @@ struct PhenotypeConnexion {   // responsible of its pointers
 
 	void zero(int s);
 
-	void randomH(int s);
-
 	~PhenotypeConnexion() {};
 };
 
 struct PhenotypeNode {
 	GenotypeNode* type;
 
-#ifdef USING_NEUROMODULATION
 	float neuromodulatorySignal; //initialized at 1 at the beginning of a trial
-#endif 
-
+	float M[2];
 	// Pointers to its children. Responsible for their lifetime !
 	std::vector<PhenotypeNode> children;
 
@@ -49,7 +42,5 @@ struct PhenotypeNode {
 	~PhenotypeNode() {};
 
 	void zero();
-	void randomH();
-	void reset();
 	void forward(const float* input);
 };

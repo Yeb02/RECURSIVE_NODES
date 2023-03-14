@@ -29,8 +29,8 @@ public:
         constexpr float wheelRadius = 40.0f;
         constexpr float offset = 130.0f;
 
-        static std::vector<float> Xs(MAX_CHILDREN_PER_BLOCK + 2);
-        static std::vector<float> Ys(MAX_CHILDREN_PER_BLOCK + 2);
+        static std::vector<float> Xs(MAX_CHILDREN_PER_BLOCK + 3);
+        static std::vector<float> Ys(MAX_CHILDREN_PER_BLOCK + 3);
 
 
         float x0 = offset, y0 = offset;
@@ -38,8 +38,8 @@ public:
 
             node.setFillColor(sf::Color::Blue);
 
-            float factor = 6.28f / ((float)n->genome[i]->children.size() + 2.0f);
-            for (int j = 0; j < n->genome[i]->children.size() + 2; j++) {
+            float factor = 6.28f / ((float)n->genome[i]->children.size() + 3.0f);
+            for (int j = 0; j < n->genome[i]->children.size() + 3; j++) {
                 Xs[j] = x0 + wheelRadius * cosf(factor * (float)j);
                 Ys[j] = y0 + wheelRadius * sinf(factor * (float)j);
             }
@@ -47,8 +47,9 @@ public:
             int oID, dID;
             for (int j = 0; j < n->genome[i]->childrenConnexions.size(); j++) {
                 oID = n->genome[i]->childrenConnexions[j].originID;
-                oID = oID == -1 ? (int)n->genome[i]->children.size() + 1 : oID;
+                oID = oID == INPUT_ID ? (int)n->genome[i]->children.size() + 1 : oID;
                 dID = n->genome[i]->childrenConnexions[j].destinationID;
+                dID = dID == MODULATION_ID ? (int)n->genome[i]->children.size() + 2 : dID;
 
                 line[0].position.x = Xs[oID] + 10.0f; // + circle radius
                 line[0].position.y = Ys[oID] + 10.0f;
@@ -75,6 +76,10 @@ public:
 
             node.setFillColor(sf::Color::Green); //input
             node.setPosition(sf::Vector2f(Xs[n->genome[i]->children.size() + 1], Ys[n->genome[i]->children.size() + 1]));
+            w.draw(node);
+
+            node.setFillColor(sf::Color::Yellow); //modulation
+            node.setPosition(sf::Vector2f(Xs[n->genome[i]->children.size() + 2], Ys[n->genome[i]->children.size() + 2]));
             w.draw(node);
 
             x0 += offset;

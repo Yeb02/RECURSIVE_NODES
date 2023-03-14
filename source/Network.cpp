@@ -16,20 +16,9 @@ Network::Network(Network* n) {
 		genome[i]->f = n->genome[i]->f; 
 		genome[i]->inputSize = n->genome[i]->inputSize;
 		genome[i]->outputSize = n->genome[i]->outputSize; 
-//		genome[i]->children.reserve(0);
-//		genome[i]->childrenConnexions.reserve(0);
-//#ifdef USING_NEUROMODULATION
-//		genome[i]->inBias.reserve(0);
-//		genome[i]->outBias.reserve(0);
-//		genome[i]->wNeuromodulation.reserve(0);
-//		genome[i]->neuromodulationBias = 0.0f;
-//#endif 
-//		genome[i]->concatenatedChildrenInputLength = 0;
-//		genome[i]->concatenatedChildrenInputBeacons.reserve(0);
 		genome[i]->depth = 0;
 		genome[i]->position = n->genome[i]->position;
-		//genome[i]->closestNode = NULL;
-		//genome[i]->mutationalDistance = 0;
+
 	}
 
 	for (int i = nSimpleNeurons; i < n->genome.size(); i++) {
@@ -37,12 +26,10 @@ Network::Network(Network* n) {
 		genome[i]->f = NULL;
 		genome[i]->inputSize = n->genome[i]->inputSize;
 		genome[i]->outputSize = n->genome[i]->outputSize;
-#ifdef USING_NEUROMODULATION
 		genome[i]->inBias.assign(n->genome[i]->inBias.begin(), n->genome[i]->inBias.end());
 		genome[i]->outBias.assign(n->genome[i]->outBias.begin(), n->genome[i]->outBias.end());
-		genome[i]->neuromodulationBias = n->genome[i]->neuromodulationBias;
-		genome[i]->wNeuromodulation.assign(n->genome[i]->wNeuromodulation.begin(), n->genome[i]->wNeuromodulation.end());
-#endif 
+		genome[i]->biasMplus = 0.0f;
+		genome[i]->biasMminus = 0.0f;
 		genome[i]->concatenatedChildrenInputLength = n->genome[i]->concatenatedChildrenInputLength;
 		genome[i]->depth = n->genome[i]->depth;
 		genome[i]->position = n->genome[i]->position;
@@ -80,32 +67,10 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->inputSize = 1;
 		genome[i]->outputSize = 1;
 		genome[i]->f = *tanhf;
-		//genome[i]->children.reserve(0);
-		//genome[i]->childrenConnexions.reserve(0);
-		//genome[i]->concatenatedChildrenInputLength = 0;
-		//genome[i]->concatenatedChildrenInputBeacons.reserve(0);
 		genome[i]->depth = 0;
 		genome[i]->position = 0;
-		//genome[i]->closestNode = NULL;
-		//genome[i]->mutationalDistance = 0;
 	}
 
-	//i++;
-	//// 1: ReLU
-	//{
-	//	genome[i]->isSimpleNeuron = true;
-	//	genome[i]->inputSize = 1;
-	//	genome[i]->outputSize = 1;
-	//	genome[i]->f = *ReLU;
-	//	genome[i]->children.reserve(0);
-	//	genome[i]->childrenConnexions.reserve(0);
-	//	genome[i]->concatenatedChildrenInputLength = 0;
-	//	genome[i]->concatenatedChildrenInputBeacons.reserve(0);
-	//	genome[i]->depth = 0;
-	//	genome[i]->position = 1;
-	//	genome[i]->closestNode = NULL;
-	//	genome[i]->mutationalDistance = 0;
-	//}
 
 	i++;
 	// 3: The initial top node
@@ -120,20 +85,22 @@ inputSize(inputSize), outputSize(outputSize)
 		genome[i]->closestNode = NULL;
 		genome[i]->mutationalDistance = 0; 
 		genome[i]->children.resize(0); 
-		genome[i]->childrenConnexions.resize(0);
+		genome[i]->childrenConnexions.resize(0); 
+		genome[i]->childrenConnexions.reserve(4);
 		genome[i]->childrenConnexions.emplace_back(
 			INPUT_ID, (int)genome[i]->children.size(), outputSize, inputSize, GenotypeConnexion::RANDOM
 		);
-#ifdef USING_NEUROMODULATION
-		genome[i]->neuromodulationBias = 0.0f;
-		genome[i]->wNeuromodulation.resize(outputSize);
+		genome[i]->childrenConnexions.emplace_back(
+			INPUT_ID, MODULATION_ID, 2, inputSize, GenotypeConnexion::RANDOM
+		);
+		genome[i]->biasMplus = NORMAL_01;
+		genome[i]->biasMminus = NORMAL_01;
 		genome[i]->inBias.resize(inputSize);
 		genome[i]->outBias.resize(outputSize);
-#endif 
 		genome[i]->computeBeacons();
 	}
 
-	//topNodeP.reset(new PhenotypeNode(genome[nSimpleNeurons].get()));
+	//topNodeP.reset(new PhenotypeNode(genome[nSimpleNeurons].get())); // instantiation at this point is not necessary.
 }
 
 
@@ -143,9 +110,7 @@ std::vector<float> Network::getOutput() {
 
 
 void Network::step(const std::vector<float>& obs) {
-#ifdef USING_NEUROMODULATION
 	topNodeP->neuromodulatorySignal = 1.0f; // other nodes have it set by their parent
-#endif 
 	topNodeP->forward(obs.data());
 }
 
@@ -347,12 +312,10 @@ void Network::mutate() {
 			n->f = NULL;
 			n->inputSize = base->inputSize;
 			n->outputSize = base->outputSize;
-#ifdef USING_NEUROMODULATION
 			n->inBias.assign(base->inBias.begin(), base->inBias.end());
 			n->outBias.assign(base->outBias.begin(), base->outBias.end());
-			n->wNeuromodulation.assign(base->wNeuromodulation.begin(), base->wNeuromodulation.end());
-			n->neuromodulationBias = base->neuromodulationBias;
-#endif 
+			n->biasMplus = base->biasMplus;
+			n->biasMminus = base->biasMminus;
 			n->concatenatedChildrenInputLength = base->concatenatedChildrenInputLength;
 			n->depth = base->depth;
 			n->closestNode = base;
@@ -391,19 +354,16 @@ void Network::mutate() {
 			n->f = NULL;
 			n->inputSize = inputSize;
 			n->outputSize = outputSize;
-#ifdef USING_NEUROMODULATION
-			n->neuromodulationBias = prev->neuromodulationBias;
+			n->biasMplus = prev->biasMplus;
+			n->biasMminus = prev->biasMminus;
 			n->inBias.resize(inputSize);
 			n->outBias.resize(outputSize);
-			n->wNeuromodulation.resize(outputSize);
 			for (int i = 0; i < n->inputSize; i++) {
 				n->inBias[i] = prev->inBias[i];
 			}
 			for (int i = 0; i < n->outputSize; i++) {
 				n->outBias[i] = prev->outBias[i];
-				n->wNeuromodulation[i] = prev->wNeuromodulation[i];
 			}
-#endif 
 			n->concatenatedChildrenInputLength = outputSize;
 			n->depth = prev->depth + 1;
 			n->position = (int)genome.size();
@@ -417,6 +377,7 @@ void Network::mutate() {
 
 
 			n->childrenConnexions.reserve(4);
+			n->childrenConnexions.emplace_back(INPUT_ID, MODULATION_ID, 2, inputSize, GenotypeConnexion::RANDOM);
 			n->childrenConnexions.emplace_back(INPUT_ID, 0, inputSize, inputSize, GenotypeConnexion::IDENTITY);
 			n->childrenConnexions.emplace_back(0, 1, outputSize, outputSize, GenotypeConnexion::IDENTITY);
 
@@ -450,7 +411,7 @@ void Network::sortGenome() {
 
 		int problem = 0; // set breakpoint here, should not happen.
 	}
-#endif // DEBUG
+#endif // _DEBUG
 
 	std::vector<std::pair<int, int>> depthXposition;
 	int size = (int)genome.size() - nSimpleNeurons - 1;
@@ -516,11 +477,8 @@ void Network::removeUnusedNodes() {
 
 void Network::intertrialReset() {
 	if (topNodeP.get() == NULL) topNodeP.reset(new PhenotypeNode(genome[genome.size() - 1].get()));;
-#if defined RISI_NAJARRO_2020
-	topNodeP->randomH();
-#elif defined USING_NEUROMODULATION
+
 	topNodeP->zero();
-#endif 
 }
 
 
@@ -528,11 +486,7 @@ float Network::getRegularizationLoss() {
 	std::vector<int> nParams(genome.size());
 	std::vector<float> amplitudes(genome.size());
 	int size;
-#if defined RISI_NAJARRO_2020
-	constexpr int nArrays = 5;
-#elif defined USING_NEUROMODULATION
 	constexpr int nArrays = 6;
-#endif 
 
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
 		nParams[i] = 0;
@@ -545,12 +499,8 @@ float Network::getRegularizationLoss() {
 				amplitudes[i] += abs(genome[i]->childrenConnexions[j].B[k]);
 				amplitudes[i] += abs(genome[i]->childrenConnexions[j].C[k]);
 				amplitudes[i] += abs(genome[i]->childrenConnexions[j].eta[k]);
-#if defined RISI_NAJARRO_2020
-				amplitudes[i] += abs(genome[i]->childrenConnexions[j].D[k]);
-#elif defined USING_NEUROMODULATION
 				amplitudes[i] += abs(genome[i]->childrenConnexions[j].alpha[k]);
 				amplitudes[i] += abs(genome[i]->childrenConnexions[j].w[k]);
-#endif 
 			}
 		}
 		nParams[i] *= nArrays;
@@ -558,12 +508,6 @@ float Network::getRegularizationLoss() {
 			nParams[i] += nParams[genome[i]->children[j]->position]; 
 			amplitudes[i] += amplitudes[genome[i]->children[j]->position];
 		}
-#ifdef USING_NEUROMODULATION
-		nParams[i] += genome[i]->outputSize; // to account for the neuromodulation weights
-		for (int j = 0; j < genome[i]->outputSize; j++) {
-			amplitudes[i] += abs(genome[i]->wNeuromodulation[j]);
-		}
-#endif
 	}
 	// the lower the exponent, the stronger the size regularization
 	constexpr float exponent = .8f;

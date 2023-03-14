@@ -7,17 +7,12 @@
 #include "Random.h"
 
 
-// Compilation options:
-
-//#define RISI_NAJARRO_2020
-#define USING_NEUROMODULATION
-
-
 // Constants:
 #define MAX_CHILDREN_PER_BLOCK  10
 #define MAX_BLOCK_INPUT_SIZE  10          // Does not apply to the top one, which is the network itself
 #define MAX_BLOCK_OUTPUT_SIZE  10         // Does not apply to the top one, which is the network itself
 #define INPUT_ID -1     // In the genotype, denotes the fact that a child is connected to the input 
+#define MODULATION_ID -2
 
 inline float ReLU(float x) { return x > 0 ? x : 0; }
 
@@ -37,17 +32,11 @@ struct GenotypeConnexion {
 	std::unique_ptr<float[]> B;
 	std::unique_ptr<float[]> C;
 	std::unique_ptr<float[]> eta;
-
-#if defined RISI_NAJARRO_2020
-	std::unique_ptr<float[]> D;
-
-#elif defined USING_NEUROMODULATION
 	std::unique_ptr<float[]> alpha;
 	std::unique_ptr<float[]> w;
-#endif 
 
 
-	GenotypeConnexion() {}
+	GenotypeConnexion() {};
 
 	GenotypeConnexion(int oID, int dID, int nLines, int nColumns, initType init);
 
@@ -79,12 +68,7 @@ struct GenotypeNode {
 	// Vector of structs containing pointers to the fixed connexion matrices linking children
 	std::vector<GenotypeConnexion> childrenConnexions;
 
-#ifdef USING_NEUROMODULATION
-	// neuromodulatorySignal = tanh(neuromodulationBias + SUM(w*out))
-	std::vector<float> wNeuromodulation;
-	// neuromodulatorySignal = tanh(neuromodulationBias + SUM(w*out))
-	float neuromodulationBias;
-#endif
+	float biasMplus, biasMminus;
 
 	// Depth of the children tree. =0 for simple neurons
 	int depth;

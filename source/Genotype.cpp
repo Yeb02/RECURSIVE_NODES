@@ -9,49 +9,28 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
-
-#if defined RISI_NAJARRO_2020
-	D = std::make_unique<float[]>(s);
-#elif defined USING_NEUROMODULATION
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
-#endif 
 
 	if (init == ZERO || (init == IDENTITY && nLines != nColumns)) {
 		for (int i = 0; i < nLines * nColumns; i++) {
-#if defined RISI_NAJARRO_2020
-			eta[i] = 0.1f;
-			A[i] = 0.0f;
-			B[i] = 0.0f;
-			C[i] = 0.0f;
-			D[i] = 0.0f;
-#elif defined USING_NEUROMODULATION
+
 			eta[i] = UNIFORM_01;
 			A[i] = NORMAL_01 * .2f;
 			B[i] = NORMAL_01 * .2f;
 			C[i] = NORMAL_01 * .2f;
 			alpha[i] = 0.0f;
 			w[i] = 0.0f;
-#endif 
 		}
 	}
 	else if (init == RANDOM) {
 		for (int i = 0; i < nLines * nColumns; i++) {
-
-#if defined RISI_NAJARRO_2020
-			A[i] = UNIFORM_01 - .5f;
-			B[i] = UNIFORM_01 - .5f;
-			C[i] = UNIFORM_01 - .5f;
-			D[i] = UNIFORM_01 - .5f;
-			eta[i] = UNIFORM_01;
-#elif defined USING_NEUROMODULATION
 			A[i] = NORMAL_01 * .2f;
 			B[i] = NORMAL_01 * .2f;
 			C[i] = NORMAL_01 * .2f;
 			alpha[i] = NORMAL_01 *.2f;
 			eta[i] = UNIFORM_01;
 			w[i] = NORMAL_01*.2f;
-#endif 
 		}
 	}
 	else { // IDENTITY. Used in top node boxing. Must "invert" tanh in certain cases ! nLines = nColumns.
@@ -59,21 +38,16 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 		float v;
 		for (int l = 0; l < nLines; l++) {
 			for (int c = 0; c < nColumns; c++) {
+
+				// tanh'(0) = 1, so * 1.0 is a correct-ish approximation to invert. 
 				v = l == c ? 1.0f : 0.0f;
-#if defined RISI_NAJARRO_2020 // there is no way to link 2 nodes with identity in this case.
-				A[i] = 0.0f;
-				B[i] = 0.0f;
-				C[i] = v;
-				D[i] = 0.0f;
-				eta[i] = 0.1f;
-#elif defined USING_NEUROMODULATION // tanh'(0) = 1, so * 1.0 is a correct-ish approximation to invert. 
 				A[i] = NORMAL_01 * .2f;
 				B[i] = NORMAL_01 * .2f;
 				C[i] = NORMAL_01 * .2f;
 				alpha[i] = 0.0f;
 				eta[i] = UNIFORM_01;
 				w[i] = v;
-#endif 
+
 				i++;
 			}
 		}
@@ -94,13 +68,9 @@ GenotypeConnexion::GenotypeConnexion(GenotypeConnexion&& gc) noexcept {
 	B = std::move(gc.B);
 	C = std::move(gc.C);
 	eta = std::move(gc.eta);
-
-#if defined RISI_NAJARRO_2020
-	D = std::move(gc.D);
-#elif defined USING_NEUROMODULATION
 	w = std::move(gc.w);
 	alpha = std::move(gc.alpha);
-#endif 
+
 }
 
 GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
@@ -115,22 +85,15 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
+	alpha = std::make_unique<float[]>(s);
+	w = std::make_unique<float[]>(s);
 
 	memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
 	memcpy(A.get(), gc.A.get(), sizeof(float) * s);
 	memcpy(B.get(), gc.B.get(), sizeof(float) * s);
 	memcpy(C.get(), gc.C.get(), sizeof(float) * s);
-
-#if defined RISI_NAJARRO_2020
-	D = std::make_unique<float[]>(s);
-	memcpy(D.get(), gc.D.get(), sizeof(float) * s);
-
-#elif defined USING_NEUROMODULATION
-	alpha = std::make_unique<float[]>(s);
-	w = std::make_unique<float[]>(s);
 	memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
 	memcpy(w.get(), gc.w.get(), sizeof(float) * s);
-#endif 
 }
 
 GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
@@ -145,22 +108,16 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
+	alpha = std::make_unique<float[]>(s);
+	w = std::make_unique<float[]>(s);
 
 	memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
 	memcpy(A.get(), gc.A.get(), sizeof(float) * s);
 	memcpy(B.get(), gc.B.get(), sizeof(float) * s);
 	memcpy(C.get(), gc.C.get(), sizeof(float) * s);
-
-#if defined RISI_NAJARRO_2020
-	D = std::make_unique<float[]>(s);
-	memcpy(D.get(), gc.D.get(), sizeof(float) * s);
-
-#elif defined USING_NEUROMODULATION
-	alpha = std::make_unique<float[]>(s);
-	w = std::make_unique<float[]>(s);
 	memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
 	memcpy(w.get(), gc.w.get(), sizeof(float) * s);
-#endif 
+
 	return *this;
 }
 
@@ -178,19 +135,12 @@ void GenotypeNode::computeBeacons() {
 
 void GenotypeNode::mutateFloats() {
 	float r, r2;
-	
-#if defined RISI_NAJARRO_2020
-	constexpr int nArrays = 5;
-#elif defined USING_NEUROMODULATION
 	constexpr int nArrays = 6;
-#endif 
-
 	constexpr float normalFactor = .3f; // .3f ??
 	constexpr float sumFactor = .4f; // .4f ??
 	// Lowering those 2 to .1f on cartpole yields intriguing results: not only is convergence
 	// slower, but also worse. And average population score, after mutation, is much worse too !
 	// The found optimum is less stable.
-
 
 	constexpr float pMutation = .2f; // .1f ??
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
@@ -211,16 +161,6 @@ void GenotypeNode::mutateFloats() {
 
 			r = normalFactor * NORMAL_01;
 			r2 = sumFactor * NORMAL_01;
-
-#if defined RISI_NAJARRO_2020
-			switch (j) {
-			case 0: childrenConnexions[listID].A[matrixID] += r; break;
-			case 1: childrenConnexions[listID].B[matrixID] += r; break;
-			case 2: childrenConnexions[listID].C[matrixID] += r; break;
-			case 3: childrenConnexions[listID].D[matrixID] += r; break;
-			case 4: childrenConnexions[listID].eta[matrixID] += r; break;
-			}
-#elif defined USING_NEUROMODULATION
 
 			switch (j) {
 			case 0: aPtr = childrenConnexions[listID].A.get(); break;
@@ -247,10 +187,7 @@ void GenotypeNode::mutateFloats() {
 				aPtr[matrixID] += r2;
 			}
 		}
-
-#endif 
 	}
-
 
 	for (int i = 0; i < outputSize; i++) {
 		r = normalFactor * NORMAL_01;
@@ -266,18 +203,15 @@ void GenotypeNode::mutateFloats() {
 		inBias[i] += r2;
 	}
 
-#ifdef USING_NEUROMODULATION
-	for (int i = 0; i < outputSize; i++) {
-		r = normalFactor * NORMAL_01;
-		r2 = sumFactor * NORMAL_01;
-		wNeuromodulation[i] *= .95f + r;
-		wNeuromodulation[i] += r2;
-	}
 	r = normalFactor * NORMAL_01;
 	r2 = sumFactor * NORMAL_01;
-	neuromodulationBias *= .95f + r;
-	neuromodulationBias += r2;
-#endif 
+	biasMplus *= .95f + r;
+	biasMplus += r2;
+
+	r = normalFactor * NORMAL_01;
+	r2 = sumFactor * NORMAL_01; 
+	biasMminus *= .95f + r;
+	biasMminus += r2;
 }
 
 // This implementation makes it less likely to gain connexions when many are already populated.
@@ -323,9 +257,9 @@ void GenotypeNode::connect() {
 	}
 }
 void GenotypeNode::disconnect() {
-	if (childrenConnexions.size() == 0) return;
-	if (childrenConnexions.size() == 1 && children.size() == 0) return;
+	if (childrenConnexions.size() <= 1 + 1) return; // not allowed to fall below 1 connexion + neuromodulation.
 	int id = (int)(UNIFORM_01 * (float)childrenConnexions.size());
+	if (childrenConnexions[id].destinationID == MODULATION_ID) return; // not allowed to disconnect neuromodulation.
 	childrenConnexions.erase(childrenConnexions.begin() + id);
 }
 
@@ -403,9 +337,7 @@ void GenotypeNode::incrementInputSize() {
 			incrementOriginOutputSize(i);
 		}
 	}
-#ifdef USING_NEUROMODULATION
 	inBias.push_back(0);
-#endif 
 }
 void GenotypeNode::onChildInputSizeIncremented(GenotypeNode* modifiedType) {
 	int id;
@@ -443,12 +375,8 @@ void GenotypeNode::incrementOriginOutputSize(int i) {
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
-#if defined RISI_NAJARRO_2020
-			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
-#elif defined USING_NEUROMODULATION
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
 			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-#endif 
 
 			idNew++;
 			idOld++;
@@ -458,12 +386,8 @@ void GenotypeNode::incrementOriginOutputSize(int i) {
 		newConnexion.B[idNew] = 0.0f;
 		newConnexion.C[idNew] = 0.0f;
 		newConnexion.eta[idNew] = 0.0f;
-#if defined RISI_NAJARRO_2020
-		newConnexion.D[idNew] = 0.0f;
-#elif defined USING_NEUROMODULATION
 		newConnexion.alpha[idNew] = 0.0f;
 		newConnexion.w[idNew] = 0.0f;
-#endif 
 
 		idNew++;
 	}
@@ -479,10 +403,7 @@ void GenotypeNode::incrementOutputSize() {
 			incrementDestinationInputSize(i);
 		}
 	}
-#ifdef USING_NEUROMODULATION
 	outBias.push_back(0);
-	wNeuromodulation.push_back(0);
-#endif 
 }
 void GenotypeNode::onChildOutputSizeIncremented(GenotypeNode* modifiedType) {
 	int id;
@@ -519,12 +440,9 @@ void GenotypeNode::incrementDestinationInputSize(int i) {
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
-#if defined RISI_NAJARRO_2020
-			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
-#elif defined USING_NEUROMODULATION
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
 			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-#endif 
+
 
 			idNew++;
 			idOld++;
@@ -535,12 +453,8 @@ void GenotypeNode::incrementDestinationInputSize(int i) {
 		newConnexion.B[idNew] = 0.0f;
 		newConnexion.C[idNew] = 0.0f;
 		newConnexion.eta[idNew] = 0.0f;
-#if defined RISI_NAJARRO_2020
-		newConnexion.D[idNew] = 0.0f;
-#elif defined USING_NEUROMODULATION
 		newConnexion.alpha[idNew] = 0.0f;
 		newConnexion.w[idNew] = 0.0f;
-#endif 
 		idNew++;
 	}
 	childrenConnexions[i] = newConnexion;
@@ -556,9 +470,7 @@ void GenotypeNode::decrementInputSize(int id) {
 			decrementOriginOutputSize(i, id);
 		}
 	}
-#ifdef USING_NEUROMODULATION
 	inBias.erase(inBias.begin() + id);
-#endif 
 }
 void GenotypeNode::onChildInputSizeDecremented(GenotypeNode* modifiedType, int id) {
 	int nID;
@@ -600,12 +512,8 @@ void GenotypeNode::decrementOriginOutputSize(int i, int id) {
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
-#if defined RISI_NAJARRO_2020
-			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
-#elif defined USING_NEUROMODULATION
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
 			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-#endif 
 
 			idNew++;
 			idOld++;
@@ -625,11 +533,7 @@ void GenotypeNode::decrementOutputSize(int id) {
 			decrementDestinationInputSize(i, id);
 		}
 	}
-
-#ifdef USING_NEUROMODULATION
 	outBias.erase(outBias.begin() + id);
-	wNeuromodulation.erase(wNeuromodulation.begin() + id);
-#endif 
 }
 void GenotypeNode::onChildOutputSizeDecremented(GenotypeNode* modifiedType, int id) {
 	int nID;
@@ -669,12 +573,8 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
-#if defined RISI_NAJARRO_2020
-			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
-#elif defined USING_NEUROMODULATION
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
 			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-#endif 
 
 			idNew++;
 			idOld++;
@@ -684,6 +584,7 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 	childrenConnexions[i] = newConnexion;
 }
 
+// TODO find cause of rare infinite recursion in this function.
 void GenotypeNode::updateDepth(std::vector<int>& genomeState) {
 	int dmax = 0;
 	for (int i = 0; i < children.size(); i++) {

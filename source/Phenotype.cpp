@@ -1,37 +1,23 @@
 #include "Phenotype.h"
 
+
+
 PhenotypeConnexion::PhenotypeConnexion(int s)
 {
 	H = std::make_unique<float[]>(s);
-
-#ifdef USING_NEUROMODULATION
 	E = std::make_unique<float[]>(s);
-#endif 
 	zero(s);
 }
 
 void PhenotypeConnexion::zero(int s) {
 	for (int i = 0; i < s; i++) {
 		H[i] = 0.0f;
-#ifdef USING_NEUROMODULATION
 		E[i] = 0.0f;
-#endif 
 	}
 }
-
-void PhenotypeConnexion::randomH(int s) {
-	for (int i = 0; i < s; i++) {
-		H[i] = NORMAL_01 * .1f;
-	}
-}
-
-
 
 PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 {
-#ifdef USING_NEUROMODULATION
-	neuromodulatorySignal = 1.0f;
-#endif 
 	previousInput.resize(type->inputSize);
 	previousOutput.resize(type->outputSize);
 	currentOutput.resize(type->outputSize);
@@ -50,6 +36,10 @@ PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 			type->childrenConnexions[i].nColumns
 		);
 	}
+
+	neuromodulatorySignal = 0.0f;
+	M[0] = 0.0f;
+	M[1] = 0.0f;
 };
 
 void PhenotypeNode::zero() {
@@ -68,145 +58,108 @@ void PhenotypeNode::zero() {
 		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
 		childrenConnexions[i].zero(s);
 	}
-}
-
-void PhenotypeNode::randomH() {
-	for (int i = 0; i < children.size(); i++) {
-		if (!children[i].type->isSimpleNeuron) children[i].randomH();
-	}
-	for (int i = 0; i < childrenConnexions.size(); i++) {
-		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
-		childrenConnexions[i].randomH(s);
-	}
-}
-
-void PhenotypeNode::reset() {
-#ifdef USING_NEUROMODULATION
-	neuromodulatorySignal = 1.0f;
-#endif 
-	for (int i = 0; i < previousInput.size(); i++) {
-		previousInput[i] = 0;
-	}
-	for (int i = 0; i < previousOutput.size(); i++) {
-		previousInput[i] = 0;
-	}
-
-	for (int i = 0; i < type->children.size() - 1; i++) {
-		children[i].reset();
-	}
-	for (int i = 0; i < type->childrenConnexions.size(); i++) {
-		childrenConnexions[i].zero(
-			type->childrenConnexions[i].nLines *
-			type->childrenConnexions[i].nColumns
-		);
-	}
+	neuromodulatorySignal = 0.0f;
+	M[0] = 0.0f;
+	M[1] = 0.0f;
 }
 
 void PhenotypeNode::forward(const float* input) {
+	int i0, originID, destinationID;
+	int nc, nl, matID;
+
+	// set up the array where every's child input is accumulated before applying their forward.
 	float* _childInputs = new float[type->concatenatedChildrenInputLength + type->outputSize];
 	for (int i = 0; i < type->concatenatedChildrenInputLength + type->outputSize; i++) _childInputs[i] = 0.0f;
 
-#ifdef USING_NEUROMODULATION
-	// compute the neuromodulatory output
-	float temp = type->neuromodulationBias;
-	for (int i = 0; i < type->outputSize; i++) {
-		temp += type->wNeuromodulation[i] * currentOutput[i];
-	}
-	neuromodulatorySignal *= 1.41f * tanh(temp);
-#endif	
+	// save previous step's M.
+	float previousM[2] = { M[0], M[1] };
+	M[0] = type->biasMplus;
+	M[1] = type->biasMminus;
 
 	// propagate the previous steps's outputs, by iterating over the connexions between children
-
-	int i0, originID, destinationID;  // for readability, to be optimized away
 	for (int id = 0; id < childrenConnexions.size(); id++) {
 		originID = type->childrenConnexions[id].originID;
 		destinationID = type->childrenConnexions[id].destinationID;
 		i0 = type->concatenatedChildrenInputBeacons[destinationID];
 
+		nl = type->childrenConnexions[id].nLines;
+		nc = type->childrenConnexions[id].nColumns;
+		matID = 0;
+
 		float* H = childrenConnexions[id].H.get();
-#if defined USING_NEUROMODULATION
 		float* alpha = type->childrenConnexions[id].alpha.get();
 		float* w = type->childrenConnexions[id].w.get();
-#endif
-		int nl = type->childrenConnexions[id].nLines;
-		int nc = type->childrenConnexions[id].nColumns;
-		int matID = 0;
-		if (originID == INPUT_ID) {
-			for (int i = 0; i < nl; i++) {
-				for (int j = 0; j < nc; j++) {
 
-#if defined RISI_NAJARRO_2020
-					// The article's w is our H. z += w * yj, y = f(z)
-					_childInputs[i0 + i] += H[matID] * input[j];
-#elif defined USING_NEUROMODULATION
-					_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID]) * input[j];
-#endif 
-					matID++;
+		if (originID == INPUT_ID) {
+			if (destinationID == MODULATION_ID) {
+				for (int i = 0; i < nl; i++) {
+					for (int j = 0; j < nc; j++) {
+						// += (H * alpha + w) * prevAct
+						M[i] += (H[matID] * alpha[matID] + w[matID]) * input[j];
+						matID++;
+					}
+				}
+			}
+			else {
+				for (int i = 0; i < nl; i++) {
+					for (int j = 0; j < nc; j++) {
+						// += (H * alpha + w) * prevAct
+						_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID]) * input[j];
+						matID++;
+					}
 				}
 			}
 		}
 		else {
 			for (int i = 0; i < nl; i++) {
 				for (int j = 0; j < nc; j++) {
-
-#if defined RISI_NAJARRO_2020
-					// The article's w is our H. z += w * yj, y = f(z)
-					_childInputs[i0 + i] += H[matID] * children[originID].previousOutput[j];
-#elif defined USING_NEUROMODULATION
 					// += (H * alpha + w) * prevAct
 					_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID]) * children[originID].previousOutput[j];
-#endif 
 					matID++;
 				}
 			}
 		}
 	}
 
+	// neuromodulation
+	M[0] = tanhf(M[0]);
+	M[1] = tanhf(M[1]);
+	neuromodulatorySignal *= (M[0] - M[1]) * .707f; // 1/sqrt(2)
 
 	// apply children's forward, after a tanh for non-simple neurons. 
-
-	int _childID = 0;
 	int _inputListID = 0;
 	for (int i = 0; i < children.size(); i++) {
-#ifdef USING_NEUROMODULATION
 		children[i].neuromodulatorySignal = this->neuromodulatorySignal;
-#endif 
 
 		// Depending on the child's nature, we have 2 cases:
-		//  - the child is a bloc
-		//  - the child is a simple neuron
+		//  - the child is a simple neuron, and we handle everything for him.
+		//  - the child is a bloc, and it handles its own forward and activation saving.
+		
 
 		if (children[i].type->isSimpleNeuron) {
 			children[i].previousOutput[0] = children[i].currentOutput[0];
-			children[i].currentOutput[0] = children[i].type->f(_childInputs[_inputListID]);
+			_childInputs[_inputListID] = children[i].type->f(_childInputs[_inputListID]); // a simple neuron has no bias.
+			children[i].currentOutput[0] = _childInputs[_inputListID];
 		}
 		else {
 			int maxJ = _inputListID + children[i].type->inputSize;
-#ifdef RISI_NAJARRO_2020  // they do not use the bias
-			for (int j = _inputListID; j < maxJ; j++) _childInputs[j] = tanh(_childInputs[j]);
-#elif defined USING_NEUROMODULATION
-			for (int j = _inputListID; j < maxJ; j++) _childInputs[j] = tanh(_childInputs[j] + children[i].type->inBias[j - _inputListID]);
-#endif
+			for (int j = _inputListID; j < maxJ; j++) {
+				_childInputs[j] = tanhf(_childInputs[j] + children[i].type->inBias[j - _inputListID]);
+			}
 			children[i].forward(&_childInputs[_inputListID]);
 		}
 
 		_inputListID += children[i].type->inputSize;
-		_childID++;
 	}
 
 	// process this node's output, stored in the input of the virtual output node:
 	previousOutput.assign(currentOutput.begin(), currentOutput.end()); // save the previous activations
 	for (int i = 0; i < type->outputSize; i++) {
-#ifdef RISI_NAJARRO_2020  // they do not use the bias
-		currentOutput[i] = tanh(_childInputs[_inputListID + i]);
-#elif defined USING_NEUROMODULATION
-		currentOutput[i] = tanh(_childInputs[_inputListID + i] + type->outBias[i]);
-#endif
+		currentOutput[i] = tanhf(_childInputs[_inputListID + i] + type->outBias[i]);
 	}
 
 
 	// Update hebbian and eligibility traces
-	int nc, nl, matID;
 	for (int id = 0; id < childrenConnexions.size(); id++) {
 		originID = type->childrenConnexions[id].originID;
 		destinationID = type->childrenConnexions[id].destinationID;
@@ -216,15 +169,20 @@ void PhenotypeNode::forward(const float* input) {
 		float* C = type->childrenConnexions[id].C.get();
 		float* eta = type->childrenConnexions[id].eta.get();
 		float* H = childrenConnexions[id].H.get();
-#if defined RISI_NAJARRO_2020
-		float* D = type->childrenConnexions[id].D.get();
-#elif defined USING_NEUROMODULATION
 		float* E = childrenConnexions[id].E.get();
-#endif
 
-		float* iArray = destinationID != children.size() ?
-			children[destinationID].previousInput.data() :
-			currentOutput.data();
+
+		float* iArray;
+		if (destinationID == children.size()) {
+			iArray = currentOutput.data();
+		}
+		else if (destinationID == MODULATION_ID) {
+			iArray = M;
+		}
+		else {
+			iArray = children[destinationID].previousInput.data();
+		}
+			
 		float* jArray = originID != INPUT_ID ?
 			children[originID].previousOutput.data():
 			previousInput.data();
@@ -234,16 +192,11 @@ void PhenotypeNode::forward(const float* input) {
 		matID = 0;  // = i*nc+j
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
-
-#if defined RISI_NAJARRO_2020
-				H[matID] += eta[matID] * (A[matID] * iArray[i] * jArray[j] + B[matID] * yi + C[matID] * aj + D[matID]);
-#elif defined USING_NEUROMODULATION
 				E[matID] = (1 - eta[matID]) * E[matID] + 
 					eta[matID] * (A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j]);
 
 				H[matID] += E[matID] * neuromodulatorySignal;
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
-#endif 
 				matID++;
 			}
 		}

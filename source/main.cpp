@@ -10,11 +10,6 @@
 #define LOGV(v) for (const auto e : v) {cout << e << " ";}; cout << "\n"
 #define LOG(x) cout << x << endl;
 
-/*
-//#define RISI_NAJARRO_2020
-//#define USING_NEUROMODULATION
-are the 2 mutually exclusive running modes. Change in Genotype.h.
-*/
 
 #define DRAWING
 //#define XOR
