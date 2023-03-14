@@ -622,7 +622,6 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 	childrenConnexions[i] = newConnexion;
 }
 
-// TODO find cause of rare infinite recursion in this function.
 void GenotypeNode::updateDepth(std::vector<int>& genomeState) {
 	int dmax = 0;
 	for (int i = 0; i < children.size(); i++) {
@@ -631,4 +630,37 @@ void GenotypeNode::updateDepth(std::vector<int>& genomeState) {
 	}
 	depth = dmax + 1;
 	genomeState[position] = 1;
+}
+
+void GenotypeNode::copyParameters(GenotypeNode* n) {
+	if (n->isSimpleNeuron) {
+		isSimpleNeuron = true;
+		f = n->f;
+		inputSize = n->inputSize;
+		outputSize = n->outputSize;
+		depth = 0;
+		position = n->position;
+		closestNode = NULL;
+	}
+	else {
+		isSimpleNeuron = false;
+		f = NULL;
+		inputSize = n->inputSize;
+		outputSize = n->outputSize;
+		inBias.assign(n->inBias.begin(), n->inBias.end());
+		outBias.assign(n->outBias.begin(), n->outBias.end());
+		biasMplus = 0.0f;
+		biasMminus = 0.0f;
+		concatenatedChildrenInputLength = n->concatenatedChildrenInputLength;
+		depth = n->depth;
+		position = n->position;
+		mutationalDistance = n->mutationalDistance;
+
+		concatenatedChildrenInputBeacons.assign(n->concatenatedChildrenInputBeacons.begin(), n->concatenatedChildrenInputBeacons.end());
+
+		childrenConnexions.reserve((int)((float)n->childrenConnexions.size() * 1.5f));
+		for (int j = 0; j < n->childrenConnexions.size(); j++) {
+			childrenConnexions.emplace_back(n->childrenConnexions[j]);
+		}
+	}
 }

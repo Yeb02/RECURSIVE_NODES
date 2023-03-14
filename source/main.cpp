@@ -51,7 +51,7 @@ int main()
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
     int N_SPECIMENS = nThreads * 64;
-    int nDifferentTrials = 2;
+    int nDifferentTrials = 3;
     int nSteps = 3000;
 
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize

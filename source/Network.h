@@ -25,7 +25,7 @@ public:
 	void mutate();
 	
 	void createPhenotype() {
-		if (topNodeP.get() == NULL) topNodeP.reset(new PhenotypeNode(genome[genome.size() - 1].get()));
+		if (topNodeP.get() == NULL) topNodeP.reset(new PhenotypeNode(topNodeG.get()));
 	};
 
 	// sets to 0 the dynamic elements of the phenotype
@@ -40,6 +40,7 @@ public:
 
 private:
 	int nSimpleNeurons;
+	std::unique_ptr<GenotypeNode> topNodeG;
 	std::vector<std::unique_ptr<GenotypeNode>> genome;
 	std::unique_ptr<PhenotypeNode> topNodeP;
 

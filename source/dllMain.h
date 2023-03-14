@@ -26,6 +26,12 @@
 ////////////////////////////////////
 ////////////////////////////////////
 
+
+#ifdef DRAWING
+#include "Drawer.h"
+#endif 
+
+
 extern "C" {
 
 	BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved);

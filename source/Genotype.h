@@ -101,6 +101,10 @@ struct GenotypeNode {
 
 	~GenotypeNode() {};
 
+	// WARNING ! Creates a deep copy of this node and its connexions. However, node pointers 
+	// must be updated manually ! See Network(Network * n) 's implementation for an example.
+	void copyParameters(GenotypeNode* n);
+
 	// Used for the top node, as its input bias should not mutate.
 	void zeroInBias() {for (int i = 0; i < inputSize; i++) inBias[i] = 0;}
 

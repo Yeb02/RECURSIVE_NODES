@@ -34,22 +34,22 @@ public:
 
 
         float x0 = offset, y0 = offset;
-        for (int i = (int)n->genome.size() - 1; i >= n->nSimpleNeurons; i--) {
-
+        for (int i = (int)n->genome.size(); i >= n->nSimpleNeurons; i--) {
+            GenotypeNode* gNode = i == n->genome.size() ? n->topNodeG.get() : n->genome[i].get();
             node.setFillColor(sf::Color::Blue);
 
-            float factor = 6.28f / ((float)n->genome[i]->children.size() + 3.0f);
-            for (int j = 0; j < n->genome[i]->children.size() + 3; j++) {
+            float factor = 6.28f / ((float)gNode->children.size() + 3.0f);
+            for (int j = 0; j < gNode->children.size() + 3; j++) {
                 Xs[j] = x0 + wheelRadius * cosf(factor * (float)j);
                 Ys[j] = y0 + wheelRadius * sinf(factor * (float)j);
             }
 
             int oID, dID;
-            for (int j = 0; j < n->genome[i]->childrenConnexions.size(); j++) {
-                oID = n->genome[i]->childrenConnexions[j].originID;
-                oID = oID == INPUT_ID ? (int)n->genome[i]->children.size() + 1 : oID;
-                dID = n->genome[i]->childrenConnexions[j].destinationID;
-                dID = dID == MODULATION_ID ? (int)n->genome[i]->children.size() + 2 : dID;
+            for (int j = 0; j < gNode->childrenConnexions.size(); j++) {
+                oID = gNode->childrenConnexions[j].originID;
+                oID = oID == INPUT_ID ? (int)gNode->children.size() + 1 : oID;
+                dID = gNode->childrenConnexions[j].destinationID;
+                dID = dID == MODULATION_ID ? (int)gNode->children.size() + 2 : dID;
 
                 line[0].position.x = Xs[oID] + 10.0f; // + circle radius
                 line[0].position.y = Ys[oID] + 10.0f;
@@ -59,9 +59,9 @@ public:
                 w.draw(line, 2, sf::Lines);
             }
 
-            for (int j = 0; j < n->genome[i]->children.size(); j++) {
+            for (int j = 0; j < gNode->children.size(); j++) {
                 node.setPosition(sf::Vector2f(Xs[j], Ys[j]));
-                if (n->genome[i]->children[j]->isSimpleNeuron) {
+                if (gNode->children[j]->isSimpleNeuron) {
                     node.setFillColor(sf::Color::White);
                 }
                 else {
@@ -71,15 +71,15 @@ public:
             }
 
             node.setFillColor(sf::Color::Red); //output
-            node.setPosition(sf::Vector2f(Xs[n->genome[i]->children.size()], Ys[n->genome[i]->children.size()]));
+            node.setPosition(sf::Vector2f(Xs[gNode->children.size()], Ys[gNode->children.size()]));
             w.draw(node);
 
             node.setFillColor(sf::Color::Green); //input
-            node.setPosition(sf::Vector2f(Xs[n->genome[i]->children.size() + 1], Ys[n->genome[i]->children.size() + 1]));
+            node.setPosition(sf::Vector2f(Xs[gNode->children.size() + 1], Ys[gNode->children.size() + 1]));
             w.draw(node);
 
             node.setFillColor(sf::Color::Yellow); //modulation
-            node.setPosition(sf::Vector2f(Xs[n->genome[i]->children.size() + 2], Ys[n->genome[i]->children.size() + 2]));
+            node.setPosition(sf::Vector2f(Xs[gNode->children.size() + 2], Ys[gNode->children.size() + 2]));
             w.draw(node);
 
             x0 += offset;
