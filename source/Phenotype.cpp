@@ -106,13 +106,6 @@ void PhenotypeNode::forward(const float* input) {
 	float* _childInputs = new float[type->concatenatedChildrenInputLength + type->outputSize];
 	for (int i = 0; i < type->concatenatedChildrenInputLength + type->outputSize; i++) _childInputs[i] = 0.0f;
 
-	float* _destPrevs = new float[type->concatenatedChildrenInputLength + type->outputSize]; // util for hebbian updates
-	for (int i = 0; i < children.size(); i++) {
-		for (int j = type->concatenatedChildrenInputBeacons[i]; j < type->concatenatedChildrenInputBeacons[i + 1]; j++) {
-			_destPrevs[j] = children[i].previousInput[j - type->concatenatedChildrenInputBeacons[i]];
-		}
-	}
-
 #ifdef USING_NEUROMODULATION
 	// compute the neuromodulatory output
 	float temp = type->neuromodulationBias;
@@ -213,7 +206,7 @@ void PhenotypeNode::forward(const float* input) {
 
 
 	// Update hebbian and eligibility traces
-	float destCur, destPrev, orCur, orPrev; // For readability only, compiler will optimize them away
+	int nc, nl, matID;
 	for (int id = 0; id < childrenConnexions.size(); id++) {
 		originID = type->childrenConnexions[id].originID;
 		destinationID = type->childrenConnexions[id].destinationID;
@@ -228,39 +221,25 @@ void PhenotypeNode::forward(const float* input) {
 #elif defined USING_NEUROMODULATION
 		float* E = childrenConnexions[id].E.get();
 #endif
-		int nl = type->childrenConnexions[id].nLines;
-		int nc = type->childrenConnexions[id].nColumns;
-		int matID = 0;  // = i*nc+j
+
+		float* iArray = destinationID != children.size() ?
+			children[destinationID].previousInput.data() :
+			currentOutput.data();
+		float* jArray = originID != INPUT_ID ?
+			children[originID].previousOutput.data():
+			previousInput.data();
+
+		nl = type->childrenConnexions[id].nLines;
+		nc = type->childrenConnexions[id].nColumns;
+		matID = 0;  // = i*nc+j
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 
-				// If the child's output size = input size, we could link through it... 
-				// Probably a stupid idea though.
-
-				destCur = destinationID != children.size() ?
-					children[destinationID].previousInput[i] :
-					currentOutput[i];
-
-				destPrev = destinationID != children.size() ?
-					_destPrevs[type->concatenatedChildrenInputBeacons[destinationID]+i] :
-					previousOutput[i];
-
-				orPrev = originID != INPUT_ID ?
-					children[originID].previousOutput[j] :
-					previousInput[j];
-
-				orCur = originID != INPUT_ID ?
-					children[originID].currentOutput[j] :
-					input[j];
-
-
 #if defined RISI_NAJARRO_2020
-				H[matID] += eta[matID] * (A[matID] * yi * aj + B[matID] * yi + C[matID] * aj + D[matID]);
+				H[matID] += eta[matID] * (A[matID] * iArray[i] * jArray[j] + B[matID] * yi + C[matID] * aj + D[matID]);
 #elif defined USING_NEUROMODULATION
-				E[matID] = (1 - eta[matID]) * E[matID] + eta[matID] * (A[matID] * destCur * orPrev + B[matID] * destCur + C[matID] * orPrev);
-				/*E[matID] = (1 - eta[matID]) * E[matID] + eta[matID] *
-					(A[matID] * (destCur * orPrev  - destPrev * orCur) 
-				     + B[matID] * destCur + C[matID] * orPrev);*/
+				E[matID] = (1 - eta[matID]) * E[matID] + 
+					eta[matID] * (A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j]);
 
 				H[matID] += E[matID] * neuromodulatorySignal;
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
@@ -274,5 +253,4 @@ void PhenotypeNode::forward(const float* input) {
 		previousInput[i] = input[i];
 	}
 	delete[] _childInputs;
-	delete[] _destPrevs;
 }
