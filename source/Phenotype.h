@@ -11,8 +11,17 @@
 struct PhenotypeConnexion {   // responsible of its pointers
 
 	std::unique_ptr<float[]> H;
-
 	std::unique_ptr<float[]> E;
+
+	// Initialized to 0 when and only when the connexion is created. If CONTINUOUS_LEARNING, updated at each inference,
+	// otherwise updated at the end of each trial.
+	std::unique_ptr<float[]> wLifetime;
+
+#ifndef CONTINUOUS_LEARNING
+	// Arithmetic avg of H over trial duration.
+	std::unique_ptr<float[]> avgH;
+#endif
+
 
 	// Should not be called !
 	PhenotypeConnexion(const PhenotypeConnexion&) {};
@@ -21,12 +30,21 @@ struct PhenotypeConnexion {   // responsible of its pointers
 
 	void zero(int s);
 
+	// only called at construction.
+	void zeroWlifetime(int s); 
+
+#ifndef CONTINUOUS_LEARNING
+	// factor = 1/nInferences., wLifetime += alpha*avgH*factor
+	void updateWatTrialEnd(int s, float factor, float* alpha);
+#endif
+
 	~PhenotypeConnexion() {};
 };
 
 struct PhenotypeNode {
 	GenotypeNode* type;
 
+	int nInferences; // store how many inferences this node has performed since last interTrialReset.
 	float neuromodulatorySignal; //initialized at 1 at the beginning of a trial
 	float M[2];
 	// Pointers to its children. Responsible for their lifetime !
@@ -41,6 +59,6 @@ struct PhenotypeNode {
 	PhenotypeNode(GenotypeNode* type);
 	~PhenotypeNode() {};
 
-	void zero();
+	void interTrialReset();
 	void forward(const float* input);
 };

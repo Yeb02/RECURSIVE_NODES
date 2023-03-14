@@ -6,13 +6,15 @@
 
 #include "Random.h"
 
+// Compilation option:
+#define CONTINUOUS_LEARNING
 
 // Constants:
 #define MAX_CHILDREN_PER_BLOCK  10
 #define MAX_BLOCK_INPUT_SIZE  10          // Does not apply to the top one, which is the network itself
 #define MAX_BLOCK_OUTPUT_SIZE  10         // Does not apply to the top one, which is the network itself
-#define INPUT_ID -1     // In the genotype, denotes the fact that a child is connected to the input 
-#define MODULATION_ID -2
+#define INPUT_ID -1			// In a genotype connexion, means the origin node is the parent's input.
+#define MODULATION_ID -2    // In a genotype connexion, means the destination node is the parent's modulation. 
 
 inline float ReLU(float x) { return x > 0 ? x : 0; }
 
@@ -34,6 +36,10 @@ struct GenotypeConnexion {
 	std::unique_ptr<float[]> eta;
 	std::unique_ptr<float[]> alpha;
 	std::unique_ptr<float[]> w;
+#ifdef CONTINUOUS_LEARNING
+	// proche de 0 !
+	std::unique_ptr<float[]> gamma;
+#endif
 
 
 	GenotypeConnexion() {};

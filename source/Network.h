@@ -24,8 +24,14 @@ public:
 	void step(const std::vector<float>& obs);
 	void mutate();
 	
+	void createPhenotype() {
+		if (topNodeP.get() == NULL) topNodeP.reset(new PhenotypeNode(genome[genome.size() - 1].get()));
+	};
+
 	// sets to 0 the dynamic elements of the phenotype
-	void intertrialReset();
+	void intertrialReset() {
+		topNodeP->interTrialReset();
+	};
 
 	// a positive float, increasing with the networks number of parameters and their amplitudes. Ignores biases.
 	float getRegularizationLoss();
@@ -37,6 +43,8 @@ private:
 	std::vector<std::unique_ptr<GenotypeNode>> genome;
 	std::unique_ptr<PhenotypeNode> topNodeP;
 
+	// necessary because otherwise, nodes could get bigger than the top node. TODO change this
+	// stupid "end of list" architecture.
 	void removeUnusedNodes();
 
 	void updateDepths();

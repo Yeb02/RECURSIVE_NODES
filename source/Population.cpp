@@ -183,15 +183,15 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 void Population::evaluate(const int i0, const int subArraySize, std::vector<std::unique_ptr<Trial>>& localTrials) {
 	for (int i = i0; i < i0 + subArraySize; i++) {
 		//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
-		networks[i]->intertrialReset(); // remove
+		networks[i]->createPhenotype();
 		for (int j = 0; j < localTrials.size(); j++) {
 			localTrials[j]->reset(true);
-			//networks[i]->intertrialReset(); // add
 			while (!localTrials[j]->isTrialOver) {
 				networks[i]->step(localTrials[j]->observations);
 				localTrials[j]->step(networks[i]->getOutput());
 			}
 			pScores[i * localTrials.size() + j] = localTrials[j]->score;
+			networks[i]->intertrialReset();
 		}
 	}
 }

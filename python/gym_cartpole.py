@@ -55,6 +55,7 @@ while True:
     print(f"At iteration {step}, max score was {maxScore}")
     step += 1
     if maxScore >= 500 : 
+        print("Max score reached.")
         break
 
 

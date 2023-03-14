@@ -11,6 +11,9 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 	C = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
+#ifdef CONTINUOUS_LEARNING
+	gamma = std::make_unique<float[]>(s);
+#endif
 
 	if (init == ZERO || (init == IDENTITY && nLines != nColumns)) {
 		for (int i = 0; i < nLines * nColumns; i++) {
@@ -21,6 +24,9 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			C[i] = NORMAL_01 * .2f;
 			alpha[i] = 0.0f;
 			w[i] = 0.0f;
+#ifdef CONTINUOUS_LEARNING
+			gamma[i] = .1f;
+#endif
 		}
 	}
 	else if (init == RANDOM) {
@@ -31,6 +37,9 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			alpha[i] = NORMAL_01 *.2f;
 			eta[i] = UNIFORM_01;
 			w[i] = NORMAL_01*.2f;
+#ifdef CONTINUOUS_LEARNING
+			gamma[i] = .3f * UNIFORM_01;
+#endif
 		}
 	}
 	else { // IDENTITY. Used in top node boxing. Must "invert" tanh in certain cases ! nLines = nColumns.
@@ -47,7 +56,9 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 				alpha[i] = 0.0f;
 				eta[i] = UNIFORM_01;
 				w[i] = v;
-
+#ifdef CONTINUOUS_LEARNING
+				gamma[i] = .3f * UNIFORM_01;
+#endif
 				i++;
 			}
 		}
@@ -70,6 +81,9 @@ GenotypeConnexion::GenotypeConnexion(GenotypeConnexion&& gc) noexcept {
 	eta = std::move(gc.eta);
 	w = std::move(gc.w);
 	alpha = std::move(gc.alpha);
+#ifdef CONTINUOUS_LEARNING
+	gamma = std::move(gc.gamma);
+#endif
 
 }
 
@@ -81,12 +95,16 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	nColumns = gc.nColumns;
 
 	int s = nLines * nColumns;
+
 	eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
+#ifdef CONTINUOUS_LEARNING
+	gamma = std::make_unique<float[]>(s);
+#endif
 
 	memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
 	memcpy(A.get(), gc.A.get(), sizeof(float) * s);
@@ -94,6 +112,9 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	memcpy(C.get(), gc.C.get(), sizeof(float) * s);
 	memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
 	memcpy(w.get(), gc.w.get(), sizeof(float) * s);
+#ifdef CONTINUOUS_LEARNING
+	memcpy(gamma.get(), gc.gamma.get(), sizeof(float) * s);
+#endif
 }
 
 GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
@@ -110,6 +131,9 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	C = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
+#ifdef CONTINUOUS_LEARNING
+	gamma = std::make_unique<float[]>(s);
+#endif
 
 	memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
 	memcpy(A.get(), gc.A.get(), sizeof(float) * s);
@@ -117,6 +141,9 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	memcpy(C.get(), gc.C.get(), sizeof(float) * s);
 	memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
 	memcpy(w.get(), gc.w.get(), sizeof(float) * s);
+#ifdef CONTINUOUS_LEARNING
+	memcpy(gamma.get(), gc.gamma.get(), sizeof(float) * s);
+#endif
 
 	return *this;
 }
@@ -135,7 +162,11 @@ void GenotypeNode::computeBeacons() {
 
 void GenotypeNode::mutateFloats() {
 	float r, r2;
+#ifdef CONTINUOUS_LEARNING
+	constexpr int nArrays = 7;  // added gamma
+#else 
 	constexpr int nArrays = 6;
+#endif
 	constexpr float normalFactor = .3f; // .3f ??
 	constexpr float sumFactor = .4f; // .4f ??
 	// Lowering those 2 to .1f on cartpole yields intriguing results: not only is convergence
@@ -168,19 +199,26 @@ void GenotypeNode::mutateFloats() {
 			case 2: aPtr = childrenConnexions[listID].C.get(); break;
 			case 3: aPtr = childrenConnexions[listID].alpha.get(); break;
 			case 4: aPtr = childrenConnexions[listID].w.get(); break;
-			case 5: aPtr = childrenConnexions[listID].eta.get(); break;
+			case 5:  // eta
+				aPtr = childrenConnexions[listID].eta.get(); 
+				// this allows for high precision mutations when eta (or 1- eta) is close to 1.
+				aPtr[matrixID] = UNIFORM_01 < .05f ?
+						aPtr[matrixID] * .8f + UNIFORM_01 * .2f :
+						aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01-.5f);
+				//aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;// alternative
+				break;
+#ifdef CONTINUOUS_LEARNING
+			case 6:  // gamma
+				aPtr = childrenConnexions[listID].gamma.get(); 
+				aPtr[matrixID] = UNIFORM_01 < .05f ?
+					aPtr[matrixID] * .8f + UNIFORM_01 * .2f :
+					aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01 - .5f);
+				//aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;  // alternative
+				break;
+#endif
 			}
-			if (matrixID == 5) {
-				//if (UNIFORM_01 < .05f) {
-				//	aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;
-				//}
-				//else { // this allows for high precision mutations when eta (or 1- eta) is close to 1.
-				//	aPtr[matrixID] += aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01-.5f);
-				//}
-				// Both are worth a shot.
-				aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;
-			}
-			else {
+
+			if (j < 5) {
 				r = normalFactor * NORMAL_01;
 				r2 = sumFactor * NORMAL_01;
 				aPtr[matrixID] *= .9f + r;
@@ -343,7 +381,7 @@ void GenotypeNode::onChildInputSizeIncremented(GenotypeNode* modifiedType) {
 	int id;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		id = childrenConnexions[i].destinationID;
-		if (id != children.size() && children[id] == modifiedType) {
+		if (id != children.size() && id != MODULATION_ID && children[id] == modifiedType) {
 			incrementDestinationInputSize(i);
 		}
 	}
@@ -476,7 +514,7 @@ void GenotypeNode::onChildInputSizeDecremented(GenotypeNode* modifiedType, int i
 	int nID;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		nID = childrenConnexions[i].destinationID;
-		if (nID != children.size() && children[nID] == modifiedType) {
+		if (nID != children.size() && nID != MODULATION_ID && children[nID] == modifiedType) {
 			decrementDestinationInputSize(i, id);
 		}
 	}

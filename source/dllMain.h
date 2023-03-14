@@ -7,12 +7,24 @@
 
 #define RECURSIVE_NODES_API __declspec(dllexport)
 
-// optional:
-#define DRAWING
-#ifdef DRAWING
-#include "Drawer.h"
-#endif
+////////////////////////////////////
+///// USER COMPILATION CHOICES /////
+////////////////////////////////////
 
+// Comment or uncomment the preprocessor directives to compile versions of the code
+// Or use the -D flag.
+
+// Draws a specimen at each step, using SFML. Requires the appropriate DLLs 
+// alongside the generated executable, details in readme.md .
+#define DRAWING 
+
+// Should be on if there is just 1 trial, or no trials at all. Could be on even if there are multiple trials, 
+// but it disables the intertrial update of wLifetime. Not recommended in his case.
+// Enable and disable it in Genotype.h, it does not do anything here !
+//#define CONTINUOUS_LEARNING
+
+////////////////////////////////////
+////////////////////////////////////
 
 extern "C" {
 

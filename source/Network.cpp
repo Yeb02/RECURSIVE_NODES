@@ -475,13 +475,6 @@ void Network::removeUnusedNodes() {
 }
 
 
-void Network::intertrialReset() {
-	if (topNodeP.get() == NULL) topNodeP.reset(new PhenotypeNode(genome[genome.size() - 1].get()));;
-
-	topNodeP->zero();
-}
-
-
 float Network::getRegularizationLoss() {
 	std::vector<int> nParams(genome.size());
 	std::vector<float> amplitudes(genome.size());

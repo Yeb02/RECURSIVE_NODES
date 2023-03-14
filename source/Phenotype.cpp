@@ -6,18 +6,43 @@ PhenotypeConnexion::PhenotypeConnexion(int s)
 {
 	H = std::make_unique<float[]>(s);
 	E = std::make_unique<float[]>(s);
+	wLifetime = std::make_unique<float[]>(s);
+
+#ifndef CONTINUOUS_LEARNING
+	avgH = std::make_unique<float[]>(s);
+#endif
+
 	zero(s);
+	zeroWlifetime(s);
 }
+
+#ifndef CONTINUOUS_LEARNING
+void PhenotypeConnexion::updateWatTrialEnd(int s, float factor, float* alpha) {
+	for (int i = 0; i < s; i++) {
+		wLifetime[i] += alpha[i] * avgH[i] * factor;
+	}
+}
+#endif
 
 void PhenotypeConnexion::zero(int s) {
 	for (int i = 0; i < s; i++) {
 		H[i] = 0.0f;
 		E[i] = 0.0f;
+#ifndef CONTINUOUS_LEARNING
+		avgH[i] = 0.0f;
+#endif
+	}
+}
+
+void PhenotypeConnexion::zeroWlifetime(int s) {
+	for (int i = 0; i < s; i++) {
+		wLifetime[i] = 0.0f;
 	}
 }
 
 PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 {
+	nInferences = 1; // not 0 to avoid division by 0 if intertrialReset is called before going through any trial 
 	previousInput.resize(type->inputSize);
 	previousOutput.resize(type->outputSize);
 	currentOutput.resize(type->outputSize);
@@ -42,28 +67,35 @@ PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 	M[1] = 0.0f;
 };
 
-void PhenotypeNode::zero() {
+void PhenotypeNode::interTrialReset() {
 	std::fill(previousInput.begin(), previousInput.end(), 0.0f);
 	std::fill(previousOutput.begin(), previousOutput.end(), 0.0f);
 	std::fill(currentOutput.begin(), currentOutput.end(), 0.0f);
 	for (int i = 0; i < children.size(); i++) {
-		if (!children[i].type->isSimpleNeuron) children[i].zero();
+		if (!children[i].type->isSimpleNeuron) children[i].interTrialReset();
 		else {
 			children[i].previousInput[0] = 0.0f;
 			children[i].previousOutput[0] = 0.0f;
 			children[i].currentOutput[0] = 0.0f;
 		}
 	}
+
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
+#ifndef CONTINUOUS_LEARNING
+		float factor = 1.0f / (float)nInferences; // here for readability, compiler will put it outside the loop
+		childrenConnexions[i].updateWatTrialEnd(s, factor, type->childrenConnexions[i].alpha.get());
+#endif
 		childrenConnexions[i].zero(s);
 	}
 	neuromodulatorySignal = 0.0f;
 	M[0] = 0.0f;
 	M[1] = 0.0f;
+	nInferences = 1; // not 0 to avoid division by 0 if intertrialReset is called again before going through any new trial 
 }
 
 void PhenotypeNode::forward(const float* input) {
+	nInferences++;
 	int i0, originID, destinationID;
 	int nc, nl, matID;
 
@@ -80,13 +112,15 @@ void PhenotypeNode::forward(const float* input) {
 	for (int id = 0; id < childrenConnexions.size(); id++) {
 		originID = type->childrenConnexions[id].originID;
 		destinationID = type->childrenConnexions[id].destinationID;
-		i0 = type->concatenatedChildrenInputBeacons[destinationID];
+		if (destinationID != MODULATION_ID)
+			i0 = type->concatenatedChildrenInputBeacons[destinationID];
 
 		nl = type->childrenConnexions[id].nLines;
 		nc = type->childrenConnexions[id].nColumns;
 		matID = 0;
 
 		float* H = childrenConnexions[id].H.get();
+		float* wLifetime = childrenConnexions[id].wLifetime.get();
 		float* alpha = type->childrenConnexions[id].alpha.get();
 		float* w = type->childrenConnexions[id].w.get();
 
@@ -95,7 +129,7 @@ void PhenotypeNode::forward(const float* input) {
 				for (int i = 0; i < nl; i++) {
 					for (int j = 0; j < nc; j++) {
 						// += (H * alpha + w) * prevAct
-						M[i] += (H[matID] * alpha[matID] + w[matID]) * input[j];
+						M[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
 						matID++;
 					}
 				}
@@ -104,7 +138,7 @@ void PhenotypeNode::forward(const float* input) {
 				for (int i = 0; i < nl; i++) {
 					for (int j = 0; j < nc; j++) {
 						// += (H * alpha + w) * prevAct
-						_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID]) * input[j];
+						_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
 						matID++;
 					}
 				}
@@ -114,7 +148,8 @@ void PhenotypeNode::forward(const float* input) {
 			for (int i = 0; i < nl; i++) {
 				for (int j = 0; j < nc; j++) {
 					// += (H * alpha + w) * prevAct
-					_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID]) * children[originID].previousOutput[j];
+					_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * 
+						children[originID].previousOutput[j];
 					matID++;
 				}
 			}
@@ -129,19 +164,20 @@ void PhenotypeNode::forward(const float* input) {
 	// apply children's forward, after a tanh for non-simple neurons. 
 	int _inputListID = 0;
 	for (int i = 0; i < children.size(); i++) {
-		children[i].neuromodulatorySignal = this->neuromodulatorySignal;
-
+	
 		// Depending on the child's nature, we have 2 cases:
 		//  - the child is a simple neuron, and we handle everything for him.
 		//  - the child is a bloc, and it handles its own forward and activation saving.
 		
 
 		if (children[i].type->isSimpleNeuron) {
+			// a simple neuron has no internal neuromodulation, so children[i].neuromodulatorySignal is untouched.
 			children[i].previousOutput[0] = children[i].currentOutput[0];
 			_childInputs[_inputListID] = children[i].type->f(_childInputs[_inputListID]); // a simple neuron has no bias.
 			children[i].currentOutput[0] = _childInputs[_inputListID];
 		}
 		else {
+			children[i].neuromodulatorySignal = this->neuromodulatorySignal;
 			int maxJ = _inputListID + children[i].type->inputSize;
 			for (int j = _inputListID; j < maxJ; j++) {
 				_childInputs[j] = tanhf(_childInputs[j] + children[i].type->inBias[j - _inputListID]);
@@ -171,6 +207,15 @@ void PhenotypeNode::forward(const float* input) {
 		float* H = childrenConnexions[id].H.get();
 		float* E = childrenConnexions[id].E.get();
 
+#ifdef CONTINUOUS_LEARNING
+		float* wLifetime = childrenConnexions[id].wLifetime.get();
+		float* gamma = type->childrenConnexions[id].gamma.get();
+		float* alpha = type->childrenConnexions[id].alpha.get();
+#else
+		float* avgH = childrenConnexions[id].avgH.get();
+#endif
+		
+
 
 		float* iArray;
 		if (destinationID == children.size()) {
@@ -192,18 +237,30 @@ void PhenotypeNode::forward(const float* input) {
 		matID = 0;  // = i*nc+j
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
+#ifdef CONTINUOUS_LEARNING
+				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID];
+#endif
 				E[matID] = (1 - eta[matID]) * E[matID] + 
 					eta[matID] * (A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j]);
 
 				H[matID] += E[matID] * neuromodulatorySignal;
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
+
+#ifndef CONTINUOUS_LEARNING
+				avgH[matID] += H[matID];
+#endif
 				matID++;
+
 			}
 		}
 	}
 
+	// input update
 	for (int i = 0; i < type->inputSize; i++) {
 		previousInput[i] = input[i];
 	}
+
+
+
 	delete[] _childInputs;
 }
