@@ -1,8 +1,9 @@
 # RECURSIVE_NODES
 
-Implements a 2 (aiming for 3) loops optimization algorithm to solve optimal control and memorization problems. The neural network is meta-optimized by a custom genetic algorithm, which evolves both topology and floating point parameters. The network itself uses 3 factor Hebbian learning rules. 
+Implements a 3 loops optimization algorithm to solve optimal control and memorization problems. The neural network is meta-optimized by a custom genetic algorithm, which evolves both topology and floating point parameters. The network itself uses 3 factor Hebbian learning rules. 
+Several variants are implemented, change the active preprocessor directives in main.cpp or dllMain.h to compile a custom version.
 
-##### KNOWN BUG: rare infinite recursion in updateDepth (genotype.cpp), working on it.
+##### KNOWN BUG: rare infinite recursion in updateDepth (genotype.cpp), found the reason, patch incoming.
 
 The code can be compiled into an executable, to experiment on the implemented c++ trials. As of now, 2 trials are implemented: XoR with memorization, and gym's cartpole. The algorithm solves both easily. More to come !
 
@@ -10,9 +11,9 @@ It can also be compiled into a dll, to use in python with ctypes. One can then e
 
 ## Visual studio 2022 setup:
 
-ISO C++20. To switch between dll and exe, go to Project Properties -> Configurations Properties -> General -> Configuration Type. I recommend toggling adress Sanitizer on (if you have it installed) when debuging the .exe . It MUST be disabled when debuging the DLL because of a VS bug. Found in  Project Properties -> C/C++ -> General -> Enable Adress Sanitizer  .
-Using SFML 2.5.1 for node topology display. It can be toggled on and off with the DRAWING preprocessor directive in dllMain.cpp or main.cpp before building. Sciplot's headers are in the repo but unused yet.
+ISO C++20. To switch between dll and exe, go to Project Properties -> Configurations Properties -> General -> Configuration Type. 
 
+Using SFML 2.5.1 for node topology display. It can be toggled on and off with the DRAWING preprocessor directive in dllMain.h or main.cpp before building. 
 
 If SFML is used, the following DLLs must be placed in the same folder as the executable, whether compiling a .exe or a .dll :
 
@@ -27,3 +28,9 @@ If SFML is used, the following DLLs must be placed in the same folder as the exe
   
  
 ##### To obtain those, download SFML 2.5.1.
+
+#### Details
+
+- I recommend toggling adress Sanitizer on (if you have it installed) when debuging the .exe . It MUST be disabled when debuging the DLL because of a VS bug. Found in  Project Properties -> C/C++ -> General -> Enable Adress Sanitizer  . 
+
+- Sciplot's headers are in the repo but unused yet.
