@@ -7,7 +7,7 @@
 #include "Random.h"
 
 // Compilation option:
-#define CONTINUOUS_LEARNING
+//#define CONTINUOUS_LEARNING
 
 // Constants:
 #define MAX_CHILDREN_PER_BLOCK  10
@@ -113,6 +113,8 @@ struct GenotypeNode {
 
 	// genomeState is an array of the size of the genome, which has 1s where the node's depth is known and 0s elsewhere
 	void updateDepth(std::vector<int>& genomeState);
+
+	bool hasChild(std::vector<int>& checked, GenotypeNode* potentialChild);
 
 	// Mutate real-valued floating point parameters
 	void mutateFloats();

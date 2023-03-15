@@ -103,22 +103,22 @@ void Network::mutate() {
 	// value in pairs should be equal, or at least the first greater than the second, to introduce some kind of regularization.
 
 	constexpr float createConnexionProbability = .01f;
-	constexpr float deleteConnexionProbability = .002f;
+	constexpr float deleteConnexionProbability = .004f;
 
-	constexpr float incrementInputSizeProbability = .0005f;
-	constexpr float decrementInputSizeProbability = .0005f;
+	constexpr float incrementInputSizeProbability = .001f;
+	constexpr float decrementInputSizeProbability = .001f;
 
-	constexpr float incrementOutputSizeProbability = .0005f;
-	constexpr float decrementOutputSizeProbability = .0005f;
+	constexpr float incrementOutputSizeProbability = .001f;
+	constexpr float decrementOutputSizeProbability = .001f;
 
-	constexpr float addChildProbability = .007f;
-	constexpr float removeChildProbability = .002f;
+	constexpr float addChildProbability = .008f;
+	constexpr float removeChildProbability = .004f;
 
 	constexpr float childReplacementProbability = .005f;
 
-	constexpr float topNodeBoxingProbability = .01f;
+	constexpr float nodeBoxingProbability = .008f;
 	
-	constexpr float nodeDuplicationProbability = .003f;
+	constexpr float nodeDuplicationProbability = .004f;
 
 	float r;
 
@@ -192,21 +192,26 @@ void Network::mutate() {
 	// adding a child --> replacing a child --> removing a child --> duplicating a child --> removing unused nodes
 	
 	
-	// Adding a child node 
+	// Adding a child node. TODO modify active alternative to lower probability as depth increases.
 	{
 		for (int i = nSimpleNeurons; i < genome.size(); i++) {
-			r = UNIFORM_01;
-			if (r < addChildProbability && genome[i]->children.size() < MAX_CHILDREN_PER_BLOCK) {
-				int prevDepth = genome[i]->depth;
+			if (UNIFORM_01 < addChildProbability && genome[i]->children.size() < MAX_CHILDREN_PER_BLOCK) {
 
-				int childID = genome[i]->position;
-				while (genome[childID]->depth <= genome[i]->depth && childID < genome.size() - 1) childID++;
-				r = UNIFORM_01;
-				childID--;
-				childID = (int)(r * (float)childID);
-				if (childID >= i) childID++;
-				genome[i]->addChild(genome[childID].get());
+				//////
+				//Alternative. either this, which requires the genome to be sorted by ascending depths
 				
+				/*int childID = i;
+				while (childID < genome.size() && genome[childID]->depth <= genome[i]->depth) childID++;
+				childID = (int)(UNIFORM_01 * (float)(childID-1));
+				if (childID >= i) childID++;*/
+
+				// Or this: 
+				int childID = (int)(UNIFORM_01 * (float)genome.size());
+				// make sure we do not create a loop:
+				if (hasChild(genome[childID].get(), genome[i].get())) continue; 
+				///////
+
+				genome[i]->addChild(genome[childID].get());
 				updateDepths();
 				sortGenome();
 			}
@@ -215,7 +220,6 @@ void Network::mutate() {
 		if (r < addChildProbability && topNodeG->children.size() < MAX_CHILDREN_PER_BLOCK) {
 			int childID = (int)(UNIFORM_01 * (float)genome.size());
 			topNodeG->addChild(genome[childID].get());
-
 		}
 	}
 
@@ -226,25 +230,27 @@ void Network::mutate() {
 			GenotypeNode* n;
 			n = i != genome.size() ? genome[i].get() : topNodeG.get();
 
-			r = UNIFORM_01;
-			if (r > childReplacementProbability || n->children.size() == 0) continue;
+			if (UNIFORM_01 > childReplacementProbability || n->children.size() == 0) continue;
 
-			r = UNIFORM_01;
-			rChildID = (int)((float)n->children.size() * r);
+			rChildID = (int)((float)n->children.size() * UNIFORM_01);
 
 			GenotypeNode* child = n->children[rChildID];
 			std::vector<GenotypeNode*> candidates;
 			std::vector<int> distances;
 			if (child->closestNode != NULL &&
 				child->closestNode->inputSize == child->inputSize &&
-				child->closestNode->outputSize == child->outputSize) {
+				child->closestNode->outputSize == child->outputSize &&
+				//child->closestNode->depth < n->depth) { 
+				!hasChild(child->closestNode, n)) { 
 				candidates.push_back(child->closestNode);
 				distances.push_back(child->mutationalDistance);
 			}
 			for (int j = nSimpleNeurons; j < genome.size(); j++) {
 				if (genome[j]->closestNode == child &&
 					genome[j]->inputSize == child->inputSize &&
-					genome[j]->outputSize == child->outputSize) {
+					genome[j]->outputSize == child->outputSize &&
+					//genome[j]->depth < n->depth) {  
+					!hasChild(genome[j].get(), n)) {
 					candidates.push_back(genome[j].get());
 					distances.push_back(genome[j]->mutationalDistance);
 				}
@@ -342,18 +348,22 @@ void Network::mutate() {
 		}
 	}
 
-	// Removing unused nodes. Not necessary, find a better solution
-	//removeUnusedNodes();   TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+	// Removing unused nodes. Find a better solution.
+	if (UNIFORM_01 < .03f) {
+		removeUnusedNodes();   
+	}
+	
 
-	// Node Boxing : boxes one of the children.
+	// Node Boxing : boxes one of the children. The shallower the child, the more likely it is to succeed.
 	{
 		for (int i = 0; i < genome.size()+1; i++) {
 			GenotypeNode* parentNode = i != genome.size() ? genome[i].get() : topNodeG.get();
 			if (parentNode->children.size() == 0) continue;
 
-			float depthFactor = powf(.7f, (float)parentNode->depth);
-			if (UNIFORM_01 < topNodeBoxingProbability * depthFactor) {
-				int rID = (int)(UNIFORM_01 * (float)parentNode->children.size());
+			int rID = (int)(UNIFORM_01 * (float)parentNode->children.size());
+			float depthFactor = powf(.7f, (float)parentNode->children[rID]->depth);
+			if (UNIFORM_01 < nodeBoxingProbability * depthFactor) {
+				
 				GenotypeNode* child = parentNode->children[rID];
 				GenotypeNode* box = new GenotypeNode();
 
@@ -426,6 +436,9 @@ void Network::updateDepths() {
 	for (int i = 0; i < nSimpleNeurons; i++) genomeState[i] = 1;
 	topNodeG->position = (int) genome.size();
 	topNodeG->updateDepth(genomeState);
+	for (int i = (int)genome.size() - 1; i >= nSimpleNeurons; i--) {
+		if(genomeState[i] == 0) genome[i]->updateDepth(genomeState);
+	}
 }
 
 
@@ -468,7 +481,7 @@ void Network::removeUnusedNodes() {
 		occurences[topNodeG->children[i]->position]++;
 	}
 
-	for (int i = (int)genome.size(); i >= nSimpleNeurons; i--) {
+	for (int i = (int)genome.size()-1; i >= nSimpleNeurons; i--) {
 
 		if (occurences[i] == 0) { // genome[i] is unused. It must be removed.
 
@@ -495,11 +508,18 @@ void Network::removeUnusedNodes() {
 }
 
 
+bool Network::hasChild(GenotypeNode* parent, GenotypeNode* potentialChild) {
+	if (parent == potentialChild) return true;
+	std::vector<int> checked(genome.size());
+	return parent->hasChild(checked, potentialChild);
+}
+
+
 float Network::getRegularizationLoss() {
 	std::vector<int> nParams(genome.size()+1);
 	std::vector<float> amplitudes(genome.size()+1);
 	int size;
-	constexpr int nArrays = 6;
+	constexpr int nArrays = 5; // eta and gamma's amplitudes are irrelevant here.
 
 	for (int i = nSimpleNeurons; i < genome.size()+1; i++) {
 		GenotypeNode* n;
@@ -514,7 +534,6 @@ float Network::getRegularizationLoss() {
 				amplitudes[i] += abs(n->childrenConnexions[j].A[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].B[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].C[k]);
-				amplitudes[i] += abs(n->childrenConnexions[j].eta[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].alpha[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].w[k]);
 			}
@@ -527,6 +546,6 @@ float Network::getRegularizationLoss() {
 	}
 
 	// the lower the exponent, the stronger the size regularization
-	constexpr float exponent = .8f;
-	return amplitudes[genome.size()] * powf((float) nParams[genome.size()] + 10*nArrays, -exponent); 
+	constexpr float exponent = .7f;
+	return amplitudes[genome.size()] * powf((float) nParams[genome.size()], -exponent); 
 }

@@ -44,11 +44,17 @@ private:
 	std::vector<std::unique_ptr<GenotypeNode>> genome;
 	std::unique_ptr<PhenotypeNode> topNodeP;
 
-	// necessary because otherwise, nodes could get bigger than the top node. TODO change this
-	// stupid "end of list" architecture.
+	// Requires genome be sorted by ascending depth !!
+	// Called with a small probability in mutations. Deletes all nodes that do not show up in the phenotype.
 	void removeUnusedNodes();
 
+	// Requires depths to be up to date
+	bool hasChild(GenotypeNode* parent, GenotypeNode* potentialChild);
+
+	// Update the depths of the genome and the top node. Requires every node to have a valid position !
+	// i.e. in [0, genome.size() - 1], and no two nodes share the same.
 	void updateDepths();
-	// assumes the nodes' depths are up to date.
+
+	// Requires the nodes' depths be up to date !
 	void sortGenome();
 };

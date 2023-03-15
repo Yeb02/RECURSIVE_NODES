@@ -40,6 +40,10 @@ prepare_network = libc.prepare_network
 prepare_network.argtypes = [c_void_p]
 prepare_network.restype = None
 
+end_trial = libc.end_trial
+end_trial.argtypes = [c_void_p]
+end_trial.restype = None
+
 get_actions = libc.get_actions
 get_actions.argtypes = [c_void_p, c_void_p, c_void_p]
 get_actions.restype = None

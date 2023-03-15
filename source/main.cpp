@@ -65,6 +65,7 @@ int main()
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
+    population.setEvolutionParameters(.2f, .05f);
 
     LOG("Using " << nThreads << ".")
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);

@@ -74,7 +74,7 @@ public:
 	Trial* clone() override;
 
 	// or 30000... Gym's baseline is either 200 or 500, which is quite short with tau=0.02.
-	static const int STEP_LIMIT = 1000; 
+	static const int STEP_LIMIT = 500; 
 
 private:
 	float x, xDot, theta, thetaDot;

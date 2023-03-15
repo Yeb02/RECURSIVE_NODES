@@ -67,6 +67,9 @@ extern "C" {
 	}
 	
 	RECURSIVE_NODES_API void prepare_network(Network* n) {
+		n->createPhenotype();
+	}
+	RECURSIVE_NODES_API void end_trial(Network* n) {
 		n->intertrialReset();
 	}
 	RECURSIVE_NODES_API void get_actions(Network* n, float* observations, float* actions) {

@@ -29,9 +29,9 @@ while True:
     
     for i in range(N_SPECIMENS):
         network = get_network_handle(population, i)
-
+        prepare_network(network)
         for j in range(N_TRIALS):
-            prepare_network(network)
+        
             state = env.reset()
             score = 0
             while True:
@@ -44,6 +44,7 @@ while True:
                 score += reward 
                 if terminal:
                     break
+            end_trial(network)
             if score > maxScore: 
                 maxScore = score
             scores[i] += score

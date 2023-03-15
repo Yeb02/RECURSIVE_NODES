@@ -664,3 +664,15 @@ void GenotypeNode::copyParameters(GenotypeNode* n) {
 		}
 	}
 }
+
+bool GenotypeNode::hasChild(std::vector<int>& checked, GenotypeNode* potentialChild) {
+	if (depth <= potentialChild->depth) return false;
+
+	for (int i = 0; i < (int)children.size(); i++) {
+		if (checked[children[i]->position] == 1) continue;
+		if (children[i] == potentialChild) return true;
+		if (children[i]->hasChild(checked,potentialChild)) return true;
+		checked[i] = 1;
+	}
+	return false;
+}
