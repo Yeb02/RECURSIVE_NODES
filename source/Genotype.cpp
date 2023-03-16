@@ -106,7 +106,8 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	gamma = std::make_unique<float[]>(s);
 #endif
 
-	memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
+	//memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
+	std::copy(eta.get(), eta.get() + s, gc.eta.get()); // todo replace memcpy by std::copy everywhere
 	memcpy(A.get(), gc.A.get(), sizeof(float) * s);
 	memcpy(B.get(), gc.B.get(), sizeof(float) * s);
 	memcpy(C.get(), gc.C.get(), sizeof(float) * s);
@@ -176,24 +177,23 @@ void GenotypeNode::mutateFloats() {
 	constexpr float pMutation = .2f; // .1f ??
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
 
-	int rID, matrixID;
-	int _nMutations, _nParams;
+
 	float* aPtr = nullptr;
-	for (int listID = 0; listID < childrenConnexions.size(); listID++) { 
-		_nParams = childrenConnexions[listID].nLines * childrenConnexions[listID].nColumns * nArrays; 
+	for (int listID = 0; listID < childrenConnexions.size(); listID++) {
+		int size = childrenConnexions[listID].nLines * childrenConnexions[listID].nColumns;
+		int _nParams =  size * nArrays; 
 		SET_BINOMIAL(_nParams, pMutation);
-		_nMutations = BINOMIAL;
+		int _nMutations = BINOMIAL;
 
-		for (int k = 0; k <  _nMutations; k++) {
-			rID = (int)(UNIFORM_01 * _nParams); 
+		for (int k = 0; k <  _nMutations; k++) { 
 
-			int j = rID % nArrays;
-			matrixID = rID / nArrays;
+			int arrayN = INT_0X(nArrays);
+			int matrixID = INT_0X(size);
 
 			r = normalFactor * NORMAL_01;
 			r2 = sumFactor * NORMAL_01;
 
-			switch (j) {
+			switch (arrayN) {
 			case 0: aPtr = childrenConnexions[listID].A.get(); break;
 			case 1: aPtr = childrenConnexions[listID].B.get(); break;
 			case 2: aPtr = childrenConnexions[listID].C.get(); break;
@@ -204,7 +204,7 @@ void GenotypeNode::mutateFloats() {
 				// this allows for high precision mutations when eta (or 1- eta) is close to 1.
 				aPtr[matrixID] = UNIFORM_01 < .05f ?
 						aPtr[matrixID] * .8f + UNIFORM_01 * .2f :
-						aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01-.5f);
+						aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01-.5f) + aPtr[matrixID];
 				//aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;// alternative
 				break;
 #ifdef CONTINUOUS_LEARNING
@@ -212,13 +212,13 @@ void GenotypeNode::mutateFloats() {
 				aPtr = childrenConnexions[listID].gamma.get(); 
 				aPtr[matrixID] = UNIFORM_01 < .05f ?
 					aPtr[matrixID] * .8f + UNIFORM_01 * .2f :
-					aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01 - .5f);
+					aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01 - .5f) + aPtr[matrixID];
 				//aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;  // alternative
 				break;
 #endif
 			}
 
-			if (j < 5) {
+			if (arrayN < 5) {
 				r = normalFactor * NORMAL_01;
 				r2 = sumFactor * NORMAL_01;
 				aPtr[matrixID] *= .9f + r;
@@ -264,8 +264,8 @@ void GenotypeNode::connect() {
 	bool alreadyExists;
 	int dInSize, oOutSize;
 	for (int i = 0; i < maxAttempts; i++) {
-		c1 = (int)(UNIFORM_01 * (float)(children.size() + 1 + inputBias)) - 1 - inputBias; // in [-1-inputBias, children.size() - 1]
-		c2 = (int)(UNIFORM_01 * (float)(children.size() + 1 + outputBias)); // in [0, children.size() + outputBias]
+		c1 = INT_0X(children.size() + 1 + inputBias) - 1 - inputBias; // in [-1-inputBias, children.size() - 1]
+		c2 = INT_0X(children.size() + 1 + outputBias); // in [0, children.size() + outputBias]
 
 		if (c1 <= -1) {
 			c1 = INPUT_ID; //INPUT_ID could be != -1 in future versions.
@@ -295,8 +295,8 @@ void GenotypeNode::connect() {
 	}
 }
 void GenotypeNode::disconnect() {
-	if (childrenConnexions.size() <= 1 + 1) return; // not allowed to fall below 1 connexion + neuromodulation.
-	int id = (int)(UNIFORM_01 * (float)childrenConnexions.size());
+	if (childrenConnexions.size() <= 1 + 1) return; // not allowed to fall below 1 connexion + neuromodulation. Still can happen in a convoluted case.
+	int id = INT_0X(childrenConnexions.size());
 	if (childrenConnexions[id].destinationID == MODULATION_ID) return; // not allowed to disconnect neuromodulation.
 	childrenConnexions.erase(childrenConnexions.begin() + id);
 }
@@ -312,13 +312,12 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 	}
 
 	// There is a bias towards the output node being chosen as dID, and the input as oID. More details in the technical notes.
-	constexpr float parallelBias = 2.0f;
+	int inputBias = (int)((float)children.size() / 3.0f);
+	int outputBias = (int)((float)children.size() / 3.0f);
 	int oID, dID;
-	float r;
 	int destinationsInputSize, originOutputSize;
 
-	r = UNIFORM_01;
-	oID = (int)((float)(children.size() + 1) * parallelBias * r);
+	oID = INT_0X((int)children.size() + inputBias + 1);
 	if (oID >= children.size()) { // the incoming connexion comes from the parent's input
 		oID = INPUT_ID;
 		originOutputSize = inputSize;
@@ -327,8 +326,7 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 		originOutputSize = children[oID]->outputSize;
 	}
 
-	r = UNIFORM_01;
-	dID = (int)((float)(children.size() + 1) * parallelBias * r);
+	dID = INT_0X((int)children.size() + outputBias + 1);
 	if (dID >= children.size()) { // the outgoing connexion goes to the parent's output
 		dID = (int)children.size() + 1;
 		destinationsInputSize = outputSize;

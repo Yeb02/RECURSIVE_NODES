@@ -2,13 +2,15 @@ import gym
 from RECURSIVE_NODES import *
 import ctypes
 
-env = gym.make("CartPole-v1")
+env = gym.make("LunarLander-v2", continuous = True)
 
-N_SPECIMENS = 500
-N_TRIALS = 5
+N_SPECIMENS = 100
+N_TRIALS = 1
 in_size = env.observation_space.shape[0]
-# out_size = env.action_space.shape[0] # does not work for cartpole
-out_size = 1
+print(env.observation_space.shape)
+# out_size = env.action_space.shape[0] # does not work for lunar lander
+out_size = 2  #continuous case
+print(in_size, out_size)
 
 population = create_population(in_size, out_size, N_SPECIMENS)
 set_evolution_parameters(population, .2, .05)
@@ -30,6 +32,7 @@ while True:
     for i in range(N_SPECIMENS):
         network = get_network_handle(population, i)
         prepare_network(network)
+        print(i)
         for j in range(N_TRIALS):
         
             state = env.reset()
@@ -37,11 +40,11 @@ while True:
             score = 0
             while True:
                 # env.render()
+                
                 for k in range(in_size):
                     observation[k] = state[k]
                 get_actions(network, observation, action)
-                a = 1 if action[0] > 0 else 0
-                state, reward, terminal, truncated, info = env.step(a)
+                state, reward, terminal, truncated, info = env.step(action)
                 score += reward 
                 if terminal:
                     break

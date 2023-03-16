@@ -37,7 +37,7 @@ public:
 	void computeFitnesses(std::vector<float> avgScorePerSpecimen);
 	void createOffsprings();
 	void mutatePopulation() { for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate(); };
-	void setEvolutionParameters(float f0 = .2f, float regularizationFactor = .03f) {
+	void setEvolutionParameters(float f0 = .0f, float regularizationFactor = .1f) {
 		this->regularizationFactor = regularizationFactor;
 		this->f0 = f0;
 	}

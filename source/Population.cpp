@@ -239,7 +239,8 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials) {
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			score = 0;
 			for (int j = 0; j < trials.size(); j++) { 
-			//for (int j = trials.size() - 1; j < trials.size(); j++) { // all trials but the last are used for life-long learning
+			// all trials but the lasts are used for life-long learning. Disable w mutation to show that hebbian rules are enough !:
+			//for (int j = trials.size() - 5; j < trials.size(); j++) { 
 				score += scores[i * trials.size() + j];
 				avgScoresPerTrial[j] += scores[i * trials.size() + j];
 			}

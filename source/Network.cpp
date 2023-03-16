@@ -111,12 +111,12 @@ void Network::mutate() {
 	constexpr float incrementOutputSizeProbability = .001f;
 	constexpr float decrementOutputSizeProbability = .001f;
 
-	constexpr float addChildProbability = .008f;
+	constexpr float addChildProbability = .01f;
 	constexpr float removeChildProbability = .004f;
 
 	constexpr float childReplacementProbability = .005f;
 
-	constexpr float nodeBoxingProbability = .008f;
+	constexpr float nodeBoxingProbability = .003f;
 	
 	constexpr float nodeDuplicationProbability = .004f;
 
@@ -169,7 +169,7 @@ void Network::mutate() {
 			int rID;
 			r = UNIFORM_01;
 			if (r < decrementInputSizeProbability && genome[i]->inputSize > 0) {
-				rID = (int)(UNIFORM_01 * (float)genome[i]->inputSize);
+				rID = INT_0X(genome[i]->inputSize);
 				genome[i]->decrementInputSize(rID);
 				for (int j = 0; j < genome.size(); j++) {
 					genome[j]->onChildInputSizeDecremented(genome[i].get(), rID);
@@ -178,7 +178,7 @@ void Network::mutate() {
 
 			r = UNIFORM_01;
 			if (r < decrementOutputSizeProbability && genome[i]->outputSize > 0) {
-				rID = (int)(UNIFORM_01 * (float)genome[i]->outputSize);
+				rID = INT_0X(genome[i]->outputSize);
 				genome[i]->decrementOutputSize(rID);
 				for (int j = 0; j < genome.size(); j++) {
 					genome[j]->onChildOutputSizeDecremented(genome[i].get(), rID);
@@ -202,11 +202,11 @@ void Network::mutate() {
 				
 				/*int childID = i;
 				while (childID < genome.size() && genome[childID]->depth <= genome[i]->depth) childID++;
-				childID = (int)(UNIFORM_01 * (float)(childID-1));
+				childID = INT_0X(childID-1);
 				if (childID >= i) childID++;*/
 
 				// Or this: 
-				int childID = (int)(UNIFORM_01 * (float)genome.size());
+				int childID = INT_0X(genome.size());
 				// make sure we do not create a loop:
 				if (hasChild(genome[childID].get(), genome[i].get())) continue; 
 				///////
@@ -218,7 +218,7 @@ void Network::mutate() {
 		}
 		r = UNIFORM_01;
 		if (r < addChildProbability && topNodeG->children.size() < MAX_CHILDREN_PER_BLOCK) {
-			int childID = (int)(UNIFORM_01 * (float)genome.size());
+			int childID = INT_0X(genome.size());
 			topNodeG->addChild(genome[childID].get());
 		}
 	}
@@ -232,7 +232,7 @@ void Network::mutate() {
 
 			if (UNIFORM_01 > childReplacementProbability || n->children.size() == 0) continue;
 
-			rChildID = (int)((float)n->children.size() * UNIFORM_01);
+			rChildID = INT_0X(n->children.size());
 
 			GenotypeNode* child = n->children[rChildID];
 			std::vector<GenotypeNode*> candidates;
@@ -264,8 +264,7 @@ void Network::mutate() {
 				sumDistances[j] = sum;
 				sum += distances[j];
 			}
-			r = UNIFORM_01;
-			replacementID = (int)((float)sum * r);
+			replacementID = INT_0X(sum);
 			int j = 0;
 			while (j < distances.size() - 1 && sumDistances[j + 1] <= replacementID) j++;
 
@@ -285,7 +284,7 @@ void Network::mutate() {
 			if (r < removeChildProbability && genome[i]->children.size() > 0) {
 
 				int prevDepth = genome[i]->depth;
-				int rID = (int)(UNIFORM_01 * (float)genome[i]->children.size());
+				int rID = INT_0X(genome[i]->children.size());
 				genome[i]->removeChild(rID);
 
 				updateDepths();
@@ -295,7 +294,7 @@ void Network::mutate() {
 			}
 		}
 		if (UNIFORM_01 < removeChildProbability && topNodeG->children.size() > 0) {
-			int rID = (int)(UNIFORM_01 * (float)topNodeG->children.size());
+			int rID = INT_0X(topNodeG->children.size());
 			topNodeG->removeChild(rID);
 		}
 	}
@@ -311,8 +310,7 @@ void Network::mutate() {
 			r = UNIFORM_01;
 			if (r > nodeDuplicationProbability * positionMultiplicator || parentNode->children.size() == 0) continue;
 
-			r = UNIFORM_01;
-			rID = (int)((float)parentNode->children.size() * r);
+			rID = INT_0X(parentNode->children.size());
 			if (parentNode->children[rID]->isSimpleNeuron) continue;
 			GenotypeNode* n = new GenotypeNode();
 			GenotypeNode* base = parentNode->children[rID];
@@ -360,7 +358,7 @@ void Network::mutate() {
 			GenotypeNode* parentNode = i != genome.size() ? genome[i].get() : topNodeG.get();
 			if (parentNode->children.size() == 0) continue;
 
-			int rID = (int)(UNIFORM_01 * (float)parentNode->children.size());
+			int rID = INT_0X(parentNode->children.size());
 			float depthFactor = powf(.7f, (float)parentNode->children[rID]->depth);
 			if (UNIFORM_01 < nodeBoxingProbability * depthFactor) {
 				

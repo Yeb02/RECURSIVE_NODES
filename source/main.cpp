@@ -24,7 +24,7 @@
 // Should be on if there is just 1 trial, or no trials at all. Could be on even if there are multiple trials, 
 // but it disables the intertrial update of wLifetime. Not recommended in his case.
 // Enable and disable it in Genotype.h, it does not do anything here !
-//#define CONTINUOUS_LEARNING
+#define CONTINUOUS_LEARNING
 
 ////////////////////////////////////
 ////////////////////////////////////
@@ -44,6 +44,7 @@ using namespace std;
 int main()
 {
 
+
 #ifdef DRAWING
     Drawer drawer(720, 480);
 #endif
@@ -52,20 +53,20 @@ int main()
     LOG(nThreads << " concurrent threads are supported at hardware level.");
     int N_SPECIMENS = nThreads * 64;
     int nDifferentTrials = 3;
-    int nSteps = 3000;
+    int nSteps = 10000;
 
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
     vector<unique_ptr<Trial>> trials;
     for (int i = 0; i < nDifferentTrials; i++) {
 #ifdef CARTPOLE
-        trials.emplace_back(new CartPoleTrial()); // Set nDifferentTrials to 3
+        trials.emplace_back(new CartPoleTrial()); // Set nDifferentTrials to 5
 #elif defined XOR 
-        trials.emplace_back(new XorTrial(3));  // Set nDifferentTrials to vSize * vSize
+        trials.emplace_back(new XorTrial(2,5));  // Set nDifferentTrials to vSize * vSize
 #endif
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
-    population.setEvolutionParameters(.2f, .05f);
+    population.setEvolutionParameters(.0f, .1f);
 
     LOG("Using " << nThreads << ".")
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
@@ -79,7 +80,8 @@ int main()
 #ifdef DRAWING
         drawer.draw(population.getSpecimenPointer(population.fittestSpecimen));
 #endif
-
+        //float f0 = 1.0f * (1.0f + sinf((float)i / 2.0f));
+        //population.setEvolutionParameters(f0, .2f);
         population.step(trials);
         if ((i + 1) % 100 == 0) { // defragmentate.
             string fileName = population.save();

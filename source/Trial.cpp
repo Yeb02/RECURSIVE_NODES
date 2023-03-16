@@ -5,8 +5,8 @@
 #include "Trial.h"
 
 
-XorTrial::XorTrial(int vSize) :
-	vSize(vSize)
+XorTrial::XorTrial(int vSize, int delay) :
+	vSize(vSize), delay(delay)
 {
 	netInSize = vSize;
 	netOutSize = vSize;
@@ -35,30 +35,30 @@ void XorTrial::reset(bool sameSeed) {
 }
 
 void XorTrial::step(const std::vector<float>& actions) {
-	constexpr int endV1Phase = 5;
-	constexpr int endV2Phase = 10;
-	constexpr int startResponsePhase = 10;
-	constexpr int endResponsePhase = 15;
+	//constexpr int endV1Phase = 5;
+	//constexpr int endV2Phase = 10;
+	//constexpr int startResponsePhase = 10;
+	//constexpr int endResponsePhase = 15;
 
 	
-	if (currentNStep == endV1Phase) {
+	if (currentNStep == delay) {
 		for (int i = 0; i < vSize; i++)  observations[i] = v2[i] ? 1.0f : -1.0f;
 	}
 
-	if (currentNStep == endV2Phase) {
+	if (currentNStep == delay*2) {
 		for (int i = 0; i < vSize; i++)  observations[i] = 0.0f;
 	}
 
-	if (currentNStep < endResponsePhase && currentNStep >= startResponsePhase) {
+	if (currentNStep < delay*3 && currentNStep >= delay*2) {
 		for (int i = 0; i < vSize; i++)  
 			score += (float) (actions[i] > 0) == v1_xor_v2[i]; 
 	}
 
-	if (currentNStep >= endResponsePhase) {
+	if (currentNStep >= delay*3) {
 		isTrialOver = true;
 
 		// score normalization, not necessary
-		if (currentNStep == endResponsePhase) score /= (float) ((endResponsePhase - startResponsePhase) * vSize);
+		if (currentNStep == delay * 3) score /= (float) (delay * vSize);
 	}
 
 	currentNStep++;
@@ -67,6 +67,7 @@ void XorTrial::step(const std::vector<float>& actions) {
 void XorTrial::copy(Trial* t0) {
 	XorTrial* t = dynamic_cast<XorTrial*>(t0);
 	vSize = t->vSize;
+	delay = t->delay;
 	netInSize = vSize;
 	netOutSize = vSize;
 	v1.resize(vSize);
@@ -83,7 +84,7 @@ void XorTrial::copy(Trial* t0) {
 }
 
 Trial* XorTrial::clone() {
-	XorTrial* t = new XorTrial(vSize);
+	XorTrial* t = new XorTrial(vSize, delay);
 	for (int i = 0; i < vSize; i++) {
 		t->v1[i] = v1[i];
 		t->v2[i] = v2[i];

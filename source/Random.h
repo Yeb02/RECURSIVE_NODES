@@ -4,6 +4,7 @@
 
 extern std::default_random_engine generator;
 extern std::uniform_real_distribution<float> Udistribution;
+extern std::uniform_int_distribution<uint32_t> UIdistribution;
 extern std::normal_distribution<float> Ndistribution;
 extern std::binomial_distribution<int> Bdistribution;
 
@@ -11,3 +12,9 @@ extern std::binomial_distribution<int> Bdistribution;
 #define NORMAL_01 Ndistribution(generator)
 #define BINOMIAL Bdistribution(generator)
 #define SET_BINOMIAL(n, p) Bdistribution.param(std::binomial_distribution<int>::param_type(n, p))
+
+
+// yeah .... see Notes of https://en.cppreference.com/w/cpp/numeric/random/uniform_real_distribution
+//#define INT_0X(x) (int)(Udistribution(generator) * (float)(x)-.000000000001f) 
+// This is blazing fast:
+#define INT_0X(x) (int)(((uint64_t)UIdistribution(generator) * x) >> 32)

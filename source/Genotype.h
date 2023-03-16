@@ -7,7 +7,7 @@
 #include "Random.h"
 
 // Compilation option:
-//#define CONTINUOUS_LEARNING
+#define CONTINUOUS_LEARNING
 
 // Constants:
 #define MAX_CHILDREN_PER_BLOCK  10
@@ -50,7 +50,7 @@ struct GenotypeConnexion {
 	// This means that on vector reallocation the move constructor is called. But if it is not specified, it does not 
 	// exist because there is a specified destructor. Therefore the constructor and the destructor are called
 	// instead, which causes unwanted freeing of memory.
-	// Moreover, if it is not marked noexcept std::vector will use copy+destructor instead in some cases, WTF ????
+	// Moreover, if it is not marked noexcept std::vector will still use copy+destructor instead in some cases, WTF ????
 	// https://stackoverflow.com/questions/9249781/are-move-constructors-required-to-be-noexcept
 	GenotypeConnexion(GenotypeConnexion&& gc) noexcept;
 
@@ -71,12 +71,12 @@ struct GenotypeNode {
 	// Contains pointers to the genotypes of the children
 	std::vector<GenotypeNode*> children;
 
-	// Vector of structs containing pointers to the fixed connexion matrices linking children
+	// Vector of structs holding pointers to the fixed connexion matrices linking children
 	std::vector<GenotypeConnexion> childrenConnexions;
 
 	float biasMplus, biasMminus;
 
-	// Depth of the children tree. =0 for simple neurons
+	// Depth of the children tree. =0 for simple neurons, at least 1 otherwise
 	int depth;
 
 	// The position in the genome vector. Must be genome.size() - 1 for the top node.

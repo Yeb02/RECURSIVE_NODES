@@ -50,7 +50,7 @@ class XorTrial : public Trial {
 
 public:
 	// Required network sizes: input = vectorSize, output = vectorSize.
-	XorTrial(int vectorSize);
+	XorTrial(int vectorSize, int delay);
 	void step(const std::vector<float>& actions) override;
 	void reset(bool sameSeed = false) override;
 	void copy(Trial* t) override;
@@ -58,6 +58,7 @@ public:
 
 private:
 	int vSize;
+	int delay;
 	std::vector<bool> v1, v2, v1_xor_v2;
 };
 
