@@ -9,6 +9,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
+	D = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
 #ifdef CONTINUOUS_LEARNING
@@ -22,6 +23,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			A[i] = NORMAL_01 * .2f;
 			B[i] = NORMAL_01 * .2f;
 			C[i] = NORMAL_01 * .2f;
+			D[i] = NORMAL_01 * .2f;
 			alpha[i] = 0.0f;
 			w[i] = 0.0f;
 #ifdef CONTINUOUS_LEARNING
@@ -34,6 +36,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			A[i] = NORMAL_01 * .2f;
 			B[i] = NORMAL_01 * .2f;
 			C[i] = NORMAL_01 * .2f;
+			D[i] = NORMAL_01 * .2f;
 			alpha[i] = NORMAL_01 *.2f;
 			eta[i] = UNIFORM_01;
 			w[i] = NORMAL_01*.2f;
@@ -53,6 +56,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 				A[i] = NORMAL_01 * .2f;
 				B[i] = NORMAL_01 * .2f;
 				C[i] = NORMAL_01 * .2f;
+				D[i] = NORMAL_01 * .2f;
 				alpha[i] = 0.0f;
 				eta[i] = UNIFORM_01;
 				w[i] = v;
@@ -78,6 +82,7 @@ GenotypeConnexion::GenotypeConnexion(GenotypeConnexion&& gc) noexcept {
 	A = std::move(gc.A);
 	B = std::move(gc.B);
 	C = std::move(gc.C);
+	D = std::move(gc.D);
 	eta = std::move(gc.eta);
 	w = std::move(gc.w);
 	alpha = std::move(gc.alpha);
@@ -100,6 +105,7 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
+	D = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
 #ifdef CONTINUOUS_LEARNING
@@ -111,6 +117,7 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	memcpy(A.get(), gc.A.get(), sizeof(float) * s);
 	memcpy(B.get(), gc.B.get(), sizeof(float) * s);
 	memcpy(C.get(), gc.C.get(), sizeof(float) * s);
+	memcpy(D.get(), gc.D.get(), sizeof(float) * s);
 	memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
 	memcpy(w.get(), gc.w.get(), sizeof(float) * s);
 #ifdef CONTINUOUS_LEARNING
@@ -130,6 +137,7 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
+	D = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
 #ifdef CONTINUOUS_LEARNING
@@ -164,9 +172,9 @@ void GenotypeNode::computeBeacons() {
 void GenotypeNode::mutateFloats() {
 	float r, r2;
 #ifdef CONTINUOUS_LEARNING
-	constexpr int nArrays = 7;  // added gamma
+	constexpr int nArrays = 8;  // added gamma
 #else 
-	constexpr int nArrays = 6;
+	constexpr int nArrays = 7;
 #endif
 	constexpr float normalFactor = .3f; // .3f ??
 	constexpr float sumFactor = .4f; // .4f ??
@@ -197,9 +205,10 @@ void GenotypeNode::mutateFloats() {
 			case 0: aPtr = childrenConnexions[listID].A.get(); break;
 			case 1: aPtr = childrenConnexions[listID].B.get(); break;
 			case 2: aPtr = childrenConnexions[listID].C.get(); break;
-			case 3: aPtr = childrenConnexions[listID].alpha.get(); break;
-			case 4: aPtr = childrenConnexions[listID].w.get(); break;
-			case 5:  // eta
+			case 3: aPtr = childrenConnexions[listID].D.get(); break;
+			case 4: aPtr = childrenConnexions[listID].alpha.get(); break;
+			case 5: aPtr = childrenConnexions[listID].w.get(); break;
+			case 6:  // eta
 				aPtr = childrenConnexions[listID].eta.get(); 
 				// this allows for high precision mutations when eta (or 1- eta) is close to 1.
 				aPtr[matrixID] = UNIFORM_01 < .05f ?
@@ -208,7 +217,7 @@ void GenotypeNode::mutateFloats() {
 				//aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;// alternative
 				break;
 #ifdef CONTINUOUS_LEARNING
-			case 6:  // gamma
+			case 7:  // gamma
 				aPtr = childrenConnexions[listID].gamma.get(); 
 				aPtr[matrixID] = UNIFORM_01 < .05f ?
 					aPtr[matrixID] * .8f + UNIFORM_01 * .2f :
@@ -218,7 +227,7 @@ void GenotypeNode::mutateFloats() {
 #endif
 			}
 
-			if (arrayN < 5) {
+			if (arrayN < 6) {
 				r = normalFactor * NORMAL_01;
 				r2 = sumFactor * NORMAL_01;
 				aPtr[matrixID] *= .9f + r;

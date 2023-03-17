@@ -196,11 +196,11 @@ void Population::evaluate(const int i0, const int subArraySize, std::vector<std:
 	}
 }
 
-void Population::step(std::vector<std::unique_ptr<Trial>>& trials) {
+void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEvaluated) {
 
 	for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate();  // TODO COMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
 	
-	// evaluate the specimens on trials
+	// evaluate the specimens on trials. Todo fit the size ...
 	std::vector<float> scores(trials.size() * N_SPECIMENS);
 	pScores = scores.data();
 	if (N_THREADS > 1) {
@@ -231,18 +231,17 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials) {
 	// operation on scores
 	std::vector<float> avgScorePerSpecimen(N_SPECIMENS);
 	{
-		std::vector<float> avgScoresPerTrial(trials.size());
+		std::vector<float> avgScoresPerTrial(nTrialsEvaluated);
 
 		float maxScore = 0.0f;
 		int maxScoreID = 0;
-		float score, avgFactor=1.0f/(float) trials.size();
+		float score, avgFactor=1.0f/(float)nTrialsEvaluated;
+		int i0 = (int)trials.size() - nTrialsEvaluated;
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			score = 0;
-			for (int j = 0; j < trials.size(); j++) { 
-			// all trials but the lasts are used for life-long learning. Disable w mutation to show that hebbian rules are enough !:
-			//for (int j = trials.size() - 5; j < trials.size(); j++) { 
+			for (int j = i0; j < trials.size(); j++) {
 				score += scores[i * trials.size() + j];
-				avgScoresPerTrial[j] += scores[i * trials.size() + j];
+				avgScoresPerTrial[j-i0] += scores[i * trials.size() + j];
 			}
 			score *= avgFactor;
 			avgScorePerSpecimen[i] = score;
@@ -254,11 +253,11 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials) {
 
 		fittestSpecimen = maxScoreID;
 
-		// LOGS, TODO REMOVE IN THE FINAL BUILD
-		for (int j = 0; j < trials.size(); j++) avgScoresPerTrial[j] /= (float)N_SPECIMENS;
+		// LOGS, CAN BE COMMENTED IN THE FINAL BUILD
+		for (int j = 0; j < nTrialsEvaluated; j++) avgScoresPerTrial[j] /= (float)N_SPECIMENS;
 		float avgavgf = 0.0f;
 		for (float f : avgScoresPerTrial) avgavgf += f;
-		avgavgf /= trials.size();
+		avgavgf /= nTrialsEvaluated;
 		std::cout << "At iteration " << iteration 
 			<< ", max score = " << avgScorePerSpecimen[fittestSpecimen]
 			<< ", avg avg score = " << avgavgf << ".\n";

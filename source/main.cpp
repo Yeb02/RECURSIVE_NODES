@@ -52,7 +52,7 @@ int main()
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
     int N_SPECIMENS = nThreads * 64;
-    int nDifferentTrials = 3;
+    int nDifferentTrials = 4;
     int nSteps = 10000;
 
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
@@ -66,10 +66,14 @@ int main()
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
-    population.setEvolutionParameters(.0f, .1f);
+    population.setEvolutionParameters(.0f, .15f);
+    int nTrialsEvaluated = (int)trials.size();
+    //int nTrialsEvaluated = 2;
+    //int nTrialsEvaluated = (int)trials.size() / 4;
 
     LOG("Using " << nThreads << ".")
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
+    LOG("Evaluating on the last " << nTrialsEvaluated << " trials.");
 
 
 
@@ -82,7 +86,7 @@ int main()
 #endif
         //float f0 = 1.0f * (1.0f + sinf((float)i / 2.0f));
         //population.setEvolutionParameters(f0, .2f);
-        population.step(trials);
+        population.step(trials, nTrialsEvaluated);
         if ((i + 1) % 100 == 0) { // defragmentate.
             string fileName = population.save();
             population.load(fileName);

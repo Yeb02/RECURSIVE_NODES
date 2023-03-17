@@ -532,6 +532,7 @@ float Network::getRegularizationLoss() {
 				amplitudes[i] += abs(n->childrenConnexions[j].A[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].B[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].C[k]);
+				//amplitudes[i] += abs(n->childrenConnexions[j].D[k]); // ??? nArrays ++.
 				amplitudes[i] += abs(n->childrenConnexions[j].alpha[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].w[k]);
 			}
@@ -543,7 +544,7 @@ float Network::getRegularizationLoss() {
 		}
 	}
 
-	// the lower the exponent, the stronger the size regularization
-	constexpr float exponent = .7f;
-	return amplitudes[genome.size()] * powf((float) nParams[genome.size()], -exponent); 
+	// the higher the exponent, the stronger the size regularization
+	constexpr float exponent = .1f;
+	return amplitudes[genome.size()] * powf((float) nParams[genome.size()] / nArrays, -1.0f + exponent); 
 }

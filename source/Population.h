@@ -30,7 +30,8 @@ public:
 	~Population();
 	void startThreads(int N_THREADS);
 	void stopThreads();
-	void step(std::vector<std::unique_ptr<Trial>>& trials);
+	// Only the last nTrialsEvaluated are used for fitness calculations. Previous ones are used for lifelong learning.
+	void step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEvaluated);
 
 	// Exposed to the DLL interface:
 	Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS);

@@ -11,7 +11,7 @@ in_size = env.observation_space.shape[0]
 out_size = 1
 
 population = create_population(in_size, out_size, N_SPECIMENS)
-set_evolution_parameters(population, .2, .05)
+set_evolution_parameters(population, .0, .1)
 drawer = initialize_drawer(720, 480)
 
 #  Use type compatible with c++ arrays
@@ -32,8 +32,7 @@ while True:
         prepare_network(network)
         for j in range(N_TRIALS):
         
-            state = env.reset()
-            state = state[0]
+            state = env.reset()[0]
             score = 0
             while True:
                 # env.render()

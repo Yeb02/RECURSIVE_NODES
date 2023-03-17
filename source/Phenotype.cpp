@@ -203,6 +203,7 @@ void PhenotypeNode::forward(const float* input) {
 		float* A = type->childrenConnexions[id].A.get();
 		float* B = type->childrenConnexions[id].B.get();
 		float* C = type->childrenConnexions[id].C.get();
+		float* D = type->childrenConnexions[id].D.get();
 		float* eta = type->childrenConnexions[id].eta.get();
 		float* H = childrenConnexions[id].H.get();
 		float* E = childrenConnexions[id].E.get();
@@ -238,10 +239,11 @@ void PhenotypeNode::forward(const float* input) {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID];
+				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * neuromodulatorySignal;
+				//wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID];
 #endif
-				E[matID] = (1 - eta[matID]) * E[matID] + 
-					eta[matID] * (A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j]);
+				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
+					(A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j] + D[matID]);
 
 				H[matID] += E[matID] * neuromodulatorySignal;
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
@@ -259,8 +261,6 @@ void PhenotypeNode::forward(const float* input) {
 	for (int i = 0; i < type->inputSize; i++) {
 		previousInput[i] = input[i];
 	}
-
-
 
 	delete[] _childInputs;
 }

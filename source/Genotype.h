@@ -33,6 +33,7 @@ struct GenotypeConnexion {
 	std::unique_ptr<float[]> A;
 	std::unique_ptr<float[]> B;
 	std::unique_ptr<float[]> C;
+	std::unique_ptr<float[]> D;
 	std::unique_ptr<float[]> eta;
 	std::unique_ptr<float[]> alpha;
 	std::unique_ptr<float[]> w;
