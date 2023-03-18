@@ -45,8 +45,9 @@ struct PhenotypeNode {
 	GenotypeNode* type;
 
 	int nInferences; // store how many inferences this node has performed since last interTrialReset.
-	float neuromodulatorySignal; //initialized at 1 at the beginning of a trial
-	float M[2];
+	float localM; // computed in this node
+	float totalM; // parent's + local M
+
 	// Pointers to its children. Responsible for their lifetime !
 	std::vector<PhenotypeNode> children;
 

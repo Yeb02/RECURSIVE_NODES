@@ -19,7 +19,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 	if (init == ZERO || (init == IDENTITY && nLines != nColumns)) {
 		for (int i = 0; i < nLines * nColumns; i++) {
 
-			eta[i] = UNIFORM_01;
+			eta[i] = .3f * UNIFORM_01;
 			A[i] = NORMAL_01 * .2f;
 			B[i] = NORMAL_01 * .2f;
 			C[i] = NORMAL_01 * .2f;
@@ -27,7 +27,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			alpha[i] = 0.0f;
 			w[i] = 0.0f;
 #ifdef CONTINUOUS_LEARNING
-			gamma[i] = .1f;
+			gamma[i] = UNIFORM_01 * .3f;
 #endif
 		}
 	}
@@ -38,7 +38,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			C[i] = NORMAL_01 * .2f;
 			D[i] = NORMAL_01 * .2f;
 			alpha[i] = NORMAL_01 *.2f;
-			eta[i] = UNIFORM_01;
+			eta[i] = .3f * UNIFORM_01;
 			w[i] = NORMAL_01*.2f;
 #ifdef CONTINUOUS_LEARNING
 			gamma[i] = .3f * UNIFORM_01;
@@ -58,7 +58,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 				C[i] = NORMAL_01 * .2f;
 				D[i] = NORMAL_01 * .2f;
 				alpha[i] = 0.0f;
-				eta[i] = UNIFORM_01;
+				eta[i] = .3f * UNIFORM_01;
 				w[i] = v;
 #ifdef CONTINUOUS_LEARNING
 				gamma[i] = .3f * UNIFORM_01;
@@ -176,13 +176,13 @@ void GenotypeNode::mutateFloats() {
 #else 
 	constexpr int nArrays = 7;
 #endif
-	constexpr float normalFactor = .3f; // .3f ??
-	constexpr float sumFactor = .4f; // .4f ??
+	constexpr float normalFactor = .5f; // .4f ??
+	constexpr float sumFactor = .5f; // .4f ??
 	// Lowering those 2 to .1f on cartpole yields intriguing results: not only is convergence
 	// slower, but also worse. And average population score, after mutation, is much worse too !
 	// The found optimum is less stable.
 
-	constexpr float pMutation = .2f; // .1f ??
+	constexpr float pMutation = .2f; // .2f ??
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
 
 
@@ -252,13 +252,8 @@ void GenotypeNode::mutateFloats() {
 
 	r = normalFactor * NORMAL_01;
 	r2 = sumFactor * NORMAL_01;
-	biasMplus *= .95f + r;
-	biasMplus += r2;
-
-	r = normalFactor * NORMAL_01;
-	r2 = sumFactor * NORMAL_01; 
-	biasMminus *= .95f + r;
-	biasMminus += r2;
+	biasM *= .95f + r;
+	biasM += r2;
 }
 
 // This implementation makes it less likely to gain connexions when many are already populated.
@@ -266,8 +261,8 @@ void GenotypeNode::mutateFloats() {
 // Note that a child node can be connected to itself.
 void GenotypeNode::connect() {
 	if (children.size() == 0) return;
-	int inputBias = (int)((float)children.size() / 3.0f);
-	int outputBias = (int)((float)children.size() / 3.0f);
+	int inputBias = (int)((float)children.size() / 1.5f);
+	int outputBias = (int)((float)children.size() / 1.5f);
 	int c1, c2;
 	const int maxAttempts = 3;
 	bool alreadyExists;
@@ -321,8 +316,8 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 	}
 
 	// There is a bias towards the output node being chosen as dID, and the input as oID. More details in the technical notes.
-	int inputBias = (int)((float)children.size() / 3.0f);
-	int outputBias = (int)((float)children.size() / 3.0f);
+	int inputBias = (int)((float)children.size() / 1.5f);
+	int outputBias = (int)((float)children.size() / 1.5f);
 	int oID, dID;
 	int destinationsInputSize, originOutputSize;
 
@@ -656,8 +651,7 @@ void GenotypeNode::copyParameters(GenotypeNode* n) {
 		outputSize = n->outputSize;
 		inBias.assign(n->inBias.begin(), n->inBias.end());
 		outBias.assign(n->outBias.begin(), n->outBias.end());
-		biasMplus = 0.0f;
-		biasMminus = 0.0f;
+		biasM = n->biasM;
 		concatenatedChildrenInputLength = n->concatenatedChildrenInputLength;
 		depth = n->depth;
 		position = n->position;

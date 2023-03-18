@@ -16,9 +16,9 @@
 
 
 // Define the trials on which to evolve. One and only one must be defined: (or tweak main())
-//#define CARTPOLE
+#define CARTPOLE
 //#define XOR
-#define TMAZE
+//#define TMAZE
 
 // When defined, wLifetime updates take place during the trial and not at the end of it.
 // Should be on if there is just 1 trial, or equivalently no trials at all. Could be on even if there 
@@ -52,7 +52,7 @@ int main()
     nThreads = 1;
 #endif
     int N_SPECIMENS = nThreads * 64;
-    int nDifferentTrials = 4;
+    int nDifferentTrials = 8;
     int nSteps = 10000;
 
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
@@ -68,10 +68,9 @@ int main()
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
-    //population.setEvolutionParameters(.0f, .15f, .5f); 
-    population.setEvolutionParameters(.0f, .15f, .0f); 
-    int nTrialsEvaluated = (int)trials.size();
-    //int nTrialsEvaluated = 2;
+    population.setEvolutionParameters(.0f, .15f, .5f); 
+    //int nTrialsEvaluated = (int)trials.size();
+    int nTrialsEvaluated = 2;
     //int nTrialsEvaluated = (int)trials.size() / 4;
 
     LOG("Using " << nThreads << ".");
@@ -86,7 +85,7 @@ int main()
 #endif
 #ifdef TMAZE
         for (int j = 0; j < nDifferentTrials; j++) {
-            int switchesSide = UNIFORM_01 > 0.99f;
+            int switchesSide = UNIFORM_01 > 0.5f;
             trials[j]->outerLoopUpdate(&switchesSide);
         }
 #endif

@@ -79,8 +79,7 @@ inputSize(inputSize), outputSize(outputSize)
 	topNodeG->childrenConnexions.emplace_back(
 		INPUT_ID, MODULATION_ID, 2, inputSize, GenotypeConnexion::RANDOM
 	);
-	topNodeG->biasMplus = NORMAL_01;
-	topNodeG->biasMminus = NORMAL_01;
+	topNodeG->biasM = NORMAL_01;
 	topNodeG->inBias.resize(inputSize);
 	topNodeG->outBias.resize(outputSize);
 	topNodeG->computeBeacons();
@@ -93,7 +92,6 @@ std::vector<float> Network::getOutput() {
 
 
 void Network::step(const std::vector<float>& obs) {
-	topNodeP->neuromodulatorySignal = 1.0f; // other nodes have it set by their parent
 	topNodeP->forward(obs.data());
 }
 
@@ -321,8 +319,7 @@ void Network::mutate() {
 			n->outputSize = base->outputSize;
 			n->inBias.assign(base->inBias.begin(), base->inBias.end());
 			n->outBias.assign(base->outBias.begin(), base->outBias.end());
-			n->biasMplus = base->biasMplus;
-			n->biasMminus = base->biasMminus;
+			n->biasM = base->biasM;
 			n->concatenatedChildrenInputLength = base->concatenatedChildrenInputLength;
 			n->depth = base->depth;
 			n->closestNode = base;
@@ -379,8 +376,7 @@ void Network::mutate() {
 					for (int j = 0; j < box->outputSize; j++) {
 						box->outBias[j] = 0.0f;
 					}
-					box->biasMplus = NORMAL_01*.2f;
-					box->biasMminus = NORMAL_01 * .2f;
+					box->biasM = NORMAL_01*.2f;
 				}
 				else {
 					for (int j = 0; j < box->inputSize; j++) {
@@ -389,8 +385,7 @@ void Network::mutate() {
 					for (int j = 0; j < box->outputSize; j++) {
 						box->outBias[j] = child->outBias[j];
 					}
-					box->biasMplus = child->biasMplus;
-					box->biasMminus = child->biasMminus;
+					box->biasM = NORMAL_01 * .2f; // or 0...
 				}
 				
 				box->depth = child->depth + 1;

@@ -142,13 +142,6 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 	constexpr float force_mag = 10.0f;
 
 	if (abs(theta) > .21f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true; 
-	// A final reward slightly improves robustness, but surprisingly increasing the steps limit is the way to improve
-	// average performance (drastically !). This is probably because of the dynamic nature of connexions in this model. 
-	// TODO investigate !
-	/*if (currentNStep == STEP_LIMIT) { 
-		score *= 1.5f;
-		currentNStep++;
-	}*/
 	if (isTrialOver) return;
 
 	currentNStep++;
@@ -164,13 +157,13 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 	// number of steps) has not shown a statistically significant improvement either. More torough tests are needed.
 
 	float force;
-	// Gym uses force = sign(actions[0]). It makes convergence much faster (if at all), but has not as good average
-	// performance as a continuous control (i.e. force = actions[0]) when the problem is "easy", or "nearly solved".
-	force = actions[0] > 0 ? 1.0f : -1.0f; 
-	//force = actions[0];  
+	// Gym uses force = sign(actions[0]). It makes convergence much faster, but has not as good 
+	// performance as a continuous control with force = actions[0].
+	//force = actions[0] > 0 ? 1.0f : -1.0f; 
+	force = actions[0];  
+
 
 	// update as per https://coneural.org/florian/papers/05_cart_pole.pdf
-
 	float cosTheta = cosf(theta), sinTheta = sinf(theta);
 
 	// I re-ordered the terms in order to minimize the number of division operation.

@@ -75,7 +75,8 @@ struct GenotypeNode {
 	// Vector of structs holding pointers to the fixed connexion matrices linking children
 	std::vector<GenotypeConnexion> childrenConnexions;
 
-	float biasMplus, biasMminus;
+	// neuromodulation bias.
+	float biasM;
 
 	// Depth of the children tree. =0 for simple neurons, at least 1 otherwise
 	int depth;
@@ -105,9 +106,6 @@ struct GenotypeNode {
 	// WARNING ! Creates a deep copy of this node and its connexions. However, node pointers 
 	// must be updated manually ! See Network(Network * n) 's implementation for an example.
 	void copyParameters(GenotypeNode* n);
-
-	// Used for the top node, as its input bias should not mutate.
-	void zeroInBias() {for (int i = 0; i < inputSize; i++) inBias[i] = 0;}
 
 	// Populates the concatenatedChildrenInputBeacons vector and sets concatenatedChildrenInputLength
 	void computeBeacons();

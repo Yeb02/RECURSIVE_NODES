@@ -276,11 +276,11 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			for (int j = i0; j < tSize; j++) {
 				scores[i * tSize + j] -= avgs[j - i0];
-				vars[j - i0] += scores[i * tSize + j];
+				vars[j - i0] += scores[i * tSize + j]* scores[i * tSize + j];
 			}
 		}
 		for (int i = 0; i < nTrialsEvaluated; i++) {
-			if (abs(vars[i]) < .0001f) { // if all specimens have the same scores.
+			if (vars[i] < .01f) { // if all specimens have sensibly the same scores.
 				vars[i] = 1.0f;
 				continue;
 			}

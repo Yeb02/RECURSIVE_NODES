@@ -62,9 +62,8 @@ PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 		);
 	}
 
-	neuromodulatorySignal = 0.0f;
-	M[0] = 0.0f;
-	M[1] = 0.0f;
+	totalM = 0.0f;
+	localM = 0.0f;
 };
 
 void PhenotypeNode::interTrialReset() {
@@ -88,9 +87,8 @@ void PhenotypeNode::interTrialReset() {
 #endif
 		childrenConnexions[i].zero(s);
 	}
-	neuromodulatorySignal = 0.0f;
-	M[0] = 0.0f;
-	M[1] = 0.0f;
+	totalM = 0.0f;
+	localM = 0.0f;
 	nInferences = 1; // not 0 to avoid division by 0 if intertrialReset is called again before going through any new trial 
 }
 
@@ -104,9 +102,8 @@ void PhenotypeNode::forward(const float* input) {
 	for (int i = 0; i < type->concatenatedChildrenInputLength + type->outputSize; i++) _childInputs[i] = 0.0f;
 
 	// save previous step's M.
-	float previousM[2] = { M[0], M[1] };
-	M[0] = type->biasMplus;
-	M[1] = type->biasMminus;
+	float previousLocalM = localM;
+	localM = type->biasM;
 
 	// propagate the previous steps's outputs, by iterating over the connexions between children
 	for (int id = 0; id < childrenConnexions.size(); id++) {
@@ -129,7 +126,7 @@ void PhenotypeNode::forward(const float* input) {
 				for (int i = 0; i < nl; i++) {
 					for (int j = 0; j < nc; j++) {
 						// += (H * alpha + w) * prevAct
-						M[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
+						localM += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
 						matID++;
 					}
 				}
@@ -157,9 +154,8 @@ void PhenotypeNode::forward(const float* input) {
 	}
 
 	// neuromodulation
-	M[0] = tanhf(M[0]);
-	M[1] = tanhf(M[1]);
-	neuromodulatorySignal *= (M[0] - M[1]) * .707f; // 1/sqrt(2)
+	localM = tanhf(localM);
+	totalM += localM; 
 
 	// apply children's forward, after a tanh for non-simple neurons. 
 	int _inputListID = 0;
@@ -177,7 +173,7 @@ void PhenotypeNode::forward(const float* input) {
 			children[i].currentOutput[0] = _childInputs[_inputListID];
 		}
 		else {
-			children[i].neuromodulatorySignal = this->neuromodulatorySignal;
+			children[i].totalM = this->totalM;
 			int maxJ = _inputListID + children[i].type->inputSize;
 			for (int j = _inputListID; j < maxJ; j++) {
 				_childInputs[j] = tanhf(_childInputs[j] + children[i].type->inBias[j - _inputListID]);
@@ -223,7 +219,7 @@ void PhenotypeNode::forward(const float* input) {
 			iArray = currentOutput.data();
 		}
 		else if (destinationID == MODULATION_ID) {
-			iArray = M;
+			iArray = &localM;
 		}
 		else {
 			iArray = children[destinationID].previousInput.data();
@@ -239,15 +235,17 @@ void PhenotypeNode::forward(const float* input) {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				// On simple examples (cartpole), these two mutually exclusive lines worsen avgFitness. 
-				// Is the explanation solely in gamma's mutations ?  
-				wLifetime[matID] += alpha[matID] * E[matID] * gamma[matID] * neuromodulatorySignal;
+				// On simple examples (cartpole), these supposedly exclusive lines worsen avgFitness. 
+				// Does the explanation reside solely in gamma's mutations ?  
+				//wLifetime[matID] += alpha[matID] * E[matID] * gamma[matID] * totalM; 
+				//wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * totalM; 
 				//wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID];
+				//wLifetime[matID] += alpha[matID] * E[matID] * gamma[matID];
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
 					(A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j] + D[matID]);
 
-				H[matID] += E[matID] * neuromodulatorySignal;
+				H[matID] += E[matID] * totalM;
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
 #ifndef CONTINUOUS_LEARNING
 				avgH[matID] += H[matID];
