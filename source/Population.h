@@ -20,15 +20,15 @@ For each trial, initialization is random, but the same values are kept within th
 diminishes noise and speeds up convergence. The scores are saved into a matrix. 
 
 - An original, simple niching algorithm is applied, based on ressource sharing principles. After computing
-raw scores, we have a matrix of values, one axis corresponds to the trials, the other to the specimens.
+raw scores, we have a matrix of values, one axis corresponding to the trials, the other to the specimens.
 The vectors of scores per trial are linearly transformed to have mean 0 and variance 1.
-They are then linearly transformed again to have min = 0 and max = 1. Both steps are needed, and are not
-redundant. Then compute the score per specimen, a p-norm of its score vector.
+Then linearly transformed again to have min = 0 and max = 1. Both steps are needed, and are not
+redundant. Score per specimen is finally a p-norm of its score vector.
 Increasing p beyond 1 fosters specialisation, p=inf being the extreme with only the best trial taken into consideration
 when computing fitnesses. p < 1 is allowed because at this point all values are positive (in [0, 1]). 
 p=1 encourages digging where other's do not. Decreasing p furthermore weakens the "outwards push".
-Which is better is up to the problem's setting and its hyperparameters. I recommend disabling it 
-when nTrials is small, i.e. < 8, and the difference between trials is not especially meaningful,
+Which is better is up to the problem's setting and its hyperparameters. I recommend disabling it completely, 
+(nichingNorm = 0), when nTrials is small( < 8), and the difference between trials is not especially meaningful,
 like running the same trial with slightly different random init.
 
 TODO experiment.

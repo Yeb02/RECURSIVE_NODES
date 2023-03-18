@@ -16,10 +16,9 @@
 
 
 // Define the trials on which to evolve. One and only one must be defined: (or tweak main())
-#define CARTPOLE
-#ifndef CARTPOLE
-#define XOR
-#endif 
+//#define CARTPOLE
+//#define XOR
+#define TMAZE
 
 // When defined, wLifetime updates take place during the trial and not at the end of it.
 // Should be on if there is just 1 trial, or equivalently no trials at all. Could be on even if there 
@@ -49,8 +48,11 @@ int main()
 
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
+#ifdef _DEBUG
+    nThreads = 1;
+#endif
     int N_SPECIMENS = nThreads * 64;
-    int nDifferentTrials = 3;
+    int nDifferentTrials = 4;
     int nSteps = 10000;
 
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
@@ -60,17 +62,19 @@ int main()
         trials.emplace_back(new CartPoleTrial()); // Set nDifferentTrials to 5
 #elif defined XOR 
         trials.emplace_back(new XorTrial(3,5));  // Set nDifferentTrials to vSize * vSize
+#elif defined TMAZE
+        trials.emplace_back(new TMazeTrial(false));
 #endif
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
     //population.setEvolutionParameters(.0f, .15f, .5f); 
-    population.setEvolutionParameters(.0f, .15f, 0.0f);
+    population.setEvolutionParameters(.0f, .15f, .0f); 
     int nTrialsEvaluated = (int)trials.size();
     //int nTrialsEvaluated = 2;
     //int nTrialsEvaluated = (int)trials.size() / 4;
 
-    LOG("Using " << nThreads << ".")
+    LOG("Using " << nThreads << ".");
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
     LOG("Evaluating on the last " << nTrialsEvaluated << " trials.");
 
@@ -79,6 +83,12 @@ int main()
     for (int i = 0; i < nSteps; i++) {
 #ifdef DRAWING
         drawer.draw(population.getSpecimenPointer(population.fittestSpecimen));
+#endif
+#ifdef TMAZE
+        for (int j = 0; j < nDifferentTrials; j++) {
+            int switchesSide = UNIFORM_01 > 0.99f;
+            trials[j]->outerLoopUpdate(&switchesSide);
+        }
 #endif
         //float f0 = 1.0f * (1.0f + sinf((float)i / 2.0f));
         //population.setEvolutionParameters(f0, .2f, true);

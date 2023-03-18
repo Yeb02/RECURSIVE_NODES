@@ -105,20 +105,20 @@ void Network::mutate() {
 	constexpr float createConnexionProbability = .01f;
 	constexpr float deleteConnexionProbability = .002f;
 
-	constexpr float incrementInputSizeProbability = .001f;
-	constexpr float decrementInputSizeProbability = .001f;
+	constexpr float incrementInputSizeProbability = .003f;
+	constexpr float decrementInputSizeProbability = .003f;
 
-	constexpr float incrementOutputSizeProbability = .001f;
-	constexpr float decrementOutputSizeProbability = .001f;
+	constexpr float incrementOutputSizeProbability = .003f;
+	constexpr float decrementOutputSizeProbability = .003f;
 
-	constexpr float addChildProbability = .008f;
-	constexpr float removeChildProbability = .003f;
+	constexpr float addChildProbability = .01f;
+	constexpr float removeChildProbability = .002f;
 
 	constexpr float childReplacementProbability = .005f;
 
 	constexpr float nodeBoxingProbability = .003f;
 	
-	constexpr float nodeDuplicationProbability = .004f;
+	constexpr float nodeDuplicationProbability = .002f;
 
 	float r;
 
@@ -544,7 +544,7 @@ float Network::getRegularizationLoss() {
 		}
 	}
 
-	// the higher the exponent, the stronger the size regularization
-	constexpr float exponent = .3f;
+	// the higher the exponent, the stronger the size regularization. TODO take genome.size() into consideration.
+	constexpr float exponent = .15f;
 	return amplitudes[genome.size()] * powf((float) nParams[genome.size()] / nArrays, -1.0f + exponent); 
 }

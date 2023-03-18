@@ -58,7 +58,10 @@ void XorTrial::step(const std::vector<float>& actions) {
 		isTrialOver = true;
 
 		// score normalization, not necessary
-		if (currentNStep == delay * 3) score /= (float) (delay * vSize);
+		if (currentNStep == delay * 3) {
+			score /= (float)(delay * vSize);
+			
+		}
 	}
 
 	currentNStep++;
@@ -205,5 +208,129 @@ Trial* CartPoleTrial::clone() {
 	t->theta0 = theta0;
 	t->thetaDot0 = thetaDot0;
 	t->reset(true);
+	return (Trial*)t;
+}
+
+
+
+TMazeTrial::TMazeTrial(bool switchesSides) :
+	switchesSide(switchesSide)
+{
+	netInSize = 3;
+	netOutSize = 1;
+	observations.resize(netInSize);
+
+	reset();
+}
+
+void TMazeTrial::reset(bool sameSeed) {
+	nSubTrials = -1;
+	score = 0.0f;
+	isTrialOver = false;
+	subTrialReset();
+}
+
+void TMazeTrial::subTrialReset() {
+	wentLeft = false;
+	currentNStep = 0;
+	nSubTrials++;
+	observations[0] = -1.0f;
+	observations[1] = -1.0f;
+	observations[2] = -1.0f;
+}
+
+void TMazeTrial::step(const std::vector<float>& actions) {
+	constexpr int straight1 = corridorLength + 1;
+	constexpr int turn1 = straight1 + 1;
+	constexpr int straight2 = turn1 + corridorLength;
+	constexpr int ME = straight2 + 1;
+	constexpr int straight3 = ME + corridorLength;
+	constexpr int turn2 = straight3 + corridorLength;
+	constexpr int straight4 = turn2 + corridorLength;
+
+	float a = actions[0]; //readability
+	
+	if (currentNStep < straight1) {
+		if (abs(a) > .3f) {
+			score -= .4f;
+			subTrialReset();
+		}
+		else if (currentNStep == straight1-1) observations[0] = 1.0f;
+
+	} else if (currentNStep < turn1) {
+		if (abs(a) < .3f) {
+			score -= .4f;
+			subTrialReset();
+		}
+		else {
+			if (a < 0.0f) wentLeft = true;
+			observations[0] = -1.0f;
+		}
+	} else if (currentNStep < straight2) {
+		if (abs(a) > .3f) {
+			score -= .4f;
+			subTrialReset();
+		}
+		else if (currentNStep == straight2 - 1) {
+			observations[1] = 1.0f;
+			float reward = (wentLeft ^ (switchesSide && (nSubTrials >= 10))) ? 1.0f : .2f;
+			observations[2] = reward;
+			score += reward;
+		}
+	} 
+	else if (currentNStep < ME) {
+		observations[1] = -1.0f;
+		if (abs(a) > .3f) {
+			score -= .4f;
+			subTrialReset();
+		}
+	}
+	else if (currentNStep < straight3) {
+		if (abs(a) > .3f) {
+			score -= .4f;
+			subTrialReset();
+		}
+		else if (currentNStep == straight3 - 1) {
+			observations[0] = 1.0f;
+		}
+	}
+	else if (currentNStep < turn2) {
+		if (abs(a) < .3f) {
+			score -= .4f;
+			subTrialReset();
+		}
+		else {
+			if ((a>0) ^ wentLeft) {
+				score -= .3f;
+				subTrialReset();
+			}
+			else {
+				observations[0] = -1.0f;
+			}
+		}
+	} else if(currentNStep < straight3) {
+		if (abs(a) > .3f) {
+			score -= .4f;
+			subTrialReset();
+		}
+	} else {
+		nSubTrials++;
+		subTrialReset();
+	}
+
+	currentNStep++;
+	if (nSubTrials >= 20) {
+		isTrialOver = true;
+	}
+}
+
+void TMazeTrial::copy(Trial* t0) {
+	TMazeTrial* t = dynamic_cast<TMazeTrial*>(t0);
+	switchesSide = t->switchesSide;
+	reset(true);
+}
+
+Trial* TMazeTrial::clone() {
+	TMazeTrial* t = new TMazeTrial(switchesSide);
 	return (Trial*)t;
 }

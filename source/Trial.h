@@ -21,6 +21,9 @@ public:
 	// returns a pointer to a new instance OF THE DERIVED CLASS, cast to a pointer of the base class.
 	virtual Trial* clone() = 0;
 
+	// Handle for updates coming from the outer loop (main.cpp 's loop)
+	virtual void outerLoopUpdate(void* data) = 0;
+
 	std::vector<float> observations;
 
 	// the required network dimensions
@@ -57,6 +60,7 @@ public:
 	void reset(bool sameSeed = false) override;
 	void copy(Trial* t) override;
 	Trial* clone() override;
+	void outerLoopUpdate(void* data) override {};
 
 private:
 	int vSize;
@@ -75,6 +79,7 @@ public:
 	void reset(bool sameSeed = false) override;
 	void copy(Trial* t) override;
 	Trial* clone() override;
+	void outerLoopUpdate(void* data) override {};
 
 	// or 30000... Gym's baseline is either 200 or 500, which is quite short with tau=0.02.
 	static const int STEP_LIMIT = 1000; 
@@ -84,3 +89,26 @@ private:
 	float x0, xDot0, theta0, thetaDot0;
 };
 
+
+// as per Soltoggio et al. (2008)
+class TMazeTrial : public Trial{
+public:
+	TMazeTrial(bool switchesSide);
+	void step(const std::vector<float>& actions) override;
+	void reset(bool sameSeed = false) override;
+	void copy(Trial* t) override;
+	Trial* clone() override;
+	void outerLoopUpdate(void* data) override {
+		switchesSide = static_cast<int*>(data)[0];
+	};
+
+	static const int corridorLength = 5;
+
+private:
+	// to be set in main.cpp's loop at each step.
+	bool switchesSide;
+	void subTrialReset();
+
+	bool wentLeft;
+	int nSubTrials;
+};
