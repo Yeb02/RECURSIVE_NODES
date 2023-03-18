@@ -40,15 +40,6 @@ void normalizeVector(std::vector<float>& v) {
 		v[i] *= InvStddev;
 	}
 }
-inline float L2Dist(float* a, float* b, int size) {
-	float sum = 0.0f;
-	float d;
-	for (int i = 0; i < size; i++) {
-		d = *(a + i) - *(b + i);
-		sum += d * d;
-	}
-	return sqrtf(sum);
-}
 int binarySearch(std::vector<float>& proba, float value) {
 	int inf = 0;
 	int sup = (int) proba.size() - 1;
@@ -87,8 +78,9 @@ Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
 		networks[i] = new Network(IN_SIZE, OUT_SIZE);
 	}
 	fittestSpecimen = 0;
-	regularizationFactor = .03f;
-	f0 = .2f;
+	regularizationFactor = .1f;
+	f0 = .0f;
+	nichingNorm = 1.0f;
 }
 
 void Population::stopThreads() {
@@ -197,15 +189,19 @@ void Population::evaluate(const int i0, const int subArraySize, std::vector<std:
 }
 
 void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEvaluated) {
-
+	// thread_local random engine !
 	for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate();  // TODO COMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
-	
+
+	// utils
+	int tSize = (int)trials.size();
+	int i0 = tSize - nTrialsEvaluated;
+
 	// evaluate the specimens on trials. Todo fit the size ...
-	std::vector<float> scores(trials.size() * N_SPECIMENS);
+	std::vector<float> scores(tSize * N_SPECIMENS);
 	pScores = scores.data();
 	if (N_THREADS > 1) {
-		globalTrials.resize(trials.size());
-		for (int j = 0; j < trials.size(); j++) {
+		globalTrials.resize(tSize);
+		for (int j = 0; j < tSize; j++) {
 			trials[j]->reset();
 			globalTrials[j] = trials[j].get();
 		}
@@ -228,43 +224,109 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		evaluate(0, N_SPECIMENS, trials);
 	}
 
-	// operation on scores
-	std::vector<float> avgScorePerSpecimen(N_SPECIMENS);
-	{
+
+	// LOGGING SCORES. MONITORING ONLY, CAN BE DISABLED.
+	if (true) {
 		std::vector<float> avgScoresPerTrial(nTrialsEvaluated);
 
 		float maxScore = 0.0f;
-		int maxScoreID = 0;
-		float score, avgFactor=1.0f/(float)nTrialsEvaluated;
-		int i0 = (int)trials.size() - nTrialsEvaluated;
+		float score, avgFactor = 1.0f / (float)nTrialsEvaluated;
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			score = 0;
-			for (int j = i0; j < trials.size(); j++) {
-				score += scores[i * trials.size() + j];
-				avgScoresPerTrial[j-i0] += scores[i * trials.size() + j];
+			for (int j = i0; j < tSize; j++) {
+				score += scores[i * tSize + j];
+				avgScoresPerTrial[j - i0] += scores[i * tSize + j];
 			}
 			score *= avgFactor;
-			avgScorePerSpecimen[i] = score;
 			if (score > maxScore) {
 				maxScore = score;
-				maxScoreID = i;
 			}
 		}
 
-		fittestSpecimen = maxScoreID;
 
-		// LOGS, CAN BE COMMENTED IN THE FINAL BUILD
 		for (int j = 0; j < nTrialsEvaluated; j++) avgScoresPerTrial[j] /= (float)N_SPECIMENS;
 		float avgavgf = 0.0f;
 		for (float f : avgScoresPerTrial) avgavgf += f;
 		avgavgf /= nTrialsEvaluated;
-		std::cout << "At iteration " << iteration 
-			<< ", max score = " << avgScorePerSpecimen[fittestSpecimen]
+		std::cout << "At iteration " << iteration
+			<< ", max score = " << maxScore
 			<< ", avg avg score = " << avgavgf << ".\n";
 
-
-		normalizeVector(avgScorePerSpecimen);
 	}
+
+
+	// Result-based niching, if nichingNorm > 0. Otherwise, simple sum and normalization.
+	std::vector<float> avgScorePerSpecimen(N_SPECIMENS);
+	if (nichingNorm > 0.0f) {
+		std::vector<float> avgs, vars;
+		avgs.resize(nTrialsEvaluated);
+		vars.resize(nTrialsEvaluated);
+		
+		for (int i = 0; i < N_SPECIMENS; i++) {
+			for (int j = i0; j < tSize; j++) {
+				avgs[j - i0] += scores[i*tSize + j];
+			}
+		}
+
+		float invFactor = 1.0f / (float)N_SPECIMENS;
+		for (int i = 0; i < nTrialsEvaluated; i++) {
+			avgs[i] *= invFactor;
+		}
+
+		for (int i = 0; i < N_SPECIMENS; i++) {
+			for (int j = i0; j < tSize; j++) {
+				scores[i * tSize + j] -= avgs[j - i0];
+				vars[j - i0] += scores[i * tSize + j];
+			}
+		}
+		for (int i = 0; i < nTrialsEvaluated; i++) {
+			if (abs(vars[i]) < .0001f) { // if all specimens have the same scores.
+				vars[i] = 1.0f;
+				continue;
+			}
+			vars[i] *= invFactor;
+			vars[i] = 1.0f / sqrtf(vars[i]);
+		}
+
+		std::vector<float> sums, mins;
+		sums.resize(nTrialsEvaluated);
+		mins.resize(nTrialsEvaluated); // 0 init is fine cause there WILL be values < 0.
+		for (int i = 0; i < N_SPECIMENS; i++) {
+			for (int j = i0; j < tSize; j++) {
+				scores[i * tSize + j] *= vars[j - i0];
+
+				sums[j - i0] += scores[i * tSize + j];
+				if (scores[i * tSize + j] < mins[j - i0]) {
+					mins[j - i0] = scores[i * tSize + j];
+				}
+			}
+		}
+
+		for (int i = 0; i < nTrialsEvaluated; i++) {
+			sums[i] -= mins[i] * (float)N_SPECIMENS;
+			sums[i] = 1.0f / sums[i];
+		}
+
+		float invNichingNorm = 1.0f/ nichingNorm;
+		for (int i = 0; i < N_SPECIMENS; i++) {
+			float s = 0.0f;
+			for (int j = i0; j < tSize; j++) {
+				s += powf((scores[i * tSize + j] - mins[j-i0]) * sums[j-i0], nichingNorm);
+			}
+			// Dividing by nTrialsEvaluated so that changing nTrialsEvaluated does not
+			// influence too much other hyperparameters.
+			avgScorePerSpecimen[i] = powf(s/(float) nTrialsEvaluated, invNichingNorm);
+		}
+	} 
+	else {
+		for (int i = 0; i < N_SPECIMENS; i++) {
+			for (int j = i0; j < tSize; j++) {
+				avgScorePerSpecimen[i] += scores[i * tSize + j];
+			}
+		}
+	}
+	normalizeVector(avgScorePerSpecimen);
+
 
 	computeFitnesses(avgScorePerSpecimen);
 
@@ -281,9 +343,14 @@ void Population::computeFitnesses(std::vector<float> avgScorePerSpecimen) {
 	}
 	normalizeVector(regularizationScore);
 
-	// Then, the fitness is simply a weighted sum of the 3 measures. 
+	// Then, the fitness is simply a weighted sum of the 2 intermediate measures, score and regularization.
+	float fMax = -100000.0f;
 	for (int i = 0; i < N_SPECIMENS; i++) {
 		fitnesses[i] = avgScorePerSpecimen[i] - regularizationFactor * regularizationScore[i];
+		if (fitnesses[i] > fMax) {
+			fMax = fitnesses[i];
+			fittestSpecimen = i;
+		}
 	}
 
 }
@@ -303,14 +370,15 @@ void Population::createOffsprings() {
 		probabilities[i] = probabilities[i - 1] + (fitnesses[i] - fitnessMin) / fitnessSum;
 	}
 
-	bool updated = false;
+	bool updated = false;  // we keep track of one of the fittest specimen's clones.
 	int parentID;
 	std::vector<Network*> tempNetworks(N_SPECIMENS);
 	for (int i = 0; i < N_SPECIMENS; i++) {
 		parentID = binarySearch(probabilities, UNIFORM_01);
 		tempNetworks[i] = new Network(networks[parentID]);
 		if (parentID == fittestSpecimen && !updated) {
-			fittestSpecimen = i; updated = true;
+			fittestSpecimen = i; 
+			updated = true;
 		}
 	}
 

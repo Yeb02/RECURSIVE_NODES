@@ -2,9 +2,7 @@
 
 #include <vector>
 #include "Random.h"
-// The base class which any trial should inherit from. Each derived class must implement
-// a copy constructor that takes a pointer to an instance of the derived class, and return
-// a trial that has the same initialisation.
+// The base virtual class which any trial should inherit from. 
 // The score attribute must be a positive measure of the success of the run.
 class Trial {
 
@@ -45,7 +43,11 @@ protected:
 /* v1 and v2 are binary vectors (-1 or 1), randomly initialized. The trial is split in 3 phases. In the first one,
 the observation is the vector v1. In the second, it is v2. In the third, the observation is a vector of 0s.
 During the last phase, the expected output of the network is the termwise XOR of v1 and v2. Only the sign of
-the network's output is used. There are 2^(2*vSize) different trials possible. */
+the network's output is used. There are 2^(2*vSize) different trials possible. 
+Note that be it with or without CONTINUOUS_LEARNING, lifelong learning on this task is completely useless.
+Therefore, it can be seen as a robustness test, a benchmark on catastrophic forgetting (even though
+what is to be "remembered" was not learned during the lifetime, but a genetic trait).
+*/
 class XorTrial : public Trial {
 
 public:
@@ -62,12 +64,12 @@ private:
 	std::vector<bool> v1, v2, v1_xor_v2;
 };
 
+
 // Classic CartPole, adapted from the python version of 
 // https://github.com/openai/gym/blob/master/gym/envs/classic_control/cartpole.py
 class CartPoleTrial : public Trial {
 
 public:
-	// Required network sizes: input = vectorSize, output = vectorSize.
 	CartPoleTrial();
 	void step(const std::vector<float>& actions) override;
 	void reset(bool sameSeed = false) override;

@@ -239,7 +239,9 @@ void PhenotypeNode::forward(const float* input) {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * neuromodulatorySignal;
+				// On simple examples (cartpole), these two mutually exclusive lines worsen avgFitness. 
+				// Is the explanation solely in gamma's mutations ?  
+				wLifetime[matID] += alpha[matID] * E[matID] * gamma[matID] * neuromodulatorySignal;
 				//wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID];
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
@@ -247,7 +249,6 @@ void PhenotypeNode::forward(const float* input) {
 
 				H[matID] += E[matID] * neuromodulatorySignal;
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
-
 #ifndef CONTINUOUS_LEARNING
 				avgH[matID] += H[matID];
 #endif

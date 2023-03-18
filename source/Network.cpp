@@ -103,7 +103,7 @@ void Network::mutate() {
 	// value in pairs should be equal, or at least the first greater than the second, to introduce some kind of regularization.
 
 	constexpr float createConnexionProbability = .01f;
-	constexpr float deleteConnexionProbability = .004f;
+	constexpr float deleteConnexionProbability = .002f;
 
 	constexpr float incrementInputSizeProbability = .001f;
 	constexpr float decrementInputSizeProbability = .001f;
@@ -111,8 +111,8 @@ void Network::mutate() {
 	constexpr float incrementOutputSizeProbability = .001f;
 	constexpr float decrementOutputSizeProbability = .001f;
 
-	constexpr float addChildProbability = .01f;
-	constexpr float removeChildProbability = .004f;
+	constexpr float addChildProbability = .008f;
+	constexpr float removeChildProbability = .003f;
 
 	constexpr float childReplacementProbability = .005f;
 
@@ -129,7 +129,7 @@ void Network::mutate() {
 			genome[i]->mutateFloats();
 		}
 		topNodeG->mutateFloats();
-		topNodeG->zeroInBias();
+		//topNodeG->zeroInBias(); // legacy, to be removed.
 	}
 	
 
@@ -545,6 +545,6 @@ float Network::getRegularizationLoss() {
 	}
 
 	// the higher the exponent, the stronger the size regularization
-	constexpr float exponent = .1f;
+	constexpr float exponent = .3f;
 	return amplitudes[genome.size()] * powf((float) nParams[genome.size()] / nArrays, -1.0f + exponent); 
 }

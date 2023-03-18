@@ -15,7 +15,7 @@
 #define DRAWING 
 
 
-// Define the trials on which to evolve. One and only one must be active.
+// Define the trials on which to evolve. One and only one must be defined: (or tweak main())
 #define CARTPOLE
 #ifndef CARTPOLE
 #define XOR
@@ -40,11 +40,8 @@
 using namespace std;
 
 
-
 int main()
 {
-
-
 #ifdef DRAWING
     Drawer drawer(720, 480);
 #endif
@@ -52,7 +49,7 @@ int main()
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
     int N_SPECIMENS = nThreads * 64;
-    int nDifferentTrials = 4;
+    int nDifferentTrials = 3;
     int nSteps = 10000;
 
     // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
@@ -61,12 +58,13 @@ int main()
 #ifdef CARTPOLE
         trials.emplace_back(new CartPoleTrial()); // Set nDifferentTrials to 5
 #elif defined XOR 
-        trials.emplace_back(new XorTrial(2,5));  // Set nDifferentTrials to vSize * vSize
+        trials.emplace_back(new XorTrial(3,5));  // Set nDifferentTrials to vSize * vSize
 #endif
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
-    population.setEvolutionParameters(.0f, .15f);
+    population.setEvolutionParameters(.0f, .15f, 1.0f); 
+    //population.setEvolutionParameters(.0f, .15f, 0.0f);
     int nTrialsEvaluated = (int)trials.size();
     //int nTrialsEvaluated = 2;
     //int nTrialsEvaluated = (int)trials.size() / 4;
@@ -75,17 +73,14 @@ int main()
     LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
     LOG("Evaluating on the last " << nTrialsEvaluated << " trials.");
 
-
-
     // Evolution loop :
-
     population.startThreads(nThreads);
     for (int i = 0; i < nSteps; i++) {
 #ifdef DRAWING
         drawer.draw(population.getSpecimenPointer(population.fittestSpecimen));
 #endif
         //float f0 = 1.0f * (1.0f + sinf((float)i / 2.0f));
-        //population.setEvolutionParameters(f0, .2f);
+        //population.setEvolutionParameters(f0, .2f, true);
         population.step(trials, nTrialsEvaluated);
         if ((i + 1) % 100 == 0) { // defragmentate.
             string fileName = population.save();
@@ -93,7 +88,6 @@ int main()
         }
     }
     population.stopThreads();
-
 
 
 #ifdef CARTPOLE
@@ -111,7 +105,6 @@ int main()
     }
     cout << "\n" << trials[0]->score;
 #endif
-
 
     return 0;
 

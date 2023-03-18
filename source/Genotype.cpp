@@ -679,7 +679,7 @@ bool GenotypeNode::hasChild(std::vector<int>& checked, GenotypeNode* potentialCh
 		if (checked[children[i]->position] == 1) continue;
 		if (children[i] == potentialChild) return true;
 		if (children[i]->hasChild(checked,potentialChild)) return true;
-		checked[i] = 1;
+		checked[children[i]->position] = 1;
 	}
 	return false;
 }
