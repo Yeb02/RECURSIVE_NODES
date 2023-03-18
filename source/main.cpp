@@ -21,9 +21,10 @@
 #define XOR
 #endif 
 
-// Should be on if there is just 1 trial, or no trials at all. Could be on even if there are multiple trials, 
-// but it disables the intertrial update of wLifetime. Not recommended in his case.
-// Enable and disable it in Genotype.h, it does not do anything here !
+// When defined, wLifetime updates take place during the trial and not at the end of it.
+// Should be on if there is just 1 trial, or equivalently no trials at all. Could be on even if there 
+// are multiple trials, but not recommended in his case. Worth a shot anyway.
+// Define or undefine it in Genotype.h, it does not do anything here !!!!
 #define CONTINUOUS_LEARNING
 
 ////////////////////////////////////
@@ -63,8 +64,8 @@ int main()
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
-    population.setEvolutionParameters(.0f, .15f, 1.0f); 
-    //population.setEvolutionParameters(.0f, .15f, 0.0f);
+    //population.setEvolutionParameters(.0f, .15f, .5f); 
+    population.setEvolutionParameters(.0f, .15f, 0.0f);
     int nTrialsEvaluated = (int)trials.size();
     //int nTrialsEvaluated = 2;
     //int nTrialsEvaluated = (int)trials.size() / 4;

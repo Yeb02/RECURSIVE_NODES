@@ -27,7 +27,11 @@ redundant. Then compute the score per specimen, a p-norm of its score vector.
 Increasing p beyond 1 fosters specialisation, p=inf being the extreme with only the best trial taken into consideration
 when computing fitnesses. p < 1 is allowed because at this point all values are positive (in [0, 1]). 
 p=1 encourages digging where other's do not. Decreasing p furthermore weakens the "outwards push".
-Which is better is up to the problem's setting and its hyperparameters. TODO experiment.
+Which is better is up to the problem's setting and its hyperparameters. I recommend disabling it 
+when nTrials is small, i.e. < 8, and the difference between trials is not especially meaningful,
+like running the same trial with slightly different random init.
+
+TODO experiment.
 
 - Fitness is computed, as a linear combination of trial score and regularization score.
 

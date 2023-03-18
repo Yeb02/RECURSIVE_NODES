@@ -5,7 +5,7 @@ Several variants are implemented, change the active preprocessor directives in m
 
 ##### KNOWN BUG: None, report any !
 
-The code can be compiled into an executable, to experiment on the implemented c++ trials. As of now, 2 trials are implemented: XoR with memorization, and gym's cartpole. The algorithm solves both easily. More to come !
+The code can be compiled into an executable, to experiment on the implemented c++ trials. As of now, 2 trials are implemented: XoR with memorization, and gym's cartpole. The algorithm solves cartpole easily, but struggles on the other. More to come !
 
 It can also be compiled into a dll, to use in python with ctypes. One can then evaluate the algorithm on any python trial, like on openAI's gym's for instance. A demo can be found in python\gym_cartpole.py (slower convergence than this repo's c++ implementation because gym offers no way to reset an env to its initial state, which introduces significant noise in the fitness function). It is still in developpement, so stick close to the demo's architecture if you dont want to run into undefined behaviours.
 
