@@ -71,12 +71,14 @@ void XorTrial::copy(Trial* t0) {
 	XorTrial* t = dynamic_cast<XorTrial*>(t0);
 	vSize = t->vSize;
 	delay = t->delay;
+
 	netInSize = vSize;
 	netOutSize = vSize;
 	v1.resize(vSize);
 	v2.resize(vSize);
 	v1_xor_v2.resize(vSize);
 	observations.resize(vSize);
+
 	for (int i = 0; i < vSize; i++) {
 		v1[i] = t->v1[i];
 		v2[i] = t->v2[i];
@@ -102,9 +104,9 @@ Trial* XorTrial::clone() {
 CartPoleTrial::CartPoleTrial(bool continuousControl) :
 	continuousControl(continuousControl)
 {
-	observations.resize(4);
 	netInSize = 4;
 	netOutSize = 1;
+	observations.resize(netInSize);
 
 	reset();
 }
@@ -324,10 +326,88 @@ void TMazeTrial::step(const std::vector<float>& actions) {
 void TMazeTrial::copy(Trial* t0) {
 	TMazeTrial* t = dynamic_cast<TMazeTrial*>(t0);
 	switchesSide = t->switchesSide;
-	reset(true);
 }
 
 Trial* TMazeTrial::clone() {
 	TMazeTrial* t = new TMazeTrial(switchesSide);
 	return (Trial*)t;
+}
+
+
+
+PolynomeTrial::PolynomeTrial(int nSteps, int degree) :
+	nSteps(nSteps), degree(degree)
+{
+	netInSize = degree+2;
+	netOutSize = 1;
+
+	parameters.resize(degree + 1);
+	observations.resize(degree + 2);
+
+	reset(false);
+}
+
+void PolynomeTrial::reset(bool sameSeed) {
+	score = 0.0f;
+	isTrialOver = false;
+	currentNStep = 0;
+
+	if (!sameSeed) {
+		for (int j = 0; j < degree + 1; j++) {
+			parameters[j] = (UNIFORM_01 - .5f) * 1.0f;
+		}
+		computeValues();
+	} 
+	for (int j = 0; j < degree + 1; j++) {
+		observations[j] = parameters[j];
+	}
+	observations[degree+1] = -1.0f;
+}
+
+void PolynomeTrial::step(const std::vector<float>& actions) {
+
+	if (currentNStep == nSteps) {
+		isTrialOver = true;
+		score /= nSteps; // normalization not necessary.
+		return;
+	}
+
+	//score += abs(actions[0] - observations[currentNStep]) < .1f;
+	float diff = abs(actions[0] - evaluatedValues[currentNStep]);
+	score -= diff*diff;
+
+	observations[degree + 1] = (2.0f * (float)currentNStep / (float)nSteps) - 1.0f;
+	currentNStep++;	
+	return;
+}
+
+void PolynomeTrial::copy(Trial* t0) {
+	PolynomeTrial* t = dynamic_cast<PolynomeTrial*>(t0);
+	nSteps = t->nSteps;
+	degree = t->degree;
+	observations.resize(degree + 2);
+	parameters.resize(degree+1);
+	netInSize = degree+2;
+	setParameters(t->parameters.data());
+	reset(true);
+}
+
+Trial* PolynomeTrial::clone() {
+	PolynomeTrial* t = new PolynomeTrial(nSteps, degree);
+	t->setParameters(parameters.data());
+	t->reset(true);
+	return (Trial*)t;
+}
+
+void PolynomeTrial::computeValues() {
+	evaluatedValues.resize(nSteps);
+	for (int i = 0; i < nSteps; i++) {
+		float t = (2.0f * (float)i / (float)nSteps) - 1.0f;
+		float pow_t = 1.0f;
+		for (int j = 0; j < degree+1; j++) {
+			evaluatedValues[i] += pow_t * parameters[j];
+			pow_t *= t;
+		}
+		evaluatedValues[i] = std::max(-1.0f, std::min(evaluatedValues[i], 1.0f));
+	}
 }

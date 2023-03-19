@@ -16,9 +16,10 @@
 
 
 // Define the trials on which to evolve. One and only one must be defined: (or tweak main())
-#define CARTPOLE
-//#define XOR
-//#define TMAZE
+//#define CARTPOLE_T
+//#define XOR_T
+//#define TMAZE_T
+#define POLYNOME_T
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
 // allow for a very long term memory, in parallel with E and H but much slower.
@@ -52,31 +53,34 @@ int main()
 #ifdef _DEBUG
     nThreads = 1;
 #endif
-    int N_SPECIMENS = nThreads * 64;
+    int nSpecimens = nThreads * 64;
     int nDifferentTrials = 4;
-    int nSteps = 10000;
+    int nSteps = 1000;
 
-    // ALL TRIALS MUST HAVE SAME netInSize AND netOutSize
+    // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
+    // different kinds of trials can be put in the vector.
     vector<unique_ptr<Trial>> trials;
     for (int i = 0; i < nDifferentTrials; i++) {
-#ifdef CARTPOLE
+#ifdef CARTPOLE_T
         trials.emplace_back(new CartPoleTrial(true)); // Parameter corresponds to continuous control.
-#elif defined XOR 
+#elif defined XOR_T
         trials.emplace_back(new XorTrial(1,10));  
-#elif defined TMAZE
+#elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
+#elif defined POLYNOME_T
+        trials.emplace_back(new PolynomeTrial(20, 1));
 #endif
     }
 
-    Population population(trials[0]->netInSize, trials[0]->netOutSize, N_SPECIMENS);
-    population.setEvolutionParameters(.2f, .15f, .5f); 
-    int nTrialsEvaluated = (int)trials.size();
-    //int nTrialsEvaluated = 4;
-    //int nTrialsEvaluated = (int)trials.size() / 4;
+    Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
+    population.setEvolutionParameters(.0f, .15f, .0f); 
+    int nTrialsEvaluated = (int)trials.size();          // or 4, or (int)trials.size() / 4, ...
+
 
     LOG("Using " << nThreads << ".");
-    LOG("N_SPECIMEN = " << N_SPECIMENS << " and N_TRIALS = " << nDifferentTrials);
+    LOG("N_SPECIMEN = " << nSpecimens << " and N_TRIALS = " << nDifferentTrials);
     LOG("Evaluating on the last " << nTrialsEvaluated << " trials.");
+
 
     // Evolution loop :
     population.startThreads(nThreads);
@@ -84,16 +88,27 @@ int main()
 #ifdef DRAWING
         drawer.draw(population.getSpecimenPointer(population.fittestSpecimen));
 #endif
-#ifdef TMAZE
+
+        for (int j = 0; j < nDifferentTrials; j++) {
+            trials[j]->reset(false);
+        }
+
+
+#ifdef TMAZE_T
         for (int j = 0; j < nDifferentTrials; j++) {
             int switchesSide = UNIFORM_01 > 0.5f;
             trials[j]->outerLoopUpdate(&switchesSide);
         }
+#elif defined POLYNOME_T
+        for (int j = 1; j < nDifferentTrials; j++) {
+            trials[j]->copy(trials[0].get());
+        }
 #endif
-        //float f0 = 1.0f * (1.0f + sinf((float)i / 2.0f));
-        //population.setEvolutionParameters(f0, .2f, true);
+
+        //population.setEvolutionParameters(sinf((float)i / 2.0f), .1f, 0.0f); // parameters can be changed at each step.
         population.step(trials, nTrialsEvaluated);
-        if ((i + 1) % 100 == 0) { // defragmentate.
+
+        if ((i + 1) % 100 == 0) { // Defragmentate. Not implemented yet.
             string fileName = population.save();
             population.load(fileName);
         }
@@ -101,7 +116,7 @@ int main()
     population.stopThreads();
 
 
-#ifdef CARTPOLE
+#ifdef CARTPOLE_T
     // If the Cartpole trial was used, copy the console output in the "data" array of 
     // RECURSIVE_NODES\python\CartPoleData.py    and run   RECURSIVE_NODES\python\CartPoleVisualizer.py
     // to observe the behaviour !
@@ -118,14 +133,16 @@ int main()
 #endif
 
     return 0;
+}
 
-    // scipy tests
-   /* Vec x = linspace(1, N_SPECIMENS, N_SPECIMENS);
+
+// scipy tests
+   /* Vec x = linspace(1, nSpecimens, nSpecimens);
     Plot2D plot;
 
     plot.xlabel("x");
     plot.ylabel("y");
-    plot.xrange(0.0, N_SPECIMENS);
+    plot.xrange(0.0, nSpecimens);
     plot.yrange(-2.0, 2.0);
 
     plot.drawCurve(x, population.).label("sin(x)");
@@ -133,4 +150,3 @@ int main()
     Figure fig = { {plot} };
     Canvas canvas = { {fig} };
     canvas.show();*/
-}

@@ -91,6 +91,7 @@ private:
 };
 
 
+
 // as per Soltoggio et al. (2008)
 class TMazeTrial : public Trial{
 public:
@@ -114,6 +115,13 @@ private:
 	int nSubTrials;
 };
 
+
+// The goal of this trial is to evaluate lifelong learning capabilities. It does so by creating a polynome
+// of a given degree with random coefficients, and compares the output of the network with the polynome's evaluation 
+// at any time t (t in [-1,1], = 2*nCurrentSteps/nSteps  - 1). Importantly, all trials at a given time step must have
+// the same parameters (they are exactly the same). The only thing changing between evaluations is the network itself 
+// through dynamic learning. Setting common parameters is done by calling outerLoopUpdate in main's loop, as intended. 
+// The network's input is the degree+1 parameters and t (so degree + 2 input size). Polynom's evaluation are clipped in [-1,1]
 class PolynomeTrial : public Trial {
 
 public:
@@ -123,12 +131,24 @@ public:
 	void copy(Trial* t) override;
 	Trial* clone() override;
 
-	void outerLoopUpdate(void* data) override {};
-	~PolynomeTrial() {
-		delete[] parameters;
-	}
+	// WARNING DATA MUST BE THE SAME SIZE AS PARAMETERS ! Copies data into its own parameters. 
+	void outerLoopUpdate(void* data)  {
+		float* baseParameters = static_cast<float*>(data);
+		setParameters(baseParameters);
+	};
 
 private:
+	void setParameters(float* p) {
+		for (int i = 0; i < degree + 1; i++) {
+			parameters[i] = p[i];
+		}
+		computeValues();
+	}
+
 	int nSteps, degree;
-	float* parameters;
+	std::vector<float> parameters;
+
+	// For efficiency, the polynom's value are computed once, at parameter's setting.
+	std::vector<float> evaluatedValues;
+	void computeValues();
 };

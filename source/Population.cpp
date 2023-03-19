@@ -156,6 +156,7 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 		else {
 			for (int i = 0; i < globalTrials.size(); i++) {
 				localTrials[i]->copy(globalTrials[i]);
+				localTrials[i]->reset(true);
 			}
 		}
 
@@ -171,7 +172,7 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 	}
 }
 
-//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
+//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED (thread_local)
 void Population::evaluate(const int i0, const int subArraySize, std::vector<std::unique_ptr<Trial>>& localTrials) {
 	for (int i = i0; i < i0 + subArraySize; i++) {
 		//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
@@ -202,7 +203,6 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	if (N_THREADS > 1) {
 		globalTrials.resize(tSize);
 		for (int j = 0; j < tSize; j++) {
-			trials[j]->reset();
 			globalTrials[j] = trials[j].get();
 		}
 
@@ -229,7 +229,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	if (true) {
 		std::vector<float> avgScoresPerTrial(nTrialsEvaluated);
 
-		float maxScore = 0.0f;
+		float maxScore = -1000000.0f;
 		float score, avgFactor = 1.0f / (float)nTrialsEvaluated;
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			score = 0;
