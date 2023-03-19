@@ -33,10 +33,10 @@ struct PhenotypeConnexion {   // responsible of its pointers
 	// only called at construction.
 	void zeroWlifetime(int s); 
 
-#ifndef CONTINUOUS_LEARNING
+	//#ifndef CONTINUOUS_LEARNING
 	// factor = 1/nInferences., wLifetime += alpha*avgH*factor
 	void updateWatTrialEnd(int s, float factor, float* alpha);
-#endif
+
 
 	~PhenotypeConnexion() {};
 };
@@ -62,4 +62,9 @@ struct PhenotypeNode {
 
 	void interTrialReset();
 	void forward(const float* input);
+
+	//#ifdef GUIDED_MUTATIONS
+	// Accumulates wLifetime of the phenotype connexion in the accumulate[] array of their 
+	// corresponding genotype connexion template.
+	void accumulateW();
 };

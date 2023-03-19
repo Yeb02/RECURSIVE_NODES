@@ -6,8 +6,9 @@
 
 #include "Random.h"
 
-// Compilation option:
+// Compilation options:
 //#define CONTINUOUS_LEARNING
+#define GUIDED_MUTATIONS
 
 // Constants:
 #define MAX_CHILDREN_PER_BLOCK  10
@@ -40,6 +41,10 @@ struct GenotypeConnexion {
 #ifdef CONTINUOUS_LEARNING
 	// proche de 0 !
 	std::unique_ptr<float[]> gamma;
+#endif
+
+#ifdef GUIDED_MUTATIONS
+	std::unique_ptr<float[]> accumulator;
 #endif
 
 
@@ -98,8 +103,16 @@ struct GenotypeNode {
 	// 0, children[0]->inputsize, children[0]->inputsize+children[1]->inputsize, ....
 	std::vector<int> concatenatedChildrenInputBeacons;
 
+#ifdef GUIDED_MUTATIONS
+	int nApparitions;
+#endif
 	// Empty definition because many attributes are set by the network owning this. Same reason for no copy constructor.
-	GenotypeNode() {};
+	GenotypeNode() 
+	{
+#ifdef GUIDED_MUTATIONS
+		nApparitions = 0;
+#endif
+	};
 
 	~GenotypeNode() {};
 

@@ -15,6 +15,9 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
 #endif
+#ifdef GUIDED_MUTATIONS
+	accumulator = std::make_unique<float[]>(s);
+#endif
 
 	SET_BINOMIAL(s, .5f); // gamma and eta.
 	float factor = .5f / (float)s;
@@ -32,6 +35,9 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 #ifdef CONTINUOUS_LEARNING
 			gamma[i] = factor * (float) BINOMIAL;
 #endif
+#ifdef GUIDED_MUTATIONS
+			accumulator[i] = 0.0f;
+#endif
 		}
 	}
 	else if (init == RANDOM) {
@@ -45,6 +51,9 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			w[i] = NORMAL_01*.2f;
 #ifdef CONTINUOUS_LEARNING
 			gamma[i] = factor * (float) BINOMIAL;
+#endif
+#ifdef GUIDED_MUTATIONS
+			accumulator[i] = 0.0f;
 #endif
 		}
 	}
@@ -66,6 +75,9 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 #ifdef CONTINUOUS_LEARNING
 				gamma[i] = factor * (float) BINOMIAL;
 #endif
+#ifdef GUIDED_MUTATIONS
+				accumulator[i] = 0.0f;
+#endif
 				i++;
 			}
 		}
@@ -79,8 +91,8 @@ GenotypeConnexion::GenotypeConnexion(GenotypeConnexion&& gc) noexcept {
 	nLines = gc.nLines;
 	nColumns = gc.nColumns;
 
-	// move() removes ownership from the original pointer. Its use here is kind of an hacky workaround 
-	// that vector reallocation calls move constructor AND destructor. So the pointee would be destroyed otherwise.
+	// move() removes ownership from the original pointer. Its use here is kind of an hacky workaround the fact
+	// vector reallocation calls move constructor AND destructor. So the pointee would be destroyed otherwise.
 	// https://stackoverflow.com/questions/41864544/stdvector-calls-contained-objects-destructor-when-reallocating-no-matter-what
 	A = std::move(gc.A);
 	B = std::move(gc.B);
@@ -91,6 +103,9 @@ GenotypeConnexion::GenotypeConnexion(GenotypeConnexion&& gc) noexcept {
 	alpha = std::move(gc.alpha);
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::move(gc.gamma);
+#endif
+#ifdef GUIDED_MUTATIONS
+	accumulator = std::move(gc.accumulator);
 #endif
 
 }
@@ -111,9 +126,6 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	D = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
-#ifdef CONTINUOUS_LEARNING
-	gamma = std::make_unique<float[]>(s);
-#endif
 
 	//memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
 	std::copy(eta.get(), eta.get() + s, gc.eta.get()); // todo replace memcpy by std::copy everywhere
@@ -123,8 +135,15 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	memcpy(D.get(), gc.D.get(), sizeof(float) * s);
 	memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
 	memcpy(w.get(), gc.w.get(), sizeof(float) * s);
+
 #ifdef CONTINUOUS_LEARNING
+	gamma = std::make_unique<float[]>(s);
 	memcpy(gamma.get(), gc.gamma.get(), sizeof(float) * s);
+#endif
+
+#ifdef GUIDED_MUTATIONS
+	accumulator = std::make_unique<float[]>(s);
+	memcpy(accumulator.get(), gc.accumulator.get(), sizeof(float) * s);
 #endif
 }
 
@@ -136,6 +155,7 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	nColumns = gc.nColumns;
 
 	int s = nLines * nColumns;
+
 	eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
@@ -143,9 +163,6 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	D = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
-#ifdef CONTINUOUS_LEARNING
-	gamma = std::make_unique<float[]>(s);
-#endif
 
 	memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
 	memcpy(A.get(), gc.A.get(), sizeof(float) * s);
@@ -153,8 +170,15 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	memcpy(C.get(), gc.C.get(), sizeof(float) * s);
 	memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
 	memcpy(w.get(), gc.w.get(), sizeof(float) * s);
+
 #ifdef CONTINUOUS_LEARNING
+	gamma = std::make_unique<float[]>(s);
 	memcpy(gamma.get(), gc.gamma.get(), sizeof(float) * s);
+#endif
+
+#ifdef GUIDED_MUTATIONS
+	accumulator = std::make_unique<float[]>(s);
+	memcpy(accumulator.get(), gc.accumulator.get(), sizeof(float) * s);
 #endif
 
 	return *this;
@@ -237,6 +261,14 @@ void GenotypeNode::mutateFloats() {
 				aPtr[matrixID] += r2;
 			}
 		}
+
+#ifdef GUIDED_MUTATIONS
+		if (nApparitions == 0) continue;
+		float invFactor = 1.0f / (float)nApparitions; // should be outside the loop, here for readability
+		for (int k = 0; k < size; k++) {
+			childrenConnexions[listID].w[k] += .2f * childrenConnexions[listID].accumulator[k] * invFactor;
+		}
+#endif
 	}
 
 	for (int i = 0; i < outputSize; i++) {

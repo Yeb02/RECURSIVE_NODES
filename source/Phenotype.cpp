@@ -66,6 +66,25 @@ PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 	localM = 0.0f;
 };
 
+#ifdef GUIDED_MUTATIONS
+void PhenotypeNode::accumulateW() {
+
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		type->nApparitions++;
+		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
+		for (int j = 0; j < s; j++) {
+			type->childrenConnexions[i].accumulator[j] += childrenConnexions[i].wLifetime[j];
+		}
+	}
+
+	for (int i = 0; i < children.size(); i++) {
+		if (!children[i].type->isSimpleNeuron) {
+			children[i].accumulateW();
+		}
+	}
+}
+#endif
+
 void PhenotypeNode::interTrialReset() {
 	std::fill(previousInput.begin(), previousInput.end(), 0.0f);
 	std::fill(previousOutput.begin(), previousOutput.end(), 0.0f);

@@ -121,13 +121,20 @@ void Network::mutate() {
 	float r;
 
 
+	// accumulate wLifetime.
+#ifdef GUIDED_MUTATIONS
+	if (topNodeP.get() != NULL) 
+	{
+		topNodeP->accumulateW();
+	}
+#endif
+
 	// Floating point mutations.
 	{
 		for (int i = nSimpleNeurons; i < genome.size(); i++) {
 			genome[i]->mutateFloats();
 		}
 		topNodeG->mutateFloats();
-		//topNodeG->zeroInBias(); // legacy, to be removed.
 	}
 	
 
@@ -419,7 +426,7 @@ void Network::mutate() {
 	topNodeG->computeBeacons();
 	topNodeG->mutationalDistance++;
 
-	// Phenotype may have become outdated, we destroy it.
+	// Phenotype may have become outdated, and is no longer needed for updates.
 	topNodeP.reset(NULL);
 }
 

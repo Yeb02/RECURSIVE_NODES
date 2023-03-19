@@ -28,6 +28,9 @@
 // Define or undefine it in Genotype.h, it does not do anything here !!!!
 #define CONTINUOUS_LEARNING
 
+
+#define GUIDED_MUTATIONS
+
 ////////////////////////////////////
 ////////////////////////////////////
 
@@ -54,7 +57,7 @@ int main()
     nThreads = 1;
 #endif
     int nSpecimens = nThreads * 64;
-    int nDifferentTrials = 4;
+    int nDifferentTrials = 8;
     int nSteps = 1000;
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
@@ -68,13 +71,13 @@ int main()
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
 #elif defined POLYNOME_T
-        trials.emplace_back(new PolynomeTrial(20, 1));
+        trials.emplace_back(new PolynomeTrial(20, 2));
 #endif
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
-    population.setEvolutionParameters(.0f, .15f, .0f); 
-    int nTrialsEvaluated = (int)trials.size();          // or 4, or (int)trials.size() / 4, ...
+    population.setEvolutionParameters(.2f, .25f, .0f); 
+    int nTrialsEvaluated = (int)trials.size() / 4;          // (int)trials.size(), or 4, or (int)trials.size() / 4, ...
 
 
     LOG("Using " << nThreads << ".");
