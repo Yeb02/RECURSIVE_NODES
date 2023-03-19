@@ -17,27 +17,27 @@ parameters are subject to mutations, whose probabilities are fixed in Network.mu
 
 - Each individual is evaluated once on all trials of the set.
 For each trial, initialization is random, but the same values are kept within the step. It drastically
-diminishes noise and speeds up convergence. The scores are saved into a matrix. 
+diminishes noise and speeds up convergence. The scores are saved into a matrix, one axis corresponding 
+to the trials, the other to the specimens.
 
-- An original, simple niching algorithm is applied, based on ressource sharing principles. After computing
-raw scores, we have a matrix of values, one axis corresponding to the trials, the other to the specimens.
-The vectors of scores per trial are linearly transformed to have mean 0 and variance 1.
-Then linearly transformed again to have min = 0 and max = 1. Both steps are needed, and are not
-redundant. Score per specimen is finally a p-norm of its score vector.
+- An original, simple, artificial niching algorithm is applied, based on ressource sharing principles. 
+In the matrix, the vectors of scores per trial are linearly transformed to have min = 0 and max = 1.  
+Score per specimen is then a p-norm of its score vector. p < 1 is allowed since all values are >=0 (in [0, 1]). 
 Increasing p beyond 1 fosters specialisation, p=inf being the extreme with only the best trial taken into consideration
-when computing fitnesses. p < 1 is allowed because at this point all values are positive (in [0, 1]). 
-p=1 encourages digging where other's do not. Decreasing p furthermore weakens the "outwards push".
+when computing fitnesses. p=1 encourages digging where other's do not. Decreasing p furthermore weakens the "outwards push".
 Which is better is up to the problem's setting and its hyperparameters. I recommend disabling it completely, 
-(nichingNorm = 0), when nTrials is small( < 8), and the difference between trials is not especially meaningful,
+(nichingNorm = 0.0), when nTrials is small( < 8), AND the difference between trials is not especially meaningful,
 like running the same trial with slightly different random init.
 
 TODO experiment.
 
-- Fitness is computed, as a linear combination of trial score and regularization score.
+- Regularization is a function of both sheer number of parameters (in the phenotype !!) and their amplitude.
+
+- Fitness is computed as a linear combination of trial score and regularization score.
 
 - A roulettte wheel selection with parametrized pressure is applied to pick a specimen, which is simply 
 copied to be in the next generation. The selected specimens is not eliminated from the potential parents pool.
-The process is repeated as many times as their are specimens, we then proceed to the next step.
+The process is repeated as many times as their are specimens, we then proceed to the next iteration of the loop.
 */
 
 

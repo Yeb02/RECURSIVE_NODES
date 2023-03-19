@@ -258,43 +258,11 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	// Result-based niching, if nichingNorm > 0. Otherwise, simple sum and normalization.
 	std::vector<float> avgScorePerSpecimen(N_SPECIMENS);
 	if (nichingNorm > 0.0f) {
-		std::vector<float> avgs, vars;
-		avgs.resize(nTrialsEvaluated);
-		vars.resize(nTrialsEvaluated);
-		
-		for (int i = 0; i < N_SPECIMENS; i++) {
-			for (int j = i0; j < tSize; j++) {
-				avgs[j - i0] += scores[i*tSize + j];
-			}
-		}
-
-		float invFactor = 1.0f / (float)N_SPECIMENS;
-		for (int i = 0; i < nTrialsEvaluated; i++) {
-			avgs[i] *= invFactor;
-		}
-
-		for (int i = 0; i < N_SPECIMENS; i++) {
-			for (int j = i0; j < tSize; j++) {
-				scores[i * tSize + j] -= avgs[j - i0];
-				vars[j - i0] += scores[i * tSize + j]* scores[i * tSize + j];
-			}
-		}
-		for (int i = 0; i < nTrialsEvaluated; i++) {
-			if (vars[i] < .01f) { // if all specimens have sensibly the same scores.
-				vars[i] = 1.0f;
-				continue;
-			}
-			vars[i] *= invFactor;
-			vars[i] = 1.0f / sqrtf(vars[i]);
-		}
-
 		std::vector<float> sums, mins;
 		sums.resize(nTrialsEvaluated);
 		mins.resize(nTrialsEvaluated); // 0 init is fine cause there WILL be values < 0.
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			for (int j = i0; j < tSize; j++) {
-				scores[i * tSize + j] *= vars[j - i0];
-
 				sums[j - i0] += scores[i * tSize + j];
 				if (scores[i * tSize + j] < mins[j - i0]) {
 					mins[j - i0] = scores[i * tSize + j];

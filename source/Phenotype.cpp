@@ -238,7 +238,7 @@ void PhenotypeNode::forward(const float* input) {
 				// On simple examples (cartpole), these supposedly exclusive lines worsen avgFitness. 
 				// Does the explanation reside solely in gamma's mutations ?  
 				//wLifetime[matID] += alpha[matID] * E[matID] * gamma[matID] * totalM; 
-				//wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * totalM; 
+				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * totalM; // for me, this makes more sense.
 				//wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID];
 				//wLifetime[matID] += alpha[matID] * E[matID] * gamma[matID];
 #endif

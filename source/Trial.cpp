@@ -99,7 +99,9 @@ Trial* XorTrial::clone() {
 
 
 
-CartPoleTrial::CartPoleTrial() {
+CartPoleTrial::CartPoleTrial(bool continuousControl) :
+	continuousControl(continuousControl)
+{
 	observations.resize(4);
 	netInSize = 4;
 	netOutSize = 1;
@@ -160,7 +162,8 @@ void CartPoleTrial::step(const std::vector<float>& actions) {
 	// Gym uses force = sign(actions[0]). It makes convergence much faster, but has not as good 
 	// performance as a continuous control with force = actions[0].
 	//force = actions[0] > 0 ? 1.0f : -1.0f; 
-	force = actions[0];  
+	if (continuousControl) force = actions[0];
+	else force = actions[0] > 0 ? 1.0f : -1.0f;
 
 
 	// update as per https://coneural.org/florian/papers/05_cart_pole.pdf
@@ -191,11 +194,12 @@ void CartPoleTrial::copy(Trial* t0) {
 	xDot0 = t->xDot0;
 	theta0 = t->theta0;
 	thetaDot0 = t->thetaDot0;
+	continuousControl = t->continuousControl;
 	reset(true);
 }
 
 Trial* CartPoleTrial::clone() {
-	CartPoleTrial* t = new CartPoleTrial();
+	CartPoleTrial* t = new CartPoleTrial(continuousControl);
 	t->x0 = x0;
 	t->xDot0 = xDot0;
 	t->theta0 = theta0;

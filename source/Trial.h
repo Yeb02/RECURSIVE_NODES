@@ -74,7 +74,7 @@ private:
 class CartPoleTrial : public Trial {
 
 public:
-	CartPoleTrial();
+	CartPoleTrial(bool continuousControl);
 	void step(const std::vector<float>& actions) override;
 	void reset(bool sameSeed = false) override;
 	void copy(Trial* t) override;
@@ -85,6 +85,7 @@ public:
 	static const int STEP_LIMIT = 1000; 
 
 private:
+	bool continuousControl;
 	float x, xDot, theta, thetaDot;
 	float x0, xDot0, theta0, thetaDot0;
 };
@@ -111,4 +112,23 @@ private:
 
 	bool wentLeft;
 	int nSubTrials;
+};
+
+class PolynomeTrial : public Trial {
+
+public:
+	PolynomeTrial(int nSteps, int degree);
+	void step(const std::vector<float>& actions) override;
+	void reset(bool sameSeed = false) override;
+	void copy(Trial* t) override;
+	Trial* clone() override;
+
+	void outerLoopUpdate(void* data) override {};
+	~PolynomeTrial() {
+		delete[] parameters;
+	}
+
+private:
+	int nSteps, degree;
+	float* parameters;
 };

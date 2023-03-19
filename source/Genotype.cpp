@@ -16,18 +16,21 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 	gamma = std::make_unique<float[]>(s);
 #endif
 
+	SET_BINOMIAL(s, .5f); // gamma and eta.
+	float factor = .5f / (float)s;
+
 	if (init == ZERO || (init == IDENTITY && nLines != nColumns)) {
 		for (int i = 0; i < nLines * nColumns; i++) {
 
-			eta[i] = .3f * UNIFORM_01;
 			A[i] = NORMAL_01 * .2f;
 			B[i] = NORMAL_01 * .2f;
 			C[i] = NORMAL_01 * .2f;
 			D[i] = NORMAL_01 * .2f;
 			alpha[i] = 0.0f;
+			eta[i] = factor * (float)BINOMIAL;
 			w[i] = 0.0f;
 #ifdef CONTINUOUS_LEARNING
-			gamma[i] = UNIFORM_01 * .3f;
+			gamma[i] = factor * (float) BINOMIAL;
 #endif
 		}
 	}
@@ -38,10 +41,10 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			C[i] = NORMAL_01 * .2f;
 			D[i] = NORMAL_01 * .2f;
 			alpha[i] = NORMAL_01 *.2f;
-			eta[i] = .3f * UNIFORM_01;
+			eta[i] = factor * (float) BINOMIAL;
 			w[i] = NORMAL_01*.2f;
 #ifdef CONTINUOUS_LEARNING
-			gamma[i] = .3f * UNIFORM_01;
+			gamma[i] = factor * (float) BINOMIAL;
 #endif
 		}
 	}
@@ -51,17 +54,17 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 		for (int l = 0; l < nLines; l++) {
 			for (int c = 0; c < nColumns; c++) {
 
-				// tanh'(0) = 1, so * 1.0 is a correct-ish approximation to invert. 
-				v = l == c ? 1.0f : 0.0f;
+				// tanh'(0) = 1, so * 1.25 is a correct-ish approximation to invert. 
+				v = l == c ? 1.25f : 0.0f;
 				A[i] = NORMAL_01 * .2f;
 				B[i] = NORMAL_01 * .2f;
 				C[i] = NORMAL_01 * .2f;
 				D[i] = NORMAL_01 * .2f;
 				alpha[i] = 0.0f;
-				eta[i] = .3f * UNIFORM_01;
+				eta[i] = factor * (float) BINOMIAL;
 				w[i] = v;
 #ifdef CONTINUOUS_LEARNING
-				gamma[i] = .3f * UNIFORM_01;
+				gamma[i] = factor * (float) BINOMIAL;
 #endif
 				i++;
 			}
@@ -211,17 +214,17 @@ void GenotypeNode::mutateFloats() {
 			case 6:  // eta
 				aPtr = childrenConnexions[listID].eta.get(); 
 				// this allows for high precision mutations when eta (or 1- eta) is close to 1.
-				aPtr[matrixID] = UNIFORM_01 < .05f ?
-						aPtr[matrixID] * .8f + UNIFORM_01 * .2f :
-						aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01-.5f) + aPtr[matrixID];
+				aPtr[matrixID] = UNIFORM_01 > .05f ?
+						aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01-.5f) + aPtr[matrixID] :
+						aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
 				//aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;// alternative
 				break;
 #ifdef CONTINUOUS_LEARNING
 			case 7:  // gamma
 				aPtr = childrenConnexions[listID].gamma.get(); 
-				aPtr[matrixID] = UNIFORM_01 < .05f ?
-					aPtr[matrixID] * .8f + UNIFORM_01 * .2f :
-					aPtr[matrixID] * (1 - aPtr[matrixID]) * .4f * (UNIFORM_01 - .5f) + aPtr[matrixID];
+				aPtr[matrixID] = UNIFORM_01 > .05f ?
+					aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01 - .5f) + aPtr[matrixID] :
+					aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
 				//aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;  // alternative
 				break;
 #endif
@@ -414,20 +417,17 @@ void GenotypeNode::incrementOriginOutputSize(int i) {
 			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
 			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+#ifdef CONTINUOUS_LEARNING
+			newConnexion.gamma[idNew] = childrenConnexions[i].gamma[idOld];
+#endif
 
 			idNew++;
 			idOld++;
 		}
-
-		newConnexion.A[idNew] = 0.0f;
-		newConnexion.B[idNew] = 0.0f;
-		newConnexion.C[idNew] = 0.0f;
-		newConnexion.eta[idNew] = 0.0f;
-		newConnexion.alpha[idNew] = 0.0f;
-		newConnexion.w[idNew] = 0.0f;
 
 		idNew++;
 	}
@@ -479,25 +479,21 @@ void GenotypeNode::incrementDestinationInputSize(int i) {
 			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
 			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-
+#ifdef CONTINUOUS_LEARNING
+			newConnexion.gamma[idNew] = childrenConnexions[i].gamma[idOld];
+#endif
 
 			idNew++;
 			idOld++;
 		}
 	}
-	for (int k = 0; k < childrenConnexions[i].nColumns; k++) {
-		newConnexion.A[idNew] = 0.0f;
-		newConnexion.B[idNew] = 0.0f;
-		newConnexion.C[idNew] = 0.0f;
-		newConnexion.eta[idNew] = 0.0f;
-		newConnexion.alpha[idNew] = 0.0f;
-		newConnexion.w[idNew] = 0.0f;
-		idNew++;
-	}
-	childrenConnexions[i] = newConnexion;
+
+	idNew += childrenConnexions[i].nColumns;
+	childrenConnexions[i] = newConnexion; // yeah... (deep) copy assignement.
 }
 
 
@@ -551,10 +547,13 @@ void GenotypeNode::decrementOriginOutputSize(int i, int id) {
 			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
 			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
-
+#ifdef CONTINUOUS_LEARNING
+			newConnexion.gamma[idNew] = childrenConnexions[i].gamma[idOld];
+#endif
 			idNew++;
 			idOld++;
 		}
@@ -612,9 +611,13 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 			newConnexion.A[idNew] = childrenConnexions[i].A[idOld];
 			newConnexion.B[idNew] = childrenConnexions[i].B[idOld];
 			newConnexion.C[idNew] = childrenConnexions[i].C[idOld];
+			newConnexion.D[idNew] = childrenConnexions[i].D[idOld];
 			newConnexion.eta[idNew] = childrenConnexions[i].eta[idOld];
 			newConnexion.w[idNew] = childrenConnexions[i].w[idOld];
 			newConnexion.alpha[idNew] = childrenConnexions[i].alpha[idOld];
+#ifdef CONTINUOUS_LEARNING
+			newConnexion.gamma[idNew] = childrenConnexions[i].gamma[idOld];
+#endif
 
 			idNew++;
 			idOld++;

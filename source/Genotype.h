@@ -7,7 +7,7 @@
 #include "Random.h"
 
 // Compilation option:
-#define CONTINUOUS_LEARNING
+//#define CONTINUOUS_LEARNING
 
 // Constants:
 #define MAX_CHILDREN_PER_BLOCK  10
