@@ -10,9 +10,11 @@ private :
     sf::RenderWindow w;
     sf::Font font;
 public:
+    bool paused;
     Drawer(int w, int h) :
         w(sf::VideoMode(w, h), "Fittest Genotype")
     {
+        paused = false;
         if (!font.loadFromFile("Roboto-Black.ttf"))
         {
             std::cerr << "DRAWING OPTION IS ENABLED BUT THE SPECIFIED TEXT FONT (.ttf) WAS NOT FOUND."
@@ -21,13 +23,6 @@ public:
     };
 
     void draw(Network* n) {
-        w.clear();
-        sf::Event event;
-        while (w.pollEvent(event))
-        {
-            if (event.type == sf::Event::Closed)
-                w.close();
-        }
 
         constexpr float nodeRadius = 10.0f;
         constexpr float wheelRadius = 40.0f;
@@ -45,14 +40,34 @@ public:
         static std::vector<float> Xs(MAX_CHILDREN_PER_BLOCK + 3);
         static std::vector<float> Ys(MAX_CHILDREN_PER_BLOCK + 3);
 
-        selfConnexion.setFillColor(sf::Color::Transparent);
-        selfConnexion.setOutlineColor(sf::Color::White);
-        selfConnexion.setOutlineThickness(1.0f);
+        w.clear();
+        sf::Event event;
+        while (w.pollEvent(event))
+        {
+            if (event.type == sf::Event::Closed)
+                w.close();
+            else if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Space) {
+                paused = !paused;
+            }
+        }
+
 
         text.setFont(font);
         text.setCharacterSize(15);
 
-        float x0 = offset, y0 = offset/2.0f;
+        selfConnexion.setFillColor(sf::Color::Transparent);
+        selfConnexion.setOutlineColor(sf::Color::White);
+        selfConnexion.setOutlineThickness(1.0f);
+
+        if (paused) {
+            text.setFillColor(sf::Color::White);
+            text.setString("PAUSED !  Press SPACE to resume.");
+            text.setPosition(10.0f, 10.0f);
+            w.draw(text);
+        }
+
+
+        float x0 = offset/2.0f, y0 = offset/1.5f;
         for (int i = (int)n->genome.size(); i >= n->nSimpleNeurons; i--) {
             if (x0 + offset > w.getSize().x) {
                 x0 = offset; 
@@ -75,7 +90,6 @@ public:
             w.draw(text);
             text.setFillColor(sf::Color::Black);
 
-            node.setFillColor(sf::Color::Cyan);
 
             float factor = 6.28f / ((float)gNode->children.size() + 3.0f);
             for (int j = 0; j < gNode->children.size() + 3; j++) {
@@ -112,7 +126,7 @@ public:
                     node.setFillColor(sf::Color::White);
                 }
                 else {
-                    node.setFillColor(sf::Color::Blue);
+                    node.setFillColor(sf::Color::Cyan);
                 }
                 w.draw(node);
 

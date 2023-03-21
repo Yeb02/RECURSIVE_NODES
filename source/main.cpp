@@ -76,7 +76,7 @@ int main()
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
-    population.setEvolutionParameters(-1.0f, .05f, .0f, false); 
+    population.setEvolutionParameters(-1.0f, .00f, .0f, false); 
     // Only the last _nTrialsEvaluated are used for fitness calculations. Others are only used for learning.
     int _nTrialsEvaluated = nDifferentTrials / 4;          // (int)trials.size(), or 4, or (int)trials.size() / 4, ...
 
@@ -91,6 +91,10 @@ int main()
     for (int i = 0; i < nSteps; i++) {
 #ifdef DRAWING
         drawer.draw(population.getSpecimenPointer(population.fittestSpecimen));
+        if (drawer.paused) {
+            i--;
+            continue;
+        }
 #endif
 
         for (int j = 0; j < nDifferentTrials; j++) {
