@@ -79,8 +79,9 @@ Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
 	}
 	fittestSpecimen = 0;
 	regularizationFactor = .1f;
-	f0 = .0f;
+	selectionPressure = .0f;
 	nichingNorm = 1.0f;
+	useSameTrialInit = false;
 }
 
 void Population::stopThreads() {
@@ -149,6 +150,7 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 
 		// Copy init. Read only, so no mutex required.
 		if (localTrials.size() != globalTrials.size()) {
+			localTrials.resize(0);
 			for (int i = 0; i < globalTrials.size(); i++) {
 				localTrials.emplace_back(globalTrials[i]->clone());
 			}
@@ -178,7 +180,7 @@ void Population::evaluate(const int i0, const int subArraySize, std::vector<std:
 		//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
 		networks[i]->createPhenotype();
 		for (int j = 0; j < localTrials.size(); j++) {
-			localTrials[j]->reset(true);
+			localTrials[j]->reset(useSameTrialInit); // "true" to reduce (eliminate !) fitness function stochasticity
 			while (!localTrials[j]->isTrialOver) {
 				networks[i]->step(localTrials[j]->observations);
 				localTrials[j]->step(networks[i]->getOutput());
@@ -222,6 +224,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	}
 	else {
 		evaluate(0, N_SPECIMENS, trials);
+		iteration++;
 	}
 
 
@@ -251,6 +254,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		std::cout << "At iteration " << iteration
 			<< ", max score = " << maxScore
 			<< ", avg avg score = " << avgavgf << ".\n";
+		//std::cout << maxScore << ", ";
 
 	}
 
@@ -312,30 +316,37 @@ void Population::computeFitnesses(std::vector<float> avgScorePerSpecimen) {
 	normalizeVector(regularizationScore);
 
 	// Then, the fitness is simply a weighted sum of the 2 intermediate measures, score and regularization.
-	float fMax = -100000.0f;
+	float fMax = -10000.0f;
 	for (int i = 0; i < N_SPECIMENS; i++) {
 		fitnesses[i] = avgScorePerSpecimen[i] - regularizationFactor * regularizationScore[i];
 		if (fitnesses[i] > fMax) {
 			fMax = fitnesses[i];
 			fittestSpecimen = i;
 		}
+		if (fitnesses[i] < selectionPressure) fitnesses[i] = 0.0f;
+		else fitnesses[i] -= selectionPressure;
+	}
+
+	if (fMax == selectionPressure) {
+		std::cerr <<
+		"WARNING : selectionPressure TOO HIGH, ALL SPECIMENS REJECTED. SHOULD BE IN [-1 , 1] FOR STABILITY."
+		<< std::endl;
+
+		fitnesses[fittestSpecimen] = 1.0f;
 	}
 
 }
 
 void Population::createOffsprings() {
-	float fitnessSum = 0.0f, fitnessMin=100000.0f;
+	float fitnessSum = 0.0f;
 	for (int i = 0; i < N_SPECIMENS; i++) {
 		fitnessSum += fitnesses[i];
-		if (fitnesses[i] < fitnessMin) fitnessMin = fitnesses[i];
 	}
-	fitnessMin -= f0;
-	fitnessSum -= fitnessMin * (float)N_SPECIMENS;
 
 	std::vector<float> probabilities(N_SPECIMENS);
-	probabilities[0] = (fitnesses[0] - fitnessMin) / fitnessSum;
+	probabilities[0] = fitnesses[0] / fitnessSum;
 	for (int i = 1; i < N_SPECIMENS; i++) {
-		probabilities[i] = probabilities[i - 1] + (fitnesses[i] - fitnessMin) / fitnessSum;
+		probabilities[i] = probabilities[i - 1] + fitnesses[i] / fitnessSum;
 	}
 
 	bool updated = false;  // we keep track of one of the fittest specimen's clones.

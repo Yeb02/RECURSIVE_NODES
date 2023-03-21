@@ -20,7 +20,7 @@ For each trial, initialization is random, but the same values are kept within th
 diminishes noise and speeds up convergence. The scores are saved into a matrix, one axis corresponding 
 to the trials, the other to the specimens.
 
-- An original, simple, artificial niching algorithm is applied, based on ressource sharing principles. 
+- A simple artificial niching algorithm is applied, based on ressource sharing principles, and implicit novelty search. 
 In the matrix, the vectors of scores per trial are linearly transformed to have min = 0 and max = 1.  
 Score per specimen is then a p-norm of its score vector. p < 1 is allowed since all values are >=0 (in [0, 1]). 
 Increasing p beyond 1 fosters specialisation, p=inf being the extreme with only the best trial taken into consideration
@@ -31,7 +31,9 @@ like running the same trial with slightly different random init.
 
 TODO experiment.
 
-- Regularization is a function of both sheer number of parameters (in the phenotype !!) and their amplitude.
+- Regularization is a function of both sheer number of parameters (in the phenotype !!) and their amplitude. I have observed
+a strange phenomenon where increasing regularization strength INCREASES networks sizes... That was unexpected. (And I'm pretty
+sure it is not a bug.)
 
 - Fitness is computed as a linear combination of trial score and regularization score.
 
@@ -59,10 +61,12 @@ public:
 	void computeFitnesses(std::vector<float> avgScorePerSpecimen);
 	void createOffsprings();
 	void mutatePopulation() { for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate(); };
-	void setEvolutionParameters(float f0 = .0f, float regularizationFactor = .1f, float nichingNorm=1.0f) {
+	void setEvolutionParameters(float selectionPressure = .0f, float regularizationFactor = .1f,
+							    float nichingNorm=1.0f, bool useSameTrialInit=false) {
 		this->regularizationFactor = regularizationFactor;
-		this->f0 = f0;
+		this->selectionPressure = selectionPressure;
 		this->nichingNorm = nichingNorm;
+		this->useSameTrialInit = useSameTrialInit;
 	}
 
 	// TODO (exposed):
@@ -100,10 +104,15 @@ private:
 	// and equal weight in the global fitness.
 	float nichingNorm;
 
-	// The higher f0, the lower the selection pressure. When f0 = 0, the least fit individual has a probability of 0
-	// to have children. It can be set at each step with one of the following formulas:
-	// f0 = 1.0f + UNIFORM_01 * 1.0f; OR f0 = .5f * (1.0f + sinf((float)iteration / 3.0f)); OR ...
-	float f0;
+	// Should be in [1, 1]. When selecting "parents" for the next generation, rejects all specimens
+	// below selectionPressure in the gaussian of fitnesses (mean 0 var ~1). Values too high may cause a
+	// warning and undesired behaviour. Can be constant or changed at each steps, with for instance:
+	// UNIFORM_01 -.5f     OR   sinf((float)iteration / 3.0f)   OR ...
+	float selectionPressure;
+
+	// If set to true, each trial of the vector passed to the step function will be reset to the same initial values for
+	// each specimen. In most cases, this completely eliminates the stochasticity of fitness function.
+	bool useSameTrialInit;
 
 	std::vector<float> fitnesses;
 

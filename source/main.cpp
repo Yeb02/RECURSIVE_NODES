@@ -16,19 +16,20 @@
 
 
 // Define the trials on which to evolve. One and only one must be defined: (or tweak main())
-//#define CARTPOLE_T
+#define CARTPOLE_T
 //#define XOR_T
 //#define TMAZE_T
-#define POLYNOME_T
+
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
-// allow for a very long term memory, in parallel with E and H but much slower.
-// Should be on if there is just 1 trial, or equivalently no trials at all. Could be on even if there 
-// are multiple trials, but not recommended in this case. Worth a shot anyway.
-// Define or undefine it in Genotype.h, it does not do anything here !!!!
+// allow for a very long term memory, in parallel with E and H but much slower. Better performance.
+// Should be defined if there is just 1 trial, or equivalently no trials at all. Could be on even if there 
+// are multiple trials. Define or undefine it in Genotype.h, it does not do anything here !!!!
 #define CONTINUOUS_LEARNING
 
 
+// When defined, tries to deduce information on the desirable mutation direction from weights learned over lifetime.
+// Still experimenting.
 #define GUIDED_MUTATIONS
 
 ////////////////////////////////////
@@ -48,7 +49,7 @@ using namespace std;
 int main()
 {
 #ifdef DRAWING
-    Drawer drawer(720, 480);
+    Drawer drawer(1080, 480);
 #endif
 
     int nThreads = std::thread::hardware_concurrency();
@@ -58,7 +59,8 @@ int main()
 #endif
     int nSpecimens = nThreads * 64;
     int nDifferentTrials = 8;
-    int nSteps = 1000;
+    int nSteps = 10000;
+
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
     // different kinds of trials can be put in the vector.
@@ -70,19 +72,18 @@ int main()
         trials.emplace_back(new XorTrial(1,10));  
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
-#elif defined POLYNOME_T
-        trials.emplace_back(new PolynomeTrial(20, 2));
 #endif
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
-    population.setEvolutionParameters(.2f, .25f, .0f); 
-    int nTrialsEvaluated = (int)trials.size() / 4;          // (int)trials.size(), or 4, or (int)trials.size() / 4, ...
+    population.setEvolutionParameters(-1.0f, .05f, .0f, false); 
+    // Only the last _nTrialsEvaluated are used for fitness calculations. Others are only used for learning.
+    int _nTrialsEvaluated = nDifferentTrials / 4;          // (int)trials.size(), or 4, or (int)trials.size() / 4, ...
 
 
     LOG("Using " << nThreads << ".");
     LOG("N_SPECIMEN = " << nSpecimens << " and N_TRIALS = " << nDifferentTrials);
-    LOG("Evaluating on the last " << nTrialsEvaluated << " trials.");
+    LOG("Evaluating on the last " << _nTrialsEvaluated << " trials.");
 
 
     // Evolution loop :
@@ -102,14 +103,11 @@ int main()
             int switchesSide = UNIFORM_01 > 0.5f;
             trials[j]->outerLoopUpdate(&switchesSide);
         }
-#elif defined POLYNOME_T
-        for (int j = 1; j < nDifferentTrials; j++) {
-            trials[j]->copy(trials[0].get());
-        }
 #endif
 
-        //population.setEvolutionParameters(sinf((float)i / 2.0f), .1f, 0.0f); // parameters can be changed at each step.
-        population.step(trials, nTrialsEvaluated);
+
+        //population.setEvolutionParameters(sinf((float)i / 2.0f), .1f, 0.0f, false); // parameters can be changed at each step.
+        population.step(trials, _nTrialsEvaluated);
 
         if ((i + 1) % 100 == 0) { // Defragmentate. Not implemented yet.
             string fileName = population.save();
@@ -125,6 +123,7 @@ int main()
     // to observe the behaviour !
     Network* n = population.getSpecimenPointer(population.fittestSpecimen);
     trials[0]->reset();
+    n->createPhenotype();
     n->intertrialReset();
     cout << "\n";
     while (!trials[0]->isTrialOver) {

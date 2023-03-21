@@ -254,12 +254,7 @@ void PhenotypeNode::forward(const float* input) {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				// On simple examples (cartpole), these supposedly exclusive lines worsen avgFitness. 
-				// Does the explanation reside solely in gamma's mutations ?  
-				//wLifetime[matID] += alpha[matID] * E[matID] * gamma[matID] * totalM; 
-				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * totalM; // for me, this makes more sense.
-				//wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID];
-				//wLifetime[matID] += alpha[matID] * E[matID] * gamma[matID];
+				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * totalM; 
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
 					(A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j] + D[matID]);

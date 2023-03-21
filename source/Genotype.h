@@ -7,15 +7,15 @@
 #include "Random.h"
 
 // Compilation options:
-//#define CONTINUOUS_LEARNING
-#define GUIDED_MUTATIONS
+#define CONTINUOUS_LEARNING 
+//#define GUIDED_MUTATIONS
 
 // Constants:
 #define MAX_CHILDREN_PER_BLOCK  10
 #define MAX_BLOCK_INPUT_SIZE  10          // Does not apply to the top one, which is the network itself
 #define MAX_BLOCK_OUTPUT_SIZE  10         // Does not apply to the top one, which is the network itself
 #define INPUT_ID -1			// In a genotype connexion, means the origin node is the parent's input.
-#define MODULATION_ID -2    // In a genotype connexion, means the destination node is the parent's modulation. 
+#define MODULATION_ID -2    // In a genotypex connexion, means the destination node is the parent's modulation. 
 
 inline float ReLU(float x) { return x > 0 ? x : 0; }
 
@@ -68,6 +68,7 @@ struct GenotypeConnexion {
 };
 
 struct GenotypeNode {
+
 	bool isSimpleNeuron;
 	float (*f)(float); // NULL if Node is a bloc. Else pointer to tanH, cos, ReLU
 	int inputSize, outputSize; // >= 1
@@ -132,10 +133,10 @@ struct GenotypeNode {
 	void mutateFloats();
 
 	// Try to connect two random children nodes. Is less likely to succed as the connexion density rises.
-	void connect();
+	void addConnexion();
 
 	// Disconnect two children nodes picked randomely. 
-	void disconnect();
+	void removeConnexion();
 
 	// Add the specified child to the node. The child's depth is <= to this node's depth (which will be increased by 1 if it was ==)
 	// It is initially connected to 2 random nodes, with a preference for the input and the output.

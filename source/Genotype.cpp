@@ -20,7 +20,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 #endif
 
 	SET_BINOMIAL(s, .5f); // gamma and eta.
-	float factor = .5f / (float)s;
+	float factor = .3f / (float)s;
 
 	if (init == ZERO || (init == IDENTITY && nLines != nColumns)) {
 		for (int i = 0; i < nLines * nColumns; i++) {
@@ -30,10 +30,10 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			C[i] = NORMAL_01 * .2f;
 			D[i] = NORMAL_01 * .2f;
 			alpha[i] = 0.0f;
-			eta[i] = factor * (float)BINOMIAL;
+			eta[i] = factor * (float)BINOMIAL + .1f;
 			w[i] = 0.0f;
 #ifdef CONTINUOUS_LEARNING
-			gamma[i] = factor * (float) BINOMIAL;
+			gamma[i] = factor * (float) BINOMIAL + .1f;
 #endif
 #ifdef GUIDED_MUTATIONS
 			accumulator[i] = 0.0f;
@@ -47,10 +47,10 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			C[i] = NORMAL_01 * .2f;
 			D[i] = NORMAL_01 * .2f;
 			alpha[i] = NORMAL_01 *.2f;
-			eta[i] = factor * (float) BINOMIAL;
+			eta[i] = factor * (float) BINOMIAL + .1f;
 			w[i] = NORMAL_01*.2f;
 #ifdef CONTINUOUS_LEARNING
-			gamma[i] = factor * (float) BINOMIAL;
+			gamma[i] = factor * (float) BINOMIAL + .1f;
 #endif
 #ifdef GUIDED_MUTATIONS
 			accumulator[i] = 0.0f;
@@ -70,10 +70,10 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 				C[i] = NORMAL_01 * .2f;
 				D[i] = NORMAL_01 * .2f;
 				alpha[i] = 0.0f;
-				eta[i] = factor * (float) BINOMIAL;
+				eta[i] = factor * (float) BINOMIAL + .1f;
 				w[i] = v;
 #ifdef CONTINUOUS_LEARNING
-				gamma[i] = factor * (float) BINOMIAL;
+				gamma[i] = factor * (float) BINOMIAL + .1f;
 #endif
 #ifdef GUIDED_MUTATIONS
 				accumulator[i] = 0.0f;
@@ -241,7 +241,6 @@ void GenotypeNode::mutateFloats() {
 				aPtr[matrixID] = UNIFORM_01 > .05f ?
 						aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01-.5f) + aPtr[matrixID] :
 						aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
-				//aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;// alternative
 				break;
 #ifdef CONTINUOUS_LEARNING
 			case 7:  // gamma
@@ -249,7 +248,6 @@ void GenotypeNode::mutateFloats() {
 				aPtr[matrixID] = UNIFORM_01 > .05f ?
 					aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01 - .5f) + aPtr[matrixID] :
 					aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
-				//aPtr[matrixID] = aPtr[matrixID] * .8f + UNIFORM_01 * .2f;  // alternative
 				break;
 #endif
 			}
@@ -266,7 +264,7 @@ void GenotypeNode::mutateFloats() {
 		if (nApparitions == 0) continue;
 		float invFactor = 1.0f / (float)nApparitions; // should be outside the loop, here for readability
 		for (int k = 0; k < size; k++) {
-			childrenConnexions[listID].w[k] += .2f * childrenConnexions[listID].accumulator[k] * invFactor;
+			childrenConnexions[listID].w[k] += .3f * childrenConnexions[listID].accumulator[k] * invFactor;
 		}
 #endif
 	}
@@ -294,17 +292,17 @@ void GenotypeNode::mutateFloats() {
 // This implementation makes it less likely to gain connexions when many are already populated.
 // It also favors connecting from the input or to the output, to encourage parallelism.
 // Note that a child node can be connected to itself.
-void GenotypeNode::connect() {
+void GenotypeNode::addConnexion() {
 	if (children.size() == 0) return;
-	int inputBias = (int)((float)children.size() / 1.5f);
-	int outputBias = (int)((float)children.size() / 1.5f);
+	int _inputBias = (int)((float)children.size() / 1.5f);
+	int _outputBias = (int)((float)children.size() / 1.5f);
 	int c1, c2;
 	const int maxAttempts = 3;
 	bool alreadyExists;
 	int dInSize, oOutSize;
 	for (int i = 0; i < maxAttempts; i++) {
-		c1 = INT_0X(children.size() + 1 + inputBias) - 1 - inputBias; // in [-1-inputBias, children.size() - 1]
-		c2 = INT_0X(children.size() + 1 + outputBias); // in [0, children.size() + outputBias]
+		c1 = INT_0X(children.size() + 1 + _inputBias) - 1 - _inputBias; // in [-1-inputBias, children.size() - 1]
+		c2 = INT_0X(children.size() + 1 + _outputBias); // in [0, children.size() + outputBias]
 
 		if (c1 <= -1) {
 			c1 = INPUT_ID; //INPUT_ID could be != -1 in future versions.
@@ -319,8 +317,8 @@ void GenotypeNode::connect() {
 		else dInSize = children[c2]->inputSize;
 
 		alreadyExists = false;
-		for (int i = 0; i < childrenConnexions.size(); i++) {
-			if (childrenConnexions[i].originID == c1 && childrenConnexions[i].destinationID == c2) {
+		for (int j = 0; j < childrenConnexions.size(); j++) {
+			if (childrenConnexions[j].originID == c1 && childrenConnexions[j].destinationID == c2) {
 				alreadyExists = true;
 				break;
 			}
@@ -333,7 +331,7 @@ void GenotypeNode::connect() {
 		break;
 	}
 }
-void GenotypeNode::disconnect() {
+void GenotypeNode::removeConnexion() {
 	if (childrenConnexions.size() <= 1 + 1) return; // not allowed to fall below 1 connexion + neuromodulation. Still can happen in a convoluted case.
 	int id = INT_0X(childrenConnexions.size());
 	if (childrenConnexions[id].destinationID == MODULATION_ID) return; // not allowed to disconnect neuromodulation.

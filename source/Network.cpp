@@ -112,7 +112,7 @@ void Network::mutate() {
 	constexpr float addChildProbability = .01f;
 	constexpr float removeChildProbability = .002f;
 
-	constexpr float childReplacementProbability = .005f;
+	constexpr float childReplacementProbability = .01f;
 
 	constexpr float nodeBoxingProbability = .003f;
 	
@@ -126,6 +126,9 @@ void Network::mutate() {
 	if (topNodeP.get() != NULL) 
 	{
 		topNodeP->accumulateW();
+		// puis faire des opérations type estimation de distance, detection d'outsider...
+		// Que ça ait une influence sur nodeDuplicationProbability. Et peut-être même tracer
+		// certaines valeurs à travers les générations...
 	}
 #endif
 
@@ -142,14 +145,14 @@ void Network::mutate() {
 	{
 		for (int i = nSimpleNeurons; i < genome.size(); i++) {
 			r = UNIFORM_01;
-			if (r < deleteConnexionProbability) genome[i]->disconnect();
+			if (r < deleteConnexionProbability) genome[i]->removeConnexion();
 			r = UNIFORM_01;
-			if (r < createConnexionProbability) genome[i]->connect();
+			if (r < createConnexionProbability) genome[i]->addConnexion();
 		}
 		r = UNIFORM_01;
-		if (r < deleteConnexionProbability) topNodeG->disconnect();
+		if (r < deleteConnexionProbability) topNodeG->removeConnexion();
 		r = UNIFORM_01;
-		if (r < createConnexionProbability) topNodeG->connect();
+		if (r < createConnexionProbability) topNodeG->addConnexion();
 	}
 
 	// Input and output sizes mutations.
@@ -516,12 +519,12 @@ bool Network::hasChild(GenotypeNode* parent, GenotypeNode* potentialChild) {
 
 
 float Network::getRegularizationLoss() {
-	std::vector<int> nParams(genome.size()+1);
-	std::vector<float> amplitudes(genome.size()+1);
+	std::vector<int> nParams(genome.size() + 1);
+	std::vector<float> amplitudes(genome.size() + 1);
 	int size;
 	constexpr int nArrays = 5; // eta and gamma's amplitudes are irrelevant here.
 
-	for (int i = nSimpleNeurons; i < genome.size()+1; i++) {
+	for (int i = nSimpleNeurons; i < genome.size() + 1; i++) {
 		GenotypeNode* n;
 		n = i != genome.size() ? genome[i].get() : topNodeG.get();
 
@@ -541,12 +544,13 @@ float Network::getRegularizationLoss() {
 		}
 		nParams[i] *= nArrays;
 		for (int j = 0; j < n->children.size(); j++) {
-			nParams[i] += nParams[n->children[j]->position]; 
+			nParams[i] += nParams[n->children[j]->position];
 			amplitudes[i] += amplitudes[n->children[j]->position];
 		}
 	}
 
-	// the higher the exponent, the stronger the size regularization. TODO take genome.size() into consideration.
-	constexpr float exponent = .15f;
-	return amplitudes[genome.size()] * powf((float) nParams[genome.size()] / nArrays, -1.0f + exponent); 
+	// TODO take genome.size() into consideration.
+	float a = (float)amplitudes[genome.size()] / (float)nParams[genome.size()];
+	float b = logf((float)nParams[genome.size()] / (float)nArrays);
+	return a + 0.3f * a * b + 0.5f * b; // no factor in front of a because the whole vector will be reduced anyway.
 }
