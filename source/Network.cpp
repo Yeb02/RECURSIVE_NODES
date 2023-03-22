@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Network.h"
-
+#include <iostream>
 
 Network::Network(Network* n) {
 	nSimpleNeurons = n->nSimpleNeurons;
@@ -64,7 +64,7 @@ inputSize(inputSize), outputSize(outputSize)
 	topNodeG->isSimpleNeuron = false;
 	topNodeG->inputSize = inputSize;
 	topNodeG->outputSize = outputSize;
-	topNodeG->concatenatedChildrenInputLength = outputSize;
+	topNodeG->sumChildrenInputSizes = outputSize;
 	topNodeG->f = NULL;
 	topNodeG->depth = 1;
 	topNodeG->position = -1;
@@ -79,10 +79,10 @@ inputSize(inputSize), outputSize(outputSize)
 	topNodeG->childrenConnexions.emplace_back(
 		INPUT_ID, MODULATION_ID, 2, inputSize, GenotypeConnexion::RANDOM
 	);
-	topNodeG->biasM = NORMAL_01;
-	topNodeG->inBias.resize(inputSize);
-	topNodeG->outBias.resize(outputSize);
+	topNodeG->biasM[0] = 0.0f;
+	topNodeG->biasM[1] = 0.0f;
 	topNodeG->computeBeacons();
+	topNodeG->childrenInBias.resize(topNodeG->sumChildrenInputSizes + topNodeG->outputSize);
 }
 
 
@@ -91,11 +91,38 @@ std::vector<float> Network::getOutput() {
 }
 
 
+
+void Network::postTrialUpdate(float score) {
+	if (topNodeP->nInferences != 0) {
+#ifndef CONTINUOUS_LEARNING
+
+		float invNInferences = 1.0f / topNodeP->nInferences;
+		topNodeP->updateWatTrialEnd(invNInferences);
+	
+#endif
+
+
+
+#if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
+		topNodeP->accumulateW(score); // Optional !
+#endif
+	}
+	else {
+		std::cerr << "ERROR : postTrialUpdate WAS CALLED BEFORE EVALUATION ON A TRIAL !!" << std::endl;
+	}
+}
+
+
+
+void Network::preTrialReset() {
+	topNodeP->preTrialReset();
+};
+
 void Network::step(const std::vector<float>& obs) {
 	topNodeP->forward(obs.data());
 }
 
-
+// TODO mutation rates should be functions of the network size.
 void Network::mutate() {
 
 	// value in pairs should be equal, or at least the first greater than the second, to introduce some kind of regularization.
@@ -120,17 +147,6 @@ void Network::mutate() {
 
 	float r;
 
-
-	// accumulate wLifetime.
-#ifdef GUIDED_MUTATIONS
-	if (topNodeP.get() != NULL) 
-	{
-		topNodeP->accumulateW();
-		// puis faire des opérations type estimation de distance, detection d'outsider...
-		// Que ça ait une influence sur nodeDuplicationProbability. Et peut-être même tracer
-		// certaines valeurs à travers les générations...
-	}
-#endif
 
 	// Floating point mutations.
 	{
@@ -297,8 +313,6 @@ void Network::mutate() {
 
 				updateDepths();
 				sortGenome();
-
-				break;
 			}
 		}
 		if (UNIFORM_01 < removeChildProbability && topNodeG->children.size() > 0) {
@@ -323,25 +337,10 @@ void Network::mutate() {
 			GenotypeNode* n = new GenotypeNode();
 			GenotypeNode* base = parentNode->children[rID];
 
-			n->isSimpleNeuron = false;
-			n->f = NULL;
-			n->inputSize = base->inputSize;
-			n->outputSize = base->outputSize;
-			n->inBias.assign(base->inBias.begin(), base->inBias.end());
-			n->outBias.assign(base->outBias.begin(), base->outBias.end());
-			n->biasM = base->biasM;
-			n->concatenatedChildrenInputLength = base->concatenatedChildrenInputLength;
-			n->depth = base->depth;
+			n->copyParameters(base);
+
 			n->closestNode = base;
-			n->mutationalDistance = 0;
-
-			n->concatenatedChildrenInputBeacons.assign(base->concatenatedChildrenInputBeacons.begin(), base->concatenatedChildrenInputBeacons.end());
 			n->children.assign(base->children.begin(), base->children.end());
-
-			n->childrenConnexions.reserve((int)((float)n->childrenConnexions.size() * 1.5f));
-			for (int j = 0; j < n->childrenConnexions.size(); j++) {
-				n->childrenConnexions.emplace_back(base->childrenConnexions[j]);
-			}
 
 			genome.emplace(genome.begin() + base->position + 1, n);
 
@@ -376,27 +375,9 @@ void Network::mutate() {
 				box->f = NULL;
 				box->inputSize = child->inputSize;
 				box->outputSize = child->outputSize;
-				box->inBias.resize(child->inputSize);
-				box->outBias.resize(child->outputSize);
-
-				if (child->isSimpleNeuron) {
-					for (int j = 0; j < box->inputSize; j++) {
-						box->inBias[j] = 0.0f;
-					}
-					for (int j = 0; j < box->outputSize; j++) {
-						box->outBias[j] = 0.0f;
-					}
-					box->biasM = NORMAL_01*.2f;
-				}
-				else {
-					for (int j = 0; j < box->inputSize; j++) {
-						box->inBias[j] = child->inBias[j];
-					}
-					for (int j = 0; j < box->outputSize; j++) {
-						box->outBias[j] = child->outBias[j];
-					}
-					box->biasM = NORMAL_01 * .2f; // or 0...
-				}
+			
+				box->biasM[0] = NORMAL_01 * .2f;
+				box->biasM[1] = NORMAL_01 * .2f;
 				
 				box->depth = child->depth + 1;
 				box->closestNode = child;
@@ -405,6 +386,12 @@ void Network::mutate() {
 
 				box->children.resize(1);
 				box->children[0] = child;
+
+				box->computeBeacons();
+				box->childrenInBias.resize(box->outputSize + box->sumChildrenInputSizes);
+				for (int j = 0; j < box->childrenInBias.size(); j++) {
+					box->childrenInBias[j] = NORMAL_01 * .2f;
+				}
 
 				box->childrenConnexions.reserve(4);
 				box->childrenConnexions.emplace_back(INPUT_ID, MODULATION_ID, 2, box->inputSize, GenotypeConnexion::RANDOM);

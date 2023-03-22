@@ -28,10 +28,14 @@ public:
 		if (topNodeP.get() == NULL) topNodeP.reset(new PhenotypeNode(topNodeG.get()));
 	};
 
-	// sets to 0 the dynamic elements of the phenotype
-	void intertrialReset() {
-		topNodeP->interTrialReset();
-	};
+	// Sets to 0 the dynamic elements of the phenotype. 
+	void preTrialReset();
+
+	// #if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
+	// In some cases, it is not a good idea to keep learned weights between trials, for instance when learned knowledge does
+	// not transpose from one to the other. The fitness  argument can either be relative to other individuals in the genotype,
+	// or absolute, in which case the Network instance must keep in memory the fitness of its parent on the same trial.
+	void postTrialUpdate(float score);
 
 	// a positive float, increasing with the networks number of parameters and their amplitudes. Ignores biases.
 	float getRegularizationLoss();

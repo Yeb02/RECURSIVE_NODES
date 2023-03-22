@@ -1,7 +1,7 @@
 # RECURSIVE_NODES
 
 Implements a 3 loops optimization algorithm to solve optimal control and memorization problems. The neural network is meta-optimized by a custom genetic algorithm, which evolves both topology and floating point parameters. The network itself uses 3 factor Hebbian learning rules. 
-Several variants are implemented, change the active preprocessor directives in main.cpp or dllMain.h to compile a custom version.
+Several variants are implemented, change the active preprocessor directives in config.h to compile a custom version.
 
 ##### KNOWN BUG: None, report any !
 

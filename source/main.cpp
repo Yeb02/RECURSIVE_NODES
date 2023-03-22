@@ -3,38 +3,6 @@
 #include "Population.h"
 #include "Random.h"
 
-////////////////////////////////////
-///// USER COMPILATION CHOICES /////
-////////////////////////////////////
-
-// Comment or uncomment the preprocessor directives to compile versions of the code
-// Or use the -D flag.
-
-// Draws a specimen at each step, using SFML. Requires the appropriate DLLs 
-// alongside the generated executable, details in readme.md .
-#define DRAWING 
-
-
-// Define the trials on which to evolve. One and only one must be defined: (or tweak main())
-#define CARTPOLE_T
-//#define XOR_T
-//#define TMAZE_T
-
-
-// When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
-// allow for a very long term memory, in parallel with E and H but much slower. Better performance.
-// Should be defined if there is just 1 trial, or equivalently no trials at all. Could be on even if there 
-// are multiple trials. Define or undefine it in Genotype.h, it does not do anything here !!!!
-#define CONTINUOUS_LEARNING
-
-
-// When defined, tries to deduce information on the desirable mutation direction from weights learned over lifetime.
-// Still experimenting.
-#define GUIDED_MUTATIONS
-
-////////////////////////////////////
-////////////////////////////////////
-
 
 #ifdef DRAWING
 #include "Drawer.h"
@@ -69,16 +37,16 @@ int main()
 #ifdef CARTPOLE_T
         trials.emplace_back(new CartPoleTrial(true)); // Parameter corresponds to continuous control.
 #elif defined XOR_T
-        trials.emplace_back(new XorTrial(1,10));  
+        trials.emplace_back(new XorTrial(2,5));  
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
 #endif
     }
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
-    population.setEvolutionParameters(-1.0f, .00f, .0f, false); 
+    population.setEvolutionParameters(-1.0f, .1f, .0f, true); 
     // Only the last _nTrialsEvaluated are used for fitness calculations. Others are only used for learning.
-    int _nTrialsEvaluated = nDifferentTrials / 4;          // (int)trials.size(), or 4, or (int)trials.size() / 4, ...
+    int _nTrialsEvaluated = nDifferentTrials ;          // (int)trials.size(), or 4, or (int)trials.size() / 4, ...
 
 
     LOG("Using " << nThreads << ".");
@@ -128,7 +96,7 @@ int main()
     Network* n = population.getSpecimenPointer(population.fittestSpecimen);
     trials[0]->reset();
     n->createPhenotype();
-    n->intertrialReset();
+    n->preTrialReset();
     cout << "\n";
     while (!trials[0]->isTrialOver) {
         n->step(trials[0]->observations);

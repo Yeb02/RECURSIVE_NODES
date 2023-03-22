@@ -12,8 +12,9 @@ PhenotypeConnexion::PhenotypeConnexion(int s)
 	avgH = std::make_unique<float[]>(s);
 #endif
 
-	zero(s);
 	zeroWlifetime(s);
+
+	zero(s); // not necessary, because in theory PhenotypeNode::preTrialReset() should be called before any computation. TODO
 }
 
 #ifndef CONTINUOUS_LEARNING
@@ -42,7 +43,6 @@ void PhenotypeConnexion::zeroWlifetime(int s) {
 
 PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 {
-	nInferences = 1; // not 0 to avoid division by 0 if intertrialReset is called before going through any trial 
 	previousInput.resize(type->inputSize);
 	previousOutput.resize(type->outputSize);
 	currentOutput.resize(type->outputSize);
@@ -62,35 +62,53 @@ PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 		);
 	}
 
-	totalM = 0.0f;
-	localM = 0.0f;
+	// LocalM and TotalM are not instantiated here because a call to preTrialReset() 
+	// must be made before any forward pass. (Or call to postTrialUpdate). nInferences is 
+	// in the same situation but is instantiated to detect those unexpected calls.
+	nInferences = 0;
 };
 
-#ifdef GUIDED_MUTATIONS
-void PhenotypeNode::accumulateW() {
+#if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
+void PhenotypeNode::accumulateW(float factor) {
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		type->nApparitions++;
 		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
 		for (int j = 0; j < s; j++) {
-			type->childrenConnexions[i].accumulator[j] += childrenConnexions[i].wLifetime[j];
+			type->childrenConnexions[i].accumulator[j] += factor * childrenConnexions[i].wLifetime[j];
+			childrenConnexions[i].wLifetime[j] = 0.0f;
 		}
 	}
 
 	for (int i = 0; i < children.size(); i++) {
 		if (!children[i].type->isSimpleNeuron) {
-			children[i].accumulateW();
+			children[i].accumulateW(factor);
 		}
 	}
 }
 #endif
 
-void PhenotypeNode::interTrialReset() {
+#ifndef CONTINUOUS_LEARNING
+void PhenotypeNode::updateWatTrialEnd(float invNInferences) {
+	if (nInferences == 0) return; // should not have been called in the first place.
+
+	for (int i = 0; i < children.size(); i++) {
+		if (!children[i].type->isSimpleNeuron) children[i].updateWatTrialEnd(invNInferences);
+	}
+
+	for (int i = 0; i < childrenConnexions.size(); i++) {
+		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
+		childrenConnexions[i].updateWatTrialEnd(s, invNInferences, type->childrenConnexions[i].alpha.get());
+	}
+}
+#endif
+
+void PhenotypeNode::preTrialReset() {
 	std::fill(previousInput.begin(), previousInput.end(), 0.0f);
 	std::fill(previousOutput.begin(), previousOutput.end(), 0.0f);
 	std::fill(currentOutput.begin(), currentOutput.end(), 0.0f);
 	for (int i = 0; i < children.size(); i++) {
-		if (!children[i].type->isSimpleNeuron) children[i].interTrialReset();
+		if (!children[i].type->isSimpleNeuron) children[i].preTrialReset();
 		else {
 			children[i].previousInput[0] = 0.0f;
 			children[i].previousOutput[0] = 0.0f;
@@ -100,15 +118,13 @@ void PhenotypeNode::interTrialReset() {
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
-#ifndef CONTINUOUS_LEARNING
-		float factor = 1.0f / (float)nInferences; // here for readability, compiler will put it outside the loop
-		childrenConnexions[i].updateWatTrialEnd(s, factor, type->childrenConnexions[i].alpha.get());
-#endif
-		childrenConnexions[i].zero(s);
+		childrenConnexions[i].zero(s); // zeros E, H, AVG_H, 
 	}
-	totalM = 0.0f;
-	localM = 0.0f;
-	nInferences = 1; // not 0 to avoid division by 0 if intertrialReset is called again before going through any new trial 
+	totalM[0] = 0.0f;
+	totalM[1] = 0.0f;
+	localM[0] = 0.0f;
+	localM[1] = 0.0f;
+	nInferences = 0;
 }
 
 void PhenotypeNode::forward(const float* input) {
@@ -117,12 +133,17 @@ void PhenotypeNode::forward(const float* input) {
 	int nc, nl, matID;
 
 	// set up the array where every's child input is accumulated before applying their forward.
-	float* _childInputs = new float[type->concatenatedChildrenInputLength + type->outputSize];
-	for (int i = 0; i < type->concatenatedChildrenInputLength + type->outputSize; i++) _childInputs[i] = 0.0f;
+	float* _childInputs = new float[type->sumChildrenInputSizes + type->outputSize];
+	for (int i = 0; i < type->sumChildrenInputSizes + type->outputSize; i++) {
+		_childInputs[i] = type->childrenInBias[i];
+	}
 
 	// save previous step's M.
-	float previousLocalM = localM;
-	localM = type->biasM;
+	float previousLocalM[2];
+	previousLocalM[0] = localM[0];
+	previousLocalM[1] = localM[1];
+	localM[0] = type->biasM[0];
+	localM[1] = type->biasM[1];
 
 	// propagate the previous steps's outputs, by iterating over the connexions between children
 	for (int id = 0; id < childrenConnexions.size(); id++) {
@@ -141,11 +162,13 @@ void PhenotypeNode::forward(const float* input) {
 		float* w = type->childrenConnexions[id].w.get();
 
 		if (originID == INPUT_ID) {
-			if (destinationID == MODULATION_ID) {
+			// TODO when input to modulation will be changed to be more than parent input, process connexions 
+			// to modulation and modulation calculus AFTER children's forward, way below.   TODO TODO TODO
+			if (destinationID == MODULATION_ID) { 
 				for (int i = 0; i < nl; i++) {
 					for (int j = 0; j < nc; j++) {
 						// += (H * alpha + w) * prevAct
-						localM += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
+						localM[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
 						matID++;
 					}
 				}
@@ -173,8 +196,10 @@ void PhenotypeNode::forward(const float* input) {
 	}
 
 	// neuromodulation
-	localM = tanhf(localM);
-	totalM += localM; 
+	localM[0] = tanhf(localM[0]);
+	localM[1] = tanhf(localM[1]);
+	totalM[0] += localM[0];
+	totalM[1] += localM[1];
 
 	// apply children's forward, after a tanh for non-simple neurons. 
 	int _inputListID = 0;
@@ -192,10 +217,11 @@ void PhenotypeNode::forward(const float* input) {
 			children[i].currentOutput[0] = _childInputs[_inputListID];
 		}
 		else {
-			children[i].totalM = this->totalM;
+			children[i].totalM[0] = this->totalM[0];
+			children[i].totalM[1] = this->totalM[1];
 			int maxJ = _inputListID + children[i].type->inputSize;
 			for (int j = _inputListID; j < maxJ; j++) {
-				_childInputs[j] = tanhf(_childInputs[j] + children[i].type->inBias[j - _inputListID]);
+				_childInputs[j] = tanhf(_childInputs[j]);
 			}
 			children[i].forward(&_childInputs[_inputListID]);
 		}
@@ -206,7 +232,7 @@ void PhenotypeNode::forward(const float* input) {
 	// process this node's output, stored in the input of the virtual output node:
 	previousOutput.assign(currentOutput.begin(), currentOutput.end()); // save the previous activations
 	for (int i = 0; i < type->outputSize; i++) {
-		currentOutput[i] = tanhf(_childInputs[_inputListID + i] + type->outBias[i]);
+		currentOutput[i] = tanhf(_childInputs[_inputListID + i]);
 	}
 
 
@@ -238,7 +264,7 @@ void PhenotypeNode::forward(const float* input) {
 			iArray = currentOutput.data();
 		}
 		else if (destinationID == MODULATION_ID) {
-			iArray = &localM;
+			iArray = localM;
 		}
 		else {
 			iArray = children[destinationID].previousInput.data();
@@ -254,12 +280,12 @@ void PhenotypeNode::forward(const float* input) {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * totalM; 
+				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * totalM[1]; 
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
 					(A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j] + D[matID]);
 
-				H[matID] += E[matID] * totalM;
+				H[matID] += E[matID] * totalM[0];
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
 #ifndef CONTINUOUS_LEARNING
 				avgH[matID] += H[matID];

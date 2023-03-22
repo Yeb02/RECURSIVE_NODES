@@ -23,20 +23,20 @@ int nDoneProcessing = 0;
 
 
 // Utils:
-void normalizeVector(std::vector<float>& v) {
+void normalizeArray(float* v, int size) {
 	float avg = 0.0f;
-	for (int i = 0; i < v.size(); i++) {
+	for (int i = 0; i < size; i++) {
 		avg += v[i];
 	}
-	avg /= (float)v.size();
+	avg /= (float)size;
 	float variance = 0.0f;
-	for (int i = 0; i < v.size(); i++) {
+	for (int i = 0; i < size; i++) {
 		v[i] -= avg;
 		variance += v[i] * v[i];
 	}
-	float InvStddev = 1.0f / sqrtf(variance / (float)v.size());
+	float InvStddev = 1.0f / sqrtf(variance / (float) size);
 	if (abs(InvStddev) < .001f) return;
-	for (int i = 0; i < v.size(); i++) {
+	for (int i = 0; i < size; i++) {
 		v[i] *= InvStddev;
 	}
 }
@@ -129,6 +129,7 @@ Population::~Population() {
 	}
 }
 
+//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
 void Population::threadLoop(const int i0, const int subArraySize) {
 	std::vector<std::unique_ptr<Trial>> localTrials;
 
@@ -162,8 +163,39 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 			}
 		}
 
-		// Heavy lifting.
-		evaluate(i0, subArraySize, localTrials);
+
+		///////// COMPUTATIONS
+		for (int i = i0; i < i0 + subArraySize; i++) {
+			//networks[i]->mutate(); // TODO
+			networks[i]->createPhenotype();
+		}
+		
+
+		for (int i = 0; i < localTrials.size(); i++) {
+			for (int i = i0; i < i0 + subArraySize; i++) {
+				networks[i]->preTrialReset();
+			}
+			evaluate(i0, subArraySize, localTrials[i].get());
+
+
+			ul.lock();
+			nDoneProcessing--;
+			if (nDoneProcessing == 0) {
+				ul.unlock();
+				doneProcessing.notify_one();
+			}
+
+			// WAIT FOR SCORE OPERATION. (NORMALIZATION ?)
+
+			//std::unique_lock<std::mutex> ul(m);
+			startProcessing.wait(ul, [&currentIteration, this] {return (currentIteration == iteration) || mustTerminate; });
+			ul.unlock();
+			currentIteration++;
+
+			for (int i = i0; i < i0 + subArraySize; i++) {
+				networks[i]->postTrialUpdate(pScores[i]);
+			}
+		}
 		
 		ul.lock();
 		nDoneProcessing--;
@@ -174,56 +206,71 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 	}
 }
 
-//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED (thread_local)
-void Population::evaluate(const int i0, const int subArraySize, std::vector<std::unique_ptr<Trial>>& localTrials) {
+void Population::evaluate(const int i0, const int subArraySize, Trial* trial) {
 	for (int i = i0; i < i0 + subArraySize; i++) {
-		//networks[i]->mutate();   TODO UNCOMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
-		networks[i]->createPhenotype();
-		for (int j = 0; j < localTrials.size(); j++) {
-			localTrials[j]->reset(useSameTrialInit); // "true" to reduce (eliminate !) fitness function stochasticity
-			while (!localTrials[j]->isTrialOver) {
-				networks[i]->step(localTrials[j]->observations);
-				localTrials[j]->step(networks[i]->getOutput());
-			}
-			pScores[i * localTrials.size() + j] = localTrials[j]->score;
-			networks[i]->intertrialReset();
+		networks[i]->preTrialReset();
+		trial->reset(useSameTrialInit); // "true" to reduce (eliminate !) fitness function stochasticity
+		while (!trial->isTrialOver) {
+			networks[i]->step(trial->observations);
+			trial->step(networks[i]->getOutput());
 		}
+		pScores[i] = trial->score;		
 	}
 }
 
 void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEvaluated) {
-	// thread_local random engine !
-	for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate();  // TODO COMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
-
 	// utils
 	int tSize = (int)trials.size();
 	int i0 = tSize - nTrialsEvaluated;
 
-	// evaluate the specimens on trials. Todo fit the size ...
+	// Mutate, then evaluate the specimens on trials. 
 	std::vector<float> scores(tSize * N_SPECIMENS);
-	pScores = scores.data();
 	if (N_THREADS > 1) {
+		// thread_local random engine !
+		for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate();  // TODO COMMENT WHEN THREAD SAFE RNG IS IMPLEMENTED
+
+		// acquire pointers to this step's trials.
 		globalTrials.resize(tSize);
 		for (int j = 0; j < tSize; j++) {
 			globalTrials[j] = trials[j].get();
 		}
 
-		// send msg to workers to start processing
-		{
-			std::lock_guard<std::mutex> lg(m);
-			nDoneProcessing = N_THREADS;
-			iteration++;
-		}
-		startProcessing.notify_all();
 
-		// wait on workers.
-		{
-			std::unique_lock<std::mutex> lg(m);
-			doneProcessing.wait(lg, [] {return nDoneProcessing == 0; });
+		for (int i = 0; i < tSize + 1; i++) {
+			pScores = &scores[i * N_SPECIMENS];
+
+			// send msg to workers to start processing
+			{
+				std::lock_guard<std::mutex> lg(m);
+				nDoneProcessing = N_THREADS;
+				iteration++;
+			}
+			startProcessing.notify_all();
+
+			// wait on workers.
+			{
+				std::unique_lock<std::mutex> lg(m);
+				doneProcessing.wait(lg, [] {return nDoneProcessing == 0; });
+			}
 		}
 	}
 	else {
-		evaluate(0, N_SPECIMENS, trials);
+		for (int i = 0; i < N_SPECIMENS; i++) {
+			networks[i]->mutate();
+			networks[i]->createPhenotype();
+		}
+
+		for (int i = 0; i < tSize; i++) {
+			pScores = &scores[i * N_SPECIMENS];
+			evaluate(0, N_SPECIMENS, trials[i].get());
+
+			// normalize scores ?
+
+			for (int i = 0; i < N_SPECIMENS; i++) {
+				networks[i]->postTrialUpdate(pScores[i]);
+			}
+		}
+		
 		iteration++;
 	}
 
@@ -265,11 +312,11 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		std::vector<float> sums, mins;
 		sums.resize(nTrialsEvaluated);
 		mins.resize(nTrialsEvaluated); // 0 init is fine cause there WILL be values < 0.
-		for (int i = 0; i < N_SPECIMENS; i++) {
-			for (int j = i0; j < tSize; j++) {
-				sums[j - i0] += scores[i * tSize + j];
-				if (scores[i * tSize + j] < mins[j - i0]) {
-					mins[j - i0] = scores[i * tSize + j];
+		for (int j = i0; j < tSize; j++) {
+			for (int i = 0; i < N_SPECIMENS; i++) {
+				sums[j - i0] += scores[i + j*tSize];
+				if (scores[i + j * tSize] < mins[j - i0]) {
+					mins[j - i0] = scores[i + j * tSize];
 				}
 			}
 		}
@@ -283,7 +330,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			float s = 0.0f;
 			for (int j = i0; j < tSize; j++) {
-				s += powf((scores[i * tSize + j] - mins[j-i0]) * sums[j-i0], nichingNorm);
+				s += powf((scores[i + j * tSize] - mins[j-i0]) * sums[j-i0], nichingNorm);
 			}
 			// Dividing by nTrialsEvaluated so that changing nTrialsEvaluated does not
 			// influence too much other hyperparameters.
@@ -291,13 +338,14 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		}
 	} 
 	else {
-		for (int i = 0; i < N_SPECIMENS; i++) {
-			for (int j = i0; j < tSize; j++) {
-				avgScorePerSpecimen[i] += scores[i * tSize + j];
+		for (int j = i0; j < tSize; j++) {
+			for (int i = 0; i < N_SPECIMENS; i++) {
+				avgScorePerSpecimen[i] += scores[i + j * tSize];
 			}
 		}
 	}
-	normalizeVector(avgScorePerSpecimen);
+
+	normalizeArray(avgScorePerSpecimen.data(), N_SPECIMENS); // TODO, check if necessary.
 
 
 	computeFitnesses(avgScorePerSpecimen);
@@ -313,7 +361,7 @@ void Population::computeFitnesses(std::vector<float> avgScorePerSpecimen) {
 	for (int i = 0; i < N_SPECIMENS; i++) {
 		regularizationScore[i] = networks[i]->getRegularizationLoss();
 	}
-	normalizeVector(regularizationScore);
+	normalizeArray(regularizationScore.data(), N_SPECIMENS);
 
 	// Then, the fitness is simply a weighted sum of the 2 intermediate measures, score and regularization.
 	float fMax = -10000.0f;

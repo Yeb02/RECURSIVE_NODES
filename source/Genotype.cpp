@@ -193,7 +193,7 @@ void GenotypeNode::computeBeacons() {
 		s += children[i]->inputSize;
 		concatenatedChildrenInputBeacons[i + 1] = s;
 	}
-	concatenatedChildrenInputLength = s;
+	sumChildrenInputSizes = s;
 }
 
 void GenotypeNode::mutateFloats() {
@@ -269,24 +269,27 @@ void GenotypeNode::mutateFloats() {
 #endif
 	}
 
-	for (int i = 0; i < outputSize; i++) {
+	for (int i = 0; i < sumChildrenInputSizes + outputSize; i++) {
 		r = normalFactor * NORMAL_01;
 		r2 = sumFactor * NORMAL_01;
-		outBias[i] *= .95f + r;
-		outBias[i] += r2;
-	}
-
-	for (int i = 0; i < inputSize; i++) {
-		r = normalFactor * NORMAL_01;
-		r2 = sumFactor * NORMAL_01;
-		inBias[i] *= .95f + r;
-		inBias[i] += r2;
+		childrenInBias[i] *= .95f + r;
+		childrenInBias[i] += r2;
 	}
 
 	r = normalFactor * NORMAL_01;
 	r2 = sumFactor * NORMAL_01;
-	biasM *= .95f + r;
-	biasM += r2;
+	biasM[0] *= .95f + r;
+	biasM[0] += r2;
+
+	r = normalFactor * NORMAL_01;
+	r2 = sumFactor * NORMAL_01;
+	biasM[1] *= .95f + r;
+	biasM[1] += r2;
+
+#ifdef GUIDED_MUTATIONS
+	// Important !
+	nApparitions = 0;
+#endif
 }
 
 // This implementation makes it less likely to gain connexions when many are already populated.
@@ -375,9 +378,15 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 	childrenConnexions.emplace_back(oID, (int)children.size(), child->inputSize,      originOutputSize, GenotypeConnexion::ZERO);
 	childrenConnexions.emplace_back((int)children.size(), dID, destinationsInputSize, child->outputSize, GenotypeConnexion::ZERO);
 	children.push_back(child);
+
+	childrenInBias.insert(childrenInBias.begin() + sumChildrenInputSizes, child->inputSize, 0);
+	for (int i = sumChildrenInputSizes; i < sumChildrenInputSizes + child->inputSize; i++) {
+		childrenInBias[i] = NORMAL_01 * .2f;
+	}
+
+	computeBeacons();
 }
 void GenotypeNode::removeChild(int rID) {
-	children.erase(children.begin() + rID);
 
 	// Erase connexions that lead to the removed child. Slow algorithm, but does not matter here.
 	int initialSize = (int)childrenConnexions.size();
@@ -401,6 +410,10 @@ void GenotypeNode::removeChild(int rID) {
 			childrenConnexions[i].originID--;
 		}
 	}
+	childrenInBias.erase(childrenInBias.begin(), childrenInBias.begin() + children[rID]->inputSize);
+
+	children.erase(children.begin() + rID);
+	computeBeacons();
 }
 
 void GenotypeNode::incrementInputSize() {
@@ -410,15 +423,20 @@ void GenotypeNode::incrementInputSize() {
 			incrementOriginOutputSize(i);
 		}
 	}
-	inBias.push_back(0);
 }
 void GenotypeNode::onChildInputSizeIncremented(GenotypeNode* modifiedType) {
 	int id;
+	int nInsertions = 0;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		id = childrenConnexions[i].destinationID;
 		if (id != children.size() && id != MODULATION_ID && children[id] == modifiedType) {
 			incrementDestinationInputSize(i);
+			childrenInBias.insert(childrenInBias.begin() + concatenatedChildrenInputBeacons[id] + nInsertions, NORMAL_01 * .2f);
+			nInsertions++;
 		}
+	}
+	if (nInsertions > 0) {
+		computeBeacons();
 	}
 }
 // nColumns++;
@@ -473,7 +491,7 @@ void GenotypeNode::incrementOutputSize() {
 			incrementDestinationInputSize(i);
 		}
 	}
-	outBias.push_back(0);
+	childrenInBias.push_back(NORMAL_01*.2f);
 }
 void GenotypeNode::onChildOutputSizeIncremented(GenotypeNode* modifiedType) {
 	int id;
@@ -536,15 +554,20 @@ void GenotypeNode::decrementInputSize(int id) {
 			decrementOriginOutputSize(i, id);
 		}
 	}
-	inBias.erase(inBias.begin() + id);
 }
 void GenotypeNode::onChildInputSizeDecremented(GenotypeNode* modifiedType, int id) {
 	int nID;
+	int nErasures = 0;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		nID = childrenConnexions[i].destinationID;
 		if (nID != children.size() && nID != MODULATION_ID && children[nID] == modifiedType) {
 			decrementDestinationInputSize(i, id);
+			childrenInBias.erase(childrenInBias.begin() + concatenatedChildrenInputBeacons[nID] + id - nErasures);
+			nErasures++;
 		}
+	}
+	if (nErasures > 0) {
+		computeBeacons();
 	}
 }
 // nColumns--;
@@ -602,7 +625,7 @@ void GenotypeNode::decrementOutputSize(int id) {
 			decrementDestinationInputSize(i, id);
 		}
 	}
-	outBias.erase(outBias.begin() + id);
+	childrenInBias.erase(childrenInBias.begin() + concatenatedChildrenInputBeacons[children.size()] + id);
 }
 void GenotypeNode::onChildOutputSizeDecremented(GenotypeNode* modifiedType, int id) {
 	int nID;
@@ -657,6 +680,7 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 	childrenConnexions[i] = newConnexion;
 }
 
+
 void GenotypeNode::updateDepth(std::vector<int>& genomeState) {
 	int dmax = 0;
 	for (int i = 0; i < children.size(); i++) {
@@ -682,10 +706,10 @@ void GenotypeNode::copyParameters(GenotypeNode* n) {
 		f = NULL;
 		inputSize = n->inputSize;
 		outputSize = n->outputSize;
-		inBias.assign(n->inBias.begin(), n->inBias.end());
-		outBias.assign(n->outBias.begin(), n->outBias.end());
-		biasM = n->biasM;
-		concatenatedChildrenInputLength = n->concatenatedChildrenInputLength;
+		childrenInBias.assign(n->childrenInBias.begin(), n->childrenInBias.end());
+		biasM[0] = n->biasM[0];
+		biasM[1] = n->biasM[1];
+		sumChildrenInputSizes = n->sumChildrenInputSizes;
 		depth = n->depth;
 		position = n->position;
 		mutationalDistance = n->mutationalDistance;
@@ -696,6 +720,10 @@ void GenotypeNode::copyParameters(GenotypeNode* n) {
 		for (int j = 0; j < n->childrenConnexions.size(); j++) {
 			childrenConnexions.emplace_back(n->childrenConnexions[j]);
 		}
+#ifdef GUIDED_MUTATIONS
+		nApparitions = n->nApparitions;
+#endif
+		
 	}
 }
 

@@ -5,10 +5,7 @@
 #include <cmath>
 
 #include "Random.h"
-
-// Compilation options:
-#define CONTINUOUS_LEARNING 
-//#define GUIDED_MUTATIONS
+#include "Config.h"
 
 // Constants:
 #define MAX_CHILDREN_PER_BLOCK  10
@@ -72,9 +69,8 @@ struct GenotypeNode {
 	bool isSimpleNeuron;
 	float (*f)(float); // NULL if Node is a bloc. Else pointer to tanH, cos, ReLU
 	int inputSize, outputSize; // >= 1
-	std::vector<float> inBias, outBias;   // length outputSize. Is added the the presynaptic activations of the tanh of the output node
 
-	// Order matters in this vector.
+	
 	// Contains pointers to the genotypes of the children
 	std::vector<GenotypeNode*> children;
 
@@ -82,7 +78,7 @@ struct GenotypeNode {
 	std::vector<GenotypeConnexion> childrenConnexions;
 
 	// neuromodulation bias.
-	float biasM;
+	float biasM[2];
 
 	// Depth of the children tree. =0 for simple neurons, at least 1 otherwise
 	int depth;
@@ -96,24 +92,22 @@ struct GenotypeNode {
 	// How far it went from the closestNode with mutations (does not account 
 	int mutationalDistance;
 
-	// Utils for forward:
-
 	// = sum(child->inputSize for child in children)
-	int concatenatedChildrenInputLength;
+	int sumChildrenInputSizes;
+
 	// Has len(children) + 1 elements, and contains :
 	// 0, children[0]->inputsize, children[0]->inputsize+children[1]->inputsize, ....
 	std::vector<int> concatenatedChildrenInputBeacons;
+
+	// size sumChildrenInputSizes + outputSize. Also includes this node's output bias.
+	std::vector<float> childrenInBias;
 
 #ifdef GUIDED_MUTATIONS
 	int nApparitions;
 #endif
 	// Empty definition because many attributes are set by the network owning this. Same reason for no copy constructor.
 	GenotypeNode() 
-	{
-#ifdef GUIDED_MUTATIONS
-		nApparitions = 0;
-#endif
-	};
+	{};
 
 	~GenotypeNode() {};
 
@@ -121,7 +115,7 @@ struct GenotypeNode {
 	// must be updated manually ! See Network(Network * n) 's implementation for an example.
 	void copyParameters(GenotypeNode* n);
 
-	// Populates the concatenatedChildrenInputBeacons vector and sets concatenatedChildrenInputLength
+	// Populates the concatenatedChildrenInputBeacons vector and sets sumChildrenInputSizes
 	void computeBeacons();
 
 	// genomeState is an array of the size of the genome, which has 1s where the node's depth is known and 0s elsewhere

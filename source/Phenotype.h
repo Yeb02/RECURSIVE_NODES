@@ -45,8 +45,8 @@ struct PhenotypeNode {
 	GenotypeNode* type;
 
 	int nInferences; // store how many inferences this node has performed since last interTrialReset.
-	float localM; // computed in this node
-	float totalM; // parent's + local M
+	float localM[2]; // computed in this node
+	float totalM[2]; // parent's + local M
 
 	// Pointers to its children. Responsible for their lifetime !
 	std::vector<PhenotypeNode> children;
@@ -60,11 +60,14 @@ struct PhenotypeNode {
 	PhenotypeNode(GenotypeNode* type);
 	~PhenotypeNode() {};
 
-	void interTrialReset();
+	void preTrialReset();
 	void forward(const float* input);
 
-	//#ifdef GUIDED_MUTATIONS
+	// #ifndef CONTINUOUS_LEARNING
+	void updateWatTrialEnd(float invNInferences);
+
+	//#ifdef GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
 	// Accumulates wLifetime of the phenotype connexion in the accumulate[] array of their 
-	// corresponding genotype connexion template.
-	void accumulateW();
+	// corresponding genotype connexion template, then zeros wLifetime. Weighted by "factor".
+	void accumulateW(float factor);
 };

@@ -60,7 +60,6 @@ public:
 	Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS);
 	void computeFitnesses(std::vector<float> avgScorePerSpecimen);
 	void createOffsprings();
-	void mutatePopulation() { for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate(); };
 	void setEvolutionParameters(float selectionPressure = .0f, float regularizationFactor = .1f,
 							    float nichingNorm=1.0f, bool useSameTrialInit=false) {
 		this->regularizationFactor = regularizationFactor;
@@ -68,6 +67,9 @@ public:
 		this->nichingNorm = nichingNorm;
 		this->useSameTrialInit = useSameTrialInit;
 	}
+
+	// DLL util only:
+	void mutatePopulation() { for (int i = 0; i < N_SPECIMENS; i++) networks[i]->mutate(); };
 
 	// TODO (exposed):
 	std::string save() { 
@@ -90,7 +92,7 @@ public:
 private:
 
 	void threadLoop(const int i0, const int subArraySize);
-	void evaluate(const int i0, const int subArraySize, std::vector<std::unique_ptr<Trial>>& localTrials);
+	void evaluate(const int i0, const int subArraySize, Trial* trial);
 	int N_SPECIMENS, N_THREADS;
 	std::vector<Network*> networks;
 	// Indice in the networks list of the fittest specimen at this step.

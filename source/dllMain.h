@@ -7,26 +7,6 @@
 
 #define RECURSIVE_NODES_API __declspec(dllexport)
 
-////////////////////////////////////
-///// USER COMPILATION CHOICES /////
-////////////////////////////////////
-
-// Comment or uncomment the preprocessor directives to compile versions of the code
-// Or use the -D flag.
-
-// Draws a specimen at each step, using SFML. Requires the appropriate DLLs 
-// alongside the generated executable, details in readme.md .
-#define DRAWING 
-
-// Should be on if there is just 1 trial, or no trials at all. Could be on even if there are multiple trials, 
-// but it disables the intertrial update of wLifetime. Not recommended in his case.
-// Enable and disable it in Genotype.h, it does not do anything here !
-//#define CONTINUOUS_LEARNING
-
-////////////////////////////////////
-////////////////////////////////////
-
-
 #ifdef DRAWING
 #include "Drawer.h"
 #endif 
@@ -68,9 +48,10 @@ extern "C" {
 	
 	RECURSIVE_NODES_API void prepare_network(Network* n) {
 		n->createPhenotype();
+		n->preTrialReset();
 	}
 	RECURSIVE_NODES_API void end_trial(Network* n) {
-		n->intertrialReset();
+		n->postTrialUpdate(1.0f);
 	}
 	RECURSIVE_NODES_API void get_actions(Network* n, float* observations, float* actions) {
 		std::vector<float> observationsV(observations, observations + n->inputSize);

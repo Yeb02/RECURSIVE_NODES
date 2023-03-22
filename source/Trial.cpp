@@ -51,7 +51,7 @@ void XorTrial::step(const std::vector<float>& actions) {
 
 	if (currentNStep < delay*3 && currentNStep >= delay*2) {
 		for (int i = 0; i < vSize; i++)  
-			score += (float) (actions[i] > 0) == v1_xor_v2[i]; 
+			score += (float) ((actions[i] > 0) == v1_xor_v2[i]); 
 	}
 
 	if (currentNStep >= delay*3) {
@@ -59,7 +59,8 @@ void XorTrial::step(const std::vector<float>& actions) {
 
 		// score normalization, not necessary
 		if (currentNStep == delay * 3) {
-			score /= (float)(delay * vSize);
+			//score /= (float)(delay * vSize);
+			score = (score >= (vSize * delay - .0001f)) ? 1.0f : 0.0f;
 			
 		}
 	}
