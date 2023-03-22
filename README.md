@@ -10,6 +10,7 @@ Implements a 3 loops optimization algorithm to tackle reinforcement learning cha
 
 &nbsp;
 ##### KNOWN BUGS: None, report any !
+##### TODO: Save a model or a population, with boost.serialize. Then heap defragmentation.
 &nbsp;
 Several variants of the algorithms are implemented, change the active preprocessor directives in main.cpp or dllMain.h to compile a custom version. More info in the code.
 The program can be compiled into an executable, to experiment on the implemented c++ trials. As of now, 3 trials are implemented: XoR with memorization, gym's cartpole, and the T-Maze. More to come !
