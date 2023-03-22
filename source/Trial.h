@@ -7,8 +7,8 @@
 class Trial {
 
 public:
-	// given the actions of the network, proceeds one step forward in the trial
-	virtual void step(const std::vector<float>& actions) = 0;
+	// Given the actions of the network, proceeds one step forward in the trial.
+	virtual void step(const float* actions) = 0;
 
 	// To be called at the end of the trial, AFTER fetching the score !
 	// When sameSeed is true, the random values are kept between runs.
@@ -56,7 +56,7 @@ class XorTrial : public Trial {
 public:
 	// Required network sizes: input = vectorSize, output = vectorSize.
 	XorTrial(int vectorSize, int delay);
-	void step(const std::vector<float>& actions) override;
+	void step(const float* actions) override;
 	void reset(bool sameSeed = false) override;
 	void copy(Trial* t) override;
 	Trial* clone() override;
@@ -75,7 +75,7 @@ class CartPoleTrial : public Trial {
 
 public:
 	CartPoleTrial(bool continuousControl);
-	void step(const std::vector<float>& actions) override;
+	void step(const float* actions) override;
 	void reset(bool sameSeed = false) override;
 	void copy(Trial* t) override;
 	Trial* clone() override;
@@ -96,7 +96,7 @@ private:
 class TMazeTrial : public Trial{
 public:
 	TMazeTrial(bool switchesSide);
-	void step(const std::vector<float>& actions) override;
+	void step(const float* actions) override;
 	void reset(bool sameSeed = false) override;
 	void copy(Trial* t) override;
 	Trial* clone() override;

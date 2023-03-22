@@ -20,13 +20,16 @@ public:
 	Network(Network* n);
 	~Network() {};
 
-	std::vector<float> getOutput();
+	// Since output returns a float*, application must either use it before any other call to step(),
+	// or to destroyPhenotype(), preTrialReset(), ... or Network destruction, either deep copy the
+	// pointee immediatly when getOutput() returns. If unsure, deep copy.
+	float* getOutput();
+
 	void step(const std::vector<float>& obs);
 	void mutate();
 	
-	void createPhenotype() {
-		if (topNodeP.get() == NULL) topNodeP.reset(new PhenotypeNode(topNodeG.get()));
-	};
+	void createPhenotype();
+	void destroyPhenotype();
 
 	// Sets to 0 the dynamic elements of the phenotype. 
 	void preTrialReset();
@@ -47,6 +50,13 @@ private:
 	std::unique_ptr<GenotypeNode> topNodeG;
 	std::vector<std::unique_ptr<GenotypeNode>> genome;
 	std::unique_ptr<PhenotypeNode> topNodeP;
+
+	// Arrays for plasticity based updates. Contain ALL values from the phenotype.
+	// Must be : reset to all 0s at the start of each trial;
+	// created alongside PhenotypeNode creation; freed alongside PhenotypeNode deletion.
+	std::unique_ptr<float[]> previousOutputs, currentOutputs, previousInputs, currentInputs;
+
+	int phenotypeInArraySize, phenotypeOutArraySize;
 
 	// Requires genome be sorted by ascending depth !!
 	// Called with a small probability in mutations. Deletes all nodes that do not show up in the phenotype.

@@ -684,12 +684,35 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 void GenotypeNode::updateDepth(std::vector<int>& genomeState) {
 	int dmax = 0;
 	for (int i = 0; i < children.size(); i++) {
-		if (genomeState[children[i]->position] == 0) children[i]->updateDepth(genomeState); // simple neurons state is at 1.
+		if (genomeState[children[i]->position] == 0) children[i]->updateDepth(genomeState); // simple neurons state is at 1 already.
 		if (children[i]->depth > dmax) dmax = children[i]->depth;
 	}
 	depth = dmax + 1;
 	genomeState[position] = 1;
 }
+
+void GenotypeNode::computeInArraySize(std::vector<int>& genomeState) { //// TODO BOTH ARE THE SAME ?
+	int s = inputSize;
+	for (int i = 0; i < children.size(); i++) {
+		if (genomeState[children[i]->position] == 0) {
+			children[i]->computeInArraySize(genomeState); 
+		}
+		s += genomeState[children[i]->position];
+	}
+	genomeState[position] = s;
+}
+
+void GenotypeNode::computeOutArraySize(std::vector<int>& genomeState) {  //// TODO BOTH ARE THE SAME ?
+	int s = outputSize;
+	for (int i = 0; i < children.size(); i++) {
+		if (genomeState[children[i]->position] == 0) {
+			children[i]->computeOutArraySize(genomeState);
+		}
+		s += genomeState[children[i]->position];
+	}
+	genomeState[position] = s;
+}
+
 
 void GenotypeNode::copyParameters(GenotypeNode* n) {
 	if (n->isSimpleNeuron) {

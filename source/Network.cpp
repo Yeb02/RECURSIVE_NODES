@@ -35,6 +35,8 @@ Network::Network(Network* n) {
 	for (int j = 0; j < n->topNodeG->children.size(); j++) {
 		topNodeG->children[j] = genome[n->topNodeG->children[j]->position].get();
 	}
+
+	topNodeP.reset(NULL);;
 }
 
 
@@ -83,24 +85,23 @@ inputSize(inputSize), outputSize(outputSize)
 	topNodeG->biasM[1] = 0.0f;
 	topNodeG->computeBeacons();
 	topNodeG->childrenInBias.resize(topNodeG->sumChildrenInputSizes + topNodeG->outputSize);
+
+	topNodeP.reset(NULL);
 }
 
 
-std::vector<float> Network::getOutput() {
+float* Network::getOutput() {
 	return topNodeP->currentOutput;
 }
 
 
-
 void Network::postTrialUpdate(float score) {
 	if (topNodeP->nInferences != 0) {
-#ifndef CONTINUOUS_LEARNING
 
+#ifndef CONTINUOUS_LEARNING
 		float invNInferences = 1.0f / topNodeP->nInferences;
 		topNodeP->updateWatTrialEnd(invNInferences);
-	
 #endif
-
 
 
 #if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
@@ -113,14 +114,66 @@ void Network::postTrialUpdate(float score) {
 }
 
 
+void Network::destroyPhenotype() {
+	topNodeP.reset(NULL);
+	previousOutputs.reset(NULL);
+	currentOutputs.reset(NULL);
+	previousInputs.reset(NULL);
+	currentInputs.reset(NULL);
+}
+
+
+void Network::createPhenotype() {
+	if (topNodeP.get() == NULL) {
+		topNodeP.reset(new PhenotypeNode(topNodeG.get()));
+
+
+		std::vector<int> genomeState(genome.size() + 1);
+		topNodeG->position = (int)genome.size();
+		for (int i = 0; i < nSimpleNeurons; i++) genomeState[i] = 1;
+
+		topNodeG->computeInArraySize(genomeState);
+		phenotypeInArraySize = genomeState[(int)genome.size()];
+
+		for (int i = nSimpleNeurons; i < genome.size() + 1; i++) genomeState[i] = 0;
+
+		topNodeG->computeOutArraySize(genomeState);
+		phenotypeOutArraySize = genomeState[(int)genome.size()];
+
+
+		previousOutputs = std::make_unique<float[]>(phenotypeOutArraySize);
+		currentOutputs =  std::make_unique<float[]>(phenotypeOutArraySize);
+		previousInputs =  std::make_unique<float[]>(phenotypeInArraySize);
+		currentInputs =   std::make_unique<float[]>(phenotypeInArraySize);
+
+
+		topNodeP->setArrayPointers(
+			previousOutputs.get(),
+			currentOutputs.get(),
+			previousInputs.get(),
+			currentInputs.get()
+		);
+	}
+};
+
 
 void Network::preTrialReset() {
+	// Set to currenInputs at each Network::step, so no need to fill.
+	//std::fill(previousInputs.get(), previousInputs.get() + phenotypeInArraySize, 0.0f);
+
+	std::fill(previousOutputs.get(), previousOutputs.get() + phenotypeOutArraySize, 0.0f); 
+	std::fill(currentOutputs.get(), currentOutputs.get() + phenotypeOutArraySize, 0.0f);
+	std::fill(currentInputs.get(), currentInputs.get() + phenotypeInArraySize, 0.0f); 
 	topNodeP->preTrialReset();
 };
 
+
 void Network::step(const std::vector<float>& obs) {
-	topNodeP->forward(obs.data());
+	std::copy(currentInputs.get(), currentInputs.get() + phenotypeInArraySize, previousInputs.get());
+	std::copy(obs.begin(), obs.end(), topNodeP->currentInput);
+	topNodeP->forward();
 }
+
 
 // TODO mutation rates should be functions of the network size.
 void Network::mutate() {

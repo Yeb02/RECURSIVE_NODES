@@ -43,10 +43,6 @@ void PhenotypeConnexion::zeroWlifetime(int s) {
 
 PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 {
-	previousInput.resize(type->inputSize);
-	previousOutput.resize(type->outputSize);
-	currentOutput.resize(type->outputSize);
-
 	// create children recursively 
 	children.reserve(type->children.size());
 	for (int i = 0; i < type->children.size(); i++) {
@@ -103,17 +99,29 @@ void PhenotypeNode::updateWatTrialEnd(float invNInferences) {
 }
 #endif
 
+void PhenotypeNode::setArrayPointers(float* po, float* co, float* pi, float* ci) {
+
+	previousOutput = po;
+	currentOutput = co;
+	previousInput = pi;
+	currentInput = ci;
+
+	po += type->outputSize;
+	co += type->outputSize;
+	pi += type->inputSize;
+	ci += type->inputSize;
+
+
+	for (int i = 0; i < children.size(); i++) {
+		children[i].setArrayPointers(po, co, pi, ci);
+	}
+}
+
+
 void PhenotypeNode::preTrialReset() {
-	std::fill(previousInput.begin(), previousInput.end(), 0.0f);
-	std::fill(previousOutput.begin(), previousOutput.end(), 0.0f);
-	std::fill(currentOutput.begin(), currentOutput.end(), 0.0f);
+
 	for (int i = 0; i < children.size(); i++) {
 		if (!children[i].type->isSimpleNeuron) children[i].preTrialReset();
-		else {
-			children[i].previousInput[0] = 0.0f;
-			children[i].previousOutput[0] = 0.0f;
-			children[i].currentOutput[0] = 0.0f;
-		}
 	}
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
@@ -127,113 +135,242 @@ void PhenotypeNode::preTrialReset() {
 	nInferences = 0;
 }
 
-void PhenotypeNode::forward(const float* input) {
-	nInferences++;
-	int i0, originID, destinationID;
+
+void PhenotypeNode::forward() {
+	int id, originID, destinationID;
 	int nc, nl, matID;
 
-	// set up the array where every's child input is accumulated before applying their forward.
-	float* _childInputs = new float[type->sumChildrenInputSizes + type->outputSize];
-	for (int i = 0; i < type->sumChildrenInputSizes + type->outputSize; i++) {
-		_childInputs[i] = type->childrenInBias[i];
-	}
+	nInferences++;
 
-	// save previous step's M.
+
+	// STEP 1: SAVE THIS NODE'S PREVIOUS OUTPUT AND PREVIOUS LOCAL M, FOR HEBBIAN RULES LATER ON.
+
+	std::copy(currentOutput, currentOutput + type->outputSize, previousOutput);
 	float previousLocalM[2];
+	float localMInput[2];
 	previousLocalM[0] = localM[0];
 	previousLocalM[1] = localM[1];
-	localM[0] = type->biasM[0];
-	localM[1] = type->biasM[1];
 
-	// propagate the previous steps's outputs, by iterating over the connexions between children
-	for (int id = 0; id < childrenConnexions.size(); id++) {
-		originID = type->childrenConnexions[id].originID;
-		destinationID = type->childrenConnexions[id].destinationID;
-		if (destinationID != MODULATION_ID)
-			i0 = type->concatenatedChildrenInputBeacons[destinationID];
 
-		nl = type->childrenConnexions[id].nLines;
-		nc = type->childrenConnexions[id].nColumns;
-		matID = 0;
+	// STEP 2: INITIALIZE ALL PRE-SYNAPTIC INPUTS WITH THE ASSOCIATED WEIGHT
 
-		float* H = childrenConnexions[id].H.get();
-		float* wLifetime = childrenConnexions[id].wLifetime.get();
-		float* alpha = type->childrenConnexions[id].alpha.get();
-		float* w = type->childrenConnexions[id].w.get();
+	localMInput[0] = type->biasM[0];
+	localMInput[1] = type->biasM[1];
+	id = 0;
+	for (int i = 0; i < children.size(); i++) {
+		for (int j = 0; j < children[i].type->inputSize; j++) {
+			children[i].currentInput[j] = type->childrenInBias[id];
+			id++;
+		}
+	}
+	for (int i = 0; i < type->outputSize; i++) {
+		currentOutput[i] = type->childrenInBias[id + i];
+	}
 
-		if (originID == INPUT_ID) {
-			// TODO when input to modulation will be changed to be more than parent input, process connexions 
-			// to modulation and modulation calculus AFTER children's forward, way below.   TODO TODO TODO
-			if (destinationID == MODULATION_ID) { 
-				for (int i = 0; i < nl; i++) {
-					for (int j = 0; j < nc; j++) {
-						// += (H * alpha + w) * prevAct
-						localM[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
-						matID++;
-					}
-				}
+	// STEP 3: ADD THE PREVIOUS STEPS'S OUTPUTS TO THE PRE-SYNAPTIC INPUTS, AND APPLY CHILDREN'S FORWARD. ALL CHILDREN 
+	// COULD BE UPDATED SIMULTANEOUSLY, BUT TO SPEED UP INFORMATION TRANSMITION IT HAPPENS "TYPE" BY "TYPE, IN THE 
+	// FOLLOWING ORDER:  neuromodulation node -> complex children -> simple children -> output node.
+
+	// STEP 3A: neuromodulation node.
+	{
+	// propagate.
+		for (int id = 0; id < childrenConnexions.size(); id++) {
+			destinationID = type->childrenConnexions[id].destinationID;
+			if (destinationID != MODULATION_ID) {
+				continue;
+			}
+
+			originID = type->childrenConnexions[id].originID;
+			nl = type->childrenConnexions[id].nLines;
+			nc = type->childrenConnexions[id].nColumns;
+			matID = 0;
+
+			float* H = childrenConnexions[id].H.get();
+			float* wLifetime = childrenConnexions[id].wLifetime.get();
+			float* alpha = type->childrenConnexions[id].alpha.get();
+			float* w = type->childrenConnexions[id].w.get();
+
+			float* originArray;
+			if (originID == INPUT_ID) {
+				originArray = currentInput;
+			}
+			else if (originID == MODULATION_ID) {
+				originArray = localM;
 			}
 			else {
-				for (int i = 0; i < nl; i++) {
-					for (int j = 0; j < nc; j++) {
-						// += (H * alpha + w) * prevAct
-						_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
-						matID++;
-					}
-				}
+				originArray = children[destinationID].currentOutput;
 			}
-		}
-		else {
+
 			for (int i = 0; i < nl; i++) {
 				for (int j = 0; j < nc; j++) {
 					// += (H * alpha + w) * prevAct
-					_childInputs[i0 + i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * 
-						children[originID].previousOutput[j];
+					localMInput[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * originArray[j];
 					matID++;
 				}
 			}
 		}
+
+		// Apply forward.
+		localM[0] = tanhf(localMInput[0]);
+		localM[1] = tanhf(localMInput[1]);
+		totalM[0] += localM[0];
+		totalM[1] += localM[1];
 	}
 
-	// neuromodulation
-	localM[0] = tanhf(localM[0]);
-	localM[1] = tanhf(localM[1]);
-	totalM[0] += localM[0];
-	totalM[1] += localM[1];
+	// STEP 3B: complex children.
+	{
+		// propagate.
+		for (int id = 0; id < childrenConnexions.size(); id++) {
+			destinationID = type->childrenConnexions[id].destinationID;
+			if (destinationID == children.size() ||
+				destinationID == MODULATION_ID ||
+				children[destinationID].type->isSimpleNeuron) {
 
-	// apply children's forward, after a tanh for non-simple neurons. 
-	int _inputListID = 0;
-	for (int i = 0; i < children.size(); i++) {
-	
-		// Depending on the child's nature, we have 2 cases:
-		//  - the child is a simple neuron, and we handle everything for him.
-		//  - the child is a bloc, and it handles its own forward and activation saving.
-		
-
-		if (children[i].type->isSimpleNeuron) {
-			// a simple neuron has no internal neuromodulation, so children[i].neuromodulatorySignal is untouched.
-			children[i].previousOutput[0] = children[i].currentOutput[0];
-			_childInputs[_inputListID] = children[i].type->f(_childInputs[_inputListID]); // a simple neuron has no bias.
-			children[i].currentOutput[0] = _childInputs[_inputListID];
-		}
-		else {
-			children[i].totalM[0] = this->totalM[0];
-			children[i].totalM[1] = this->totalM[1];
-			int maxJ = _inputListID + children[i].type->inputSize;
-			for (int j = _inputListID; j < maxJ; j++) {
-				_childInputs[j] = tanhf(_childInputs[j]);
+				continue;
 			}
-			children[i].forward(&_childInputs[_inputListID]);
+
+			originID = type->childrenConnexions[id].originID;
+			nl = type->childrenConnexions[id].nLines;
+			nc = type->childrenConnexions[id].nColumns;
+			matID = 0;
+
+			float* H = childrenConnexions[id].H.get();
+			float* wLifetime = childrenConnexions[id].wLifetime.get();
+			float* alpha = type->childrenConnexions[id].alpha.get();
+			float* w = type->childrenConnexions[id].w.get();
+
+			float* originArray;
+			if (originID == INPUT_ID) {
+				originArray = currentInput;
+			}
+			else if (originID == MODULATION_ID) {
+				originArray = localM;
+			}
+			else {
+				originArray = children[destinationID].currentOutput;
+			}
+
+			for (int i = 0; i < nl; i++) {
+				for (int j = 0; j < nc; j++) {
+					// += (H * alpha + w) * prevAct
+					children[destinationID].currentInput[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * originArray[j];
+					matID++;
+				}
+			}
 		}
 
-		_inputListID += children[i].type->inputSize;
+		// transmit data and apply forward:
+		for (int i = 0; i < children.size(); i++) {
+			if (!children[i].type->isSimpleNeuron) {
+				children[i].totalM[0] = this->totalM[0];
+				children[i].totalM[1] = this->totalM[1];
+				for (int j = 0; j < children[i].type->inputSize; j++) {
+					children[i].currentInput[j] = tanhf(children[i].currentInput[j]);
+				}
+				children[i].forward();
+			}
+		}
 	}
 
-	// process this node's output, stored in the input of the virtual output node:
-	previousOutput.assign(currentOutput.begin(), currentOutput.end()); // save the previous activations
-	for (int i = 0; i < type->outputSize; i++) {
-		currentOutput[i] = tanhf(_childInputs[_inputListID + i]);
+	// STEP 3C: simple children.
+	{
+		// propagate.
+		for (int id = 0; id < childrenConnexions.size(); id++) {
+			destinationID = type->childrenConnexions[id].destinationID;
+			if (destinationID == children.size() ||
+				destinationID == MODULATION_ID ||
+				!children[destinationID].type->isSimpleNeuron) {
+
+				continue;
+			}
+
+			originID = type->childrenConnexions[id].originID;
+			nl = type->childrenConnexions[id].nLines;
+			nc = type->childrenConnexions[id].nColumns;
+			matID = 0;
+
+			float* H = childrenConnexions[id].H.get();
+			float* wLifetime = childrenConnexions[id].wLifetime.get();
+			float* alpha = type->childrenConnexions[id].alpha.get();
+			float* w = type->childrenConnexions[id].w.get();
+
+			float* originArray;
+			if (originID == INPUT_ID) {
+				originArray = currentInput;
+			}
+			else if (originID == MODULATION_ID) {
+				originArray = localM;
+			}
+			else {
+				originArray = children[destinationID].currentOutput;
+			}
+
+			for (int i = 0; i < nl; i++) { // nl = 1 in this case
+				for (int j = 0; j < nc; j++) {
+					// += (H * alpha + w) * prevAct
+					children[destinationID].currentInput[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * originArray[j];
+					matID++;
+				}
+			}
+		}
+
+		// Apply child's forward function and manage its io:
+		for (int i = 0; i < children.size(); i++) {
+			if (children[i].type->isSimpleNeuron) {
+				children[i].previousOutput[0] = children[i].currentOutput[0];
+				children[i].currentInput[0] = children[i].type->f(children[i].currentInput[0]);
+				children[i].currentOutput[0] = children[i].currentInput[0];
+			}
+		}
 	}
+
+	// STEP 3D: output node.
+	{
+		// propagate.
+		for (int id = 0; id < childrenConnexions.size(); id++) {
+			destinationID = type->childrenConnexions[id].destinationID;
+			if (destinationID == children.size() ||
+				destinationID == MODULATION_ID ||
+				!children[destinationID].type->isSimpleNeuron) {
+
+				continue;
+			}
+
+			originID = type->childrenConnexions[id].originID;
+			nl = type->childrenConnexions[id].nLines;
+			nc = type->childrenConnexions[id].nColumns;
+			matID = 0;
+
+			float* H = childrenConnexions[id].H.get();
+			float* wLifetime = childrenConnexions[id].wLifetime.get();
+			float* alpha = type->childrenConnexions[id].alpha.get();
+			float* w = type->childrenConnexions[id].w.get();
+
+			float* originArray;
+			if (originID == INPUT_ID) {
+				originArray = currentInput;
+			}
+			else if (originID == MODULATION_ID) {
+				originArray = localM;
+			}
+			else {
+				originArray = children[destinationID].currentOutput;
+			}
+
+			for (int i = 0; i < nl; i++) { // nl = 1 in this case
+				for (int j = 0; j < nc; j++) {
+					// += (H * alpha + w) * prevAct
+					currentOutput[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * originArray[j];
+					matID++;
+				}
+			}
+		}
+
+		for (int i = 0; i < type->outputSize; i++) {
+			currentOutput[i] = tanhf(currentOutput[i]);
+		}
+	}
+	
 
 
 	// Update hebbian and eligibility traces
@@ -261,18 +398,26 @@ void PhenotypeNode::forward(const float* input) {
 
 		float* iArray;
 		if (destinationID == children.size()) {
-			iArray = currentOutput.data();
+			iArray = currentOutput;
 		}
 		else if (destinationID == MODULATION_ID) {
 			iArray = localM;
 		}
 		else {
-			iArray = children[destinationID].previousInput.data();
+			iArray = children[destinationID].currentInput;
 		}
 			
-		float* jArray = originID != INPUT_ID ?
-			children[originID].previousOutput.data():
-			previousInput.data();
+		float* jArray;
+		if (originID == INPUT_ID) {
+			jArray = previousInput;
+		}
+		else if (originID == MODULATION_ID) {
+			jArray = previousLocalM;
+		}
+		else {
+			jArray = children[originID].previousOutput;
+		}
+			
 
 		nl = type->childrenConnexions[id].nLines;
 		nc = type->childrenConnexions[id].nColumns;
@@ -295,11 +440,4 @@ void PhenotypeNode::forward(const float* input) {
 			}
 		}
 	}
-
-	// input update
-	for (int i = 0; i < type->inputSize; i++) {
-		previousInput[i] = input[i];
-	}
-
-	delete[] _childInputs;
 }

@@ -12,7 +12,7 @@ out_size = 1
 
 population = create_population(in_size, out_size, N_SPECIMENS)
 set_evolution_parameters(population, .0, .1)
-drawer = initialize_drawer(720, 480)
+drawer = initialize_drawer(1080, 480)
 
 #  Use type compatible with c++ arrays
 scores = (ctypes.c_float * N_SPECIMENS)()                      

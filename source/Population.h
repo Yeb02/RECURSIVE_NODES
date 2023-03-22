@@ -88,11 +88,12 @@ public:
 	Network* getSpecimenPointer(int i) { return networks[i]; };
 
 	int fittestSpecimen;
+	int evolutionStep;
 
 private:
 
 	void threadLoop(const int i0, const int subArraySize);
-	void evaluate(const int i0, const int subArraySize, Trial* trial);
+	void evaluate(const int i0, const int subArraySize, Trial* trial, float* scores);
 	int N_SPECIMENS, N_THREADS;
 	std::vector<Network*> networks;
 	// Indice in the networks list of the fittest specimen at this step.
@@ -122,6 +123,6 @@ private:
 	std::vector<std::thread> threads;
 	std::vector<Trial*> globalTrials;
 	float* pScores;
-	int iteration;
+	int threadIteration;
 	bool mustTerminate;
 };

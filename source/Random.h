@@ -2,11 +2,11 @@
 
 #include <random>
 
-extern std::default_random_engine generator;
-extern std::uniform_real_distribution<float> Udistribution;
-extern std::uniform_int_distribution<uint32_t> UIdistribution;
-extern std::normal_distribution<float> Ndistribution;
-extern std::binomial_distribution<int> Bdistribution;
+extern thread_local std::default_random_engine generator;
+extern thread_local std::uniform_real_distribution<float> Udistribution;
+extern thread_local std::uniform_int_distribution<uint32_t> UIdistribution;
+extern thread_local std::normal_distribution<float> Ndistribution;
+extern thread_local std::binomial_distribution<int> Bdistribution;
 
 #define UNIFORM_01 Udistribution(generator)
 #define NORMAL_01 Ndistribution(generator)

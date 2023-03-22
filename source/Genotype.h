@@ -121,6 +121,12 @@ struct GenotypeNode {
 	// genomeState is an array of the size of the genome, which has 1s where the node's depth is known and 0s elsewhere
 	void updateDepth(std::vector<int>& genomeState);
 
+	// Used to compute the size of the array containing dynamic inputs  of the phenotype.
+	void computeInArraySize(std::vector<int>& genomeState);
+
+	// Used to compute the size of the array containing dynamic outputs of the phenotype.
+	void computeOutArraySize(std::vector<int>& genomeState);
+
 	bool hasChild(std::vector<int>& checked, GenotypeNode* potentialChild);
 
 	// Mutate real-valued floating point parameters

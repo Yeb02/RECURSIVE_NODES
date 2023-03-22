@@ -45,23 +45,28 @@ struct PhenotypeNode {
 	GenotypeNode* type;
 
 	int nInferences; // store how many inferences this node has performed since last interTrialReset.
-	float localM[2]; // computed in this node
-	float totalM[2]; // parent's + local M
+	float localM[2]; // computed in this node. Wasted space for simple neurons. TODO
+	float totalM[2]; // parent's + local M.    Wasted space for simple neurons. TODO
+
 
 	// Pointers to its children. Responsible for their lifetime !
 	std::vector<PhenotypeNode> children;
 
 	// Vector of structs containing pointers to the dynamic connexion matrices linking children
 	std::vector<PhenotypeConnexion> childrenConnexions;
-
-	// For plasticity based updates, must be reset to all 0s at the start of each trial
-	std::vector<float> previousOutput, currentOutput, previousInput;
+	
+	// Not managed by Phenotype node, but by network !
+	float* previousOutput; 
+	float* currentOutput;
+	float* previousInput;
+	float* currentInput;
 
 	PhenotypeNode(GenotypeNode* type);
 	~PhenotypeNode() {};
 
 	void preTrialReset();
-	void forward(const float* input);
+
+	void forward();
 
 	// #ifndef CONTINUOUS_LEARNING
 	void updateWatTrialEnd(float invNInferences);
@@ -70,4 +75,7 @@ struct PhenotypeNode {
 	// Accumulates wLifetime of the phenotype connexion in the accumulate[] array of their 
 	// corresponding genotype connexion template, then zeros wLifetime. Weighted by "factor".
 	void accumulateW(float factor);
+
+	void setArrayPointers(float* po, float* co, float* pi, float* ci);
+
 };

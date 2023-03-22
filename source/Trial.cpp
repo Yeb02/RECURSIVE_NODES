@@ -34,7 +34,7 @@ void XorTrial::reset(bool sameSeed) {
 	}
 }
 
-void XorTrial::step(const std::vector<float>& actions) {
+void XorTrial::step(const float* actions) {
 	//constexpr int endV1Phase = 5;
 	//constexpr int endV2Phase = 10;
 	//constexpr int startResponsePhase = 10;
@@ -136,7 +136,7 @@ void CartPoleTrial::reset(bool sameSeed) {
 	observations[3] = thetaDot;
 }
 
-void CartPoleTrial::step(const std::vector<float>& actions) {
+void CartPoleTrial::step(const float* actions) {
 	constexpr float tau = .02f ; // .02f baseline
 	constexpr float gravity = 9.8f; //9.8f baseline
 	constexpr float masscart = 1.0f;
@@ -239,7 +239,7 @@ void TMazeTrial::subTrialReset() {
 	observations[2] = -1.0f;
 }
 
-void TMazeTrial::step(const std::vector<float>& actions) {
+void TMazeTrial::step(const float* actions) {
 	constexpr int straight1 = corridorLength + 1;
 	constexpr int turn1 = straight1 + 1;
 	constexpr int straight2 = turn1 + corridorLength;

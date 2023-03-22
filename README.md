@@ -4,6 +4,7 @@ Implements a 3 loops optimization algorithm to solve optimal control and memoriz
 Several variants are implemented, change the active preprocessor directives in config.h to compile a custom version.
 
 ##### KNOWN BUG: None, report any !
+##### TODO: Save a model or a population, with boost.serialize. Then heap defragmentation.
 
 The code can be compiled into an executable, to experiment on the implemented c++ trials. As of now, 3 trials are implemented: XoR with memorization, gym's cartpole, and the T-Maze. More to come !
 

@@ -56,8 +56,8 @@ extern "C" {
 	RECURSIVE_NODES_API void get_actions(Network* n, float* observations, float* actions) {
 		std::vector<float> observationsV(observations, observations + n->inputSize);
 		n->step(observationsV);
-		std::vector<float> actionsV = n->getOutput();
-		memcpy(actions, actionsV.data(), actionsV.size());
+		float* actionsTemp = n->getOutput();
+		std::copy(actionsTemp, actionsTemp+n->outputSize, actions);
 	}
 
 #ifdef DRAWING
