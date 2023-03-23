@@ -26,7 +26,7 @@ int main()
 //    nThreads = 1;
 //#endif
     int nSpecimens = nThreads * 64;
-    int nDifferentTrials = 8;
+    int nDifferentTrials = 4;
     int nSteps = 10000;
 
 
@@ -46,7 +46,7 @@ int main()
     
     PopulationEvolutionParameters params;
     params.selectionPressure = -0.0f;
-    params.regularizationFactor = 0.1f;
+    params.regularizationFactor = 0.15f;
     params.nichingNorm = 0.0f;
     params.useSameTrialInit = false;
     params.normalizedScoreGradients = false;
@@ -80,13 +80,14 @@ int main()
 
 
 #ifdef TMAZE_T
+        bool switchesSide = false;
         for (int j = 0; j < nDifferentTrials; j++) {
-            int switchesSide = UNIFORM_01 > 0.5f;
+            switchesSide = UNIFORM_01 < std::min((float)i / 1000.0f, .5f);
             trials[j]->outerLoopUpdate(&switchesSide);
         }
 #endif
 
-        // params.selectionPressure = sinf((float)i / 2.0f);
+        // params.selectionPressure = sinf((float)i / 2.0f) - .5f;
         //population.setEvolutionParameters(params); // parameters can be changed at each step.
         population.step(trials, _nTrialsEvaluated);
 

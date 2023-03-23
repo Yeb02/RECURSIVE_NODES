@@ -101,7 +101,7 @@ public:
 	void copy(Trial* t) override;
 	Trial* clone() override;
 	void outerLoopUpdate(void* data) override {
-		switchesSide = static_cast<int*>(data)[0];
+		switchesSide = *static_cast<bool*>(data);
 	};
 
 	static const int corridorLength = 5;

@@ -19,7 +19,7 @@ inline float ReLU(float x) { return x > 0 ? x : 0; }
 
 struct GenotypeConnexion {
 	// IDENTITY is valid only if nLines == nColumns. If not, the ZERO case is used.
-	const enum initType { ZERO, IDENTITY, RANDOM };
+	const enum initType { ZERO, RANDOM };
 
 	int originID, destinationID;
 

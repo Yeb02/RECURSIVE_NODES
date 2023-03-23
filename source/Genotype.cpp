@@ -22,7 +22,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 	SET_BINOMIAL(s, .5f); // for gamma and eta.
 	float factor = .3f / (float)s;
 
-	if (init == ZERO || (init == IDENTITY && nLines != nColumns)) {
+	if (init == ZERO ) {
 		for (int i = 0; i < nLines * nColumns; i++) {
 
 			A[i] = NORMAL_01 * .2f;
@@ -55,31 +55,6 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 #ifdef GUIDED_MUTATIONS
 			accumulator[i] = 0.0f;
 #endif
-		}
-	}
-	else { // IDENTITY. Used in top node boxing. Must "invert" tanh in certain cases ! nLines = nColumns.
-		int i = 0;
-		float v;
-		for (int l = 0; l < nLines; l++) {
-			for (int c = 0; c < nColumns; c++) {
-
-				// tanh'(0) = 1, so * 1.25 is a correct-ish approximation to invert. 
-				v = l == c ? 1.25f : NORMAL_01 * .1f;
-				A[i] = NORMAL_01 * .2f;
-				B[i] = NORMAL_01 * .2f;
-				C[i] = NORMAL_01 * .2f;
-				D[i] = NORMAL_01 * .2f;
-				alpha[i] = NORMAL_01 * .1f;
-				eta[i] = factor * (float) BINOMIAL + .1f;
-				w[i] = v;
-#ifdef CONTINUOUS_LEARNING
-				gamma[i] = factor * (float) BINOMIAL + .1f;
-#endif
-#ifdef GUIDED_MUTATIONS
-				accumulator[i] = 0.0f;
-#endif
-				i++;
-			}
 		}
 	}
 }
@@ -197,19 +172,17 @@ void GenotypeNode::computeBeacons() {
 }
 
 void GenotypeNode::mutateFloats() {
-	float r, r2;
 #ifdef CONTINUOUS_LEARNING
 	constexpr int nArrays = 8;  // added gamma
 #else 
 	constexpr int nArrays = 7;
 #endif
-	constexpr float normalFactor = .5f; // .4f ??
-	constexpr float sumFactor = .5f; // .4f ??
-	// Lowering those 2 to .1f on cartpole yields intriguing results: not only is convergence
-	// slower, but also worse. And average population score, after mutation, is much worse too !
-	// The found optimum is less stable.
+	//param(t+1) = (.95+a*N1)*param(t) + b*N2
+	constexpr float a = .2f; // .5f ??
+	constexpr float b = .2f; // .5f ??
 
-	constexpr float pMutation = .2f; // .2f ??
+	constexpr float pMutation = .4f; // .2f ??
+
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
 
 
@@ -224,9 +197,6 @@ void GenotypeNode::mutateFloats() {
 
 			int arrayN = INT_0X(nArrays);
 			int matrixID = INT_0X(size);
-
-			r = normalFactor * NORMAL_01;
-			r2 = sumFactor * NORMAL_01;
 
 			switch (arrayN) {
 			case 0: aPtr = childrenConnexions[listID].A.get(); break;
@@ -259,10 +229,8 @@ void GenotypeNode::mutateFloats() {
 			}
 
 			if (arrayN < 6) {
-				r = normalFactor * NORMAL_01;
-				r2 = sumFactor * NORMAL_01;
-				aPtr[matrixID] *= .9f + r;
-				aPtr[matrixID] += r2;
+				aPtr[matrixID] *= .9f + NORMAL_01 * a;
+				aPtr[matrixID] += NORMAL_01 * b;
 			}
 		}
 
@@ -271,26 +239,23 @@ void GenotypeNode::mutateFloats() {
 		float invFactor = 1.0f / (float)nApparitions; // should be outside the loop, here for readability
 		for (int k = 0; k < size; k++) {
 			childrenConnexions[listID].w[k] += .3f * childrenConnexions[listID].accumulator[k] * invFactor;
+			childrenConnexions[listID].accumulator[k] = 0.0f;
 		}
 #endif
 	}
 
 	for (int i = 0; i < sumChildrenInputSizes + outputSize; i++) {
-		r = normalFactor * NORMAL_01;
-		r2 = sumFactor * NORMAL_01;
-		childrenInBias[i] *= .95f + r;
-		childrenInBias[i] += r2;
+		childrenInBias[i] *= .9f + NORMAL_01 * a;
+		childrenInBias[i] += NORMAL_01 * b;
 	}
 
-	r = normalFactor * NORMAL_01;
-	r2 = sumFactor * NORMAL_01;
-	biasM[0] *= .95f + r;
-	biasM[0] += r2;
 
-	r = normalFactor * NORMAL_01;
-	r2 = sumFactor * NORMAL_01;
-	biasM[1] *= .95f + r;
-	biasM[1] += r2;
+	biasM[0] *= .9f + NORMAL_01 * a;
+	biasM[0] += NORMAL_01 * b;
+
+
+	biasM[1] *= .9f + NORMAL_01 * a;
+	biasM[1] += NORMAL_01 * b;
 
 #ifdef GUIDED_MUTATIONS
 	// Important !
@@ -520,7 +485,7 @@ void GenotypeNode::onChildOutputSizeIncremented(GenotypeNode* modifiedType) {
 	int id;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		id = childrenConnexions[i].originID;
-		if (id != INPUT_ID && children[id] == modifiedType) {
+		if (id != INPUT_ID && id != MODULATION_ID && children[id] == modifiedType) {
 			incrementOriginOutputSize(i);
 		}
 	}
@@ -660,7 +625,7 @@ void GenotypeNode::onChildOutputSizeDecremented(GenotypeNode* modifiedType, int 
 	int nID;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		nID = childrenConnexions[i].originID;
-		if (nID != INPUT_ID && children[nID] == modifiedType) {
+		if (nID != INPUT_ID && nID != MODULATION_ID && children[nID] == modifiedType) {
 			decrementOriginOutputSize(i, id);
 		}
 	}

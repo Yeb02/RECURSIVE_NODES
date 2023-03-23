@@ -105,9 +105,9 @@ void Network::postTrialUpdate(float score) {
 
 
 #if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
-		//topNodeP->accumulateW(score);	// Optional, requires population.normalizedScoreGradients = true.
-		topNodeP->accumulateW(1.0f);  // Optional.
-		//topNodeP->accumulateW(1.0f);  // Optional, not implemented yet.
+		//topNodeP->accumulateW(.1f*score);			// Optional, requires population.normalizedScoreGradients = true. Poor results ?
+		topNodeP->accumulateW(.2f);					// Optional. Drastically improves perfs. (why ?)
+		//topNodeP->accumulateW(score-parentScore);  // Optional, not implemented yet.
 #endif
 	}
 	else {
@@ -184,22 +184,22 @@ void Network::mutate() {
 	// or at worst equal, to introduce some kind of spontaneous regularization.
 
 	constexpr float createConnexionProbability = .01f;
-	constexpr float deleteConnexionProbability = .002f;
+	constexpr float deleteConnexionProbability = .001f;
 
 	constexpr float incrementInputSizeProbability = .003f;
-	constexpr float decrementInputSizeProbability = .003f;
+	constexpr float decrementInputSizeProbability = .001f;
 
 	constexpr float incrementOutputSizeProbability = .003f;
-	constexpr float decrementOutputSizeProbability = .003f;
+	constexpr float decrementOutputSizeProbability = .001f;
 
 	constexpr float addChildProbability = .01f;
-	constexpr float removeChildProbability = .002f;
+	constexpr float removeChildProbability = .001f;
 
-	constexpr float childReplacementProbability = .02f;
+	constexpr float childReplacementProbability = .05f;
 
-	constexpr float nodeBoxingProbability = .003f;
+	constexpr float nodeBoxingProbability = .005f;
 	
-	constexpr float nodeDuplicationProbability = .02f;
+	constexpr float nodeDuplicationProbability = .03f;
 
 	float r;
 
@@ -463,8 +463,8 @@ void Network::mutate() {
 
 				box->childrenConnexions.reserve(4);
 				box->childrenConnexions.emplace_back(INPUT_ID, MODULATION_ID, 2, box->inputSize, GenotypeConnexion::RANDOM);
-				box->childrenConnexions.emplace_back(INPUT_ID, 0, box->inputSize, box->inputSize, GenotypeConnexion::IDENTITY);
-				box->childrenConnexions.emplace_back(0, 1, box->outputSize, box->outputSize, GenotypeConnexion::IDENTITY);
+				box->childrenConnexions.emplace_back(INPUT_ID, 0, box->inputSize, box->inputSize, GenotypeConnexion::RANDOM);
+				box->childrenConnexions.emplace_back(0, 1, box->outputSize, box->outputSize, GenotypeConnexion::RANDOM);
 
 				parentNode->children[rID] = box;
 
@@ -572,11 +572,12 @@ bool Network::hasChild(GenotypeNode* parent, GenotypeNode* potentialChild) {
 }
 
 
+// TODO take genome.size() and maybe childrenInBias into consideration.
 float Network::getRegularizationLoss() {
 	std::vector<int> nParams(genome.size() + 1);
 	std::vector<float> amplitudes(genome.size() + 1);
 	int size;
-	constexpr int nArrays = 5; // eta and gamma's amplitudes are irrelevant here.
+	constexpr int nArrays = 6; // eta and gamma's amplitudes are irrelevant here.
 
 	for (int i = nSimpleNeurons; i < genome.size() + 1; i++) {
 		GenotypeNode* n;
@@ -591,7 +592,7 @@ float Network::getRegularizationLoss() {
 				amplitudes[i] += abs(n->childrenConnexions[j].A[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].B[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].C[k]);
-				//amplitudes[i] += abs(n->childrenConnexions[j].D[k]); // ??? nArrays ++.
+				amplitudes[i] += abs(n->childrenConnexions[j].D[k]); 
 				amplitudes[i] += abs(n->childrenConnexions[j].alpha[k]);
 				amplitudes[i] += abs(n->childrenConnexions[j].w[k]);
 			}
@@ -603,7 +604,6 @@ float Network::getRegularizationLoss() {
 		}
 	}
 
-	// TODO take genome.size() into consideration.
 	float a = (float)amplitudes[genome.size()] / (float)nParams[genome.size()];
 	float b = logf((float)nParams[genome.size()] / (float)nArrays);
 	return a + 0.3f * a * b + 0.5f * b; // no factor in front of a because the whole vector will be reduced anyway.

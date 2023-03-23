@@ -66,9 +66,8 @@ PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 
 #if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
 void PhenotypeNode::accumulateW(float factor) {
-
+	type->nApparitions++;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
-		type->nApparitions++;
 		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
 		for (int j = 0; j < s; j++) {
 			type->childrenConnexions[i].accumulator[j] += factor * childrenConnexions[i].wLifetime[j];
@@ -372,8 +371,8 @@ void PhenotypeNode::forward() {
 	}
 	
 
+	// STEP 4: Update hebbian and eligibility traces.
 
-	// Update hebbian and eligibility traces
 	for (int id = 0; id < childrenConnexions.size(); id++) {
 		originID = type->childrenConnexions[id].originID;
 		destinationID = type->childrenConnexions[id].destinationID;
@@ -425,7 +424,7 @@ void PhenotypeNode::forward() {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				wLifetime[matID] += alpha[matID] * H[matID] * gamma[matID] * totalM[1]; 
+				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + alpha[matID] * H[matID] * gamma[matID] * totalM[1];
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
 					(A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j] + D[matID]);

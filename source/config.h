@@ -30,9 +30,6 @@
 
 
 // When defined, tries to deduce information on the desirable mutation direction from weights learned over lifetime.
-// Still experimenting. On continuous cartpole, CONTINUOUS_LEARNING + GUIDED_MUTATIONS drastically improve convergence speed, 
-// but makes it much more noisy. So adding a factor decreasing its amplitude over generations could be useful.
-// At the opposite GUIDED_MUTATIONS, with CONTINUOUS_LEARNING disabled, impressively improves convergence stability,
-// while being more or less as fast as without GUIDED_MUTATIONS. Very interesting behaviours to be investigated.
-// Conducted with population.setEvolutionParameters(-1.0f, .1f, .0f, true), nTrials = 8.
+// WIP. On continuous cartpole, CONTINUOUS_LEARNING + GUIDED_MUTATIONS drastically improve convergence speed. 
+// So adding a factor decreasing its amplitude over generations could be useful.
 #define GUIDED_MUTATIONS
