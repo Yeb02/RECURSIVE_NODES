@@ -135,9 +135,23 @@ void PhenotypeNode::preTrialReset() {
 }
 
 
+void PhenotypeNode::setSaturationPenalizationPtr(float* saturationPenalizationPtr) {
+	this->saturationPenalizationPtr = saturationPenalizationPtr;
+	for (int i = 0; i < children.size(); i++) {
+		if (children[i].type->isSimpleNeuron){continue;}
+		children[i].setSaturationPenalizationPtr(saturationPenalizationPtr);
+	}
+}
+
+
 void PhenotypeNode::forward() {
 	int id, originID, destinationID;
 	int nc, nl, matID;
+
+#ifdef SATURATION_PENALIZING
+	constexpr float modulationMultiplier = 4.0f; // must be set to the same value in Genotype::getNnonLinearities. TODO cleaner.
+	constexpr float saturationExponent = 10.0f;  // one could try lower values... But they must be 2*integer.
+#endif
 
 	nInferences++;
 
@@ -166,9 +180,13 @@ void PhenotypeNode::forward() {
 		currentOutput[i] = type->childrenInBias[id + i];
 	}
 
+
 	// STEP 3: ADD THE PREVIOUS STEPS'S OUTPUTS TO THE PRE-SYNAPTIC INPUTS, AND APPLY CHILDREN'S FORWARD. ALL CHILDREN 
 	// COULD BE UPDATED SIMULTANEOUSLY, BUT TO SPEED UP INFORMATION TRANSMITION IT HAPPENS "TYPE" BY "TYPE, IN THE 
 	// FOLLOWING ORDER:  neuromodulation node -> complex children -> simple children -> output node.
+
+	// #ifdef SATURATION_PENALIZING, also update saturationPenalizationPtr at each activation function evaluation.
+
 
 	// STEP 3A: neuromodulation node.
 	{
@@ -214,6 +232,12 @@ void PhenotypeNode::forward() {
 		localM[1] = tanhf(localMInput[1]);
 		totalM[0] += localM[0];
 		totalM[1] += localM[1];
+
+#ifdef SATURATION_PENALIZING
+		// neuromodulation is weighted stronger because more important.
+		* saturationPenalizationPtr += modulationMultiplier * powf(localM[0], saturationExponent);
+		* saturationPenalizationPtr += modulationMultiplier * powf(localM[1], saturationExponent);
+#endif
 	}
 
 	// STEP 3B: complex children.
@@ -265,6 +289,9 @@ void PhenotypeNode::forward() {
 				children[i].totalM[1] = this->totalM[1];
 				for (int j = 0; j < children[i].type->inputSize; j++) {
 					children[i].currentInput[j] = tanhf(children[i].currentInput[j]);
+#ifdef SATURATION_PENALIZING
+					* saturationPenalizationPtr += powf(children[i].currentInput[j], saturationExponent);
+#endif
 				}
 				children[i].forward();
 			}
@@ -319,6 +346,9 @@ void PhenotypeNode::forward() {
 				children[i].previousOutput[0] = children[i].currentOutput[0];
 				children[i].currentInput[0] = children[i].type->f(children[i].currentInput[0]);
 				children[i].currentOutput[0] = children[i].currentInput[0];
+#ifdef SATURATION_PENALIZING
+				* saturationPenalizationPtr += powf(children[i].currentInput[0], saturationExponent);
+#endif
 			}
 		}
 	}
@@ -367,6 +397,9 @@ void PhenotypeNode::forward() {
 
 		for (int i = 0; i < type->outputSize; i++) {
 			currentOutput[i] = tanhf(currentOutput[i]);
+#ifdef SATURATION_PENALIZING
+			* saturationPenalizationPtr += powf(currentOutput[i], saturationExponent);
+#endif
 		}
 	}
 	

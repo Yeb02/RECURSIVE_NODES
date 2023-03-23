@@ -36,7 +36,12 @@ Network::Network(Network* n) {
 		topNodeG->children[j] = genome[n->topNodeG->children[j]->position].get();
 	}
 
-	topNodeP.reset(NULL);;
+	topNodeP.reset(NULL);
+
+#ifdef SATURATION_PENALIZING
+	saturationPenalization = 0.0f;
+	nInferences = 0;
+#endif
 }
 
 
@@ -87,6 +92,11 @@ inputSize(inputSize), outputSize(outputSize)
 	topNodeG->childrenInBias.resize(topNodeG->sumChildrenInputSizes + topNodeG->outputSize);
 
 	topNodeP.reset(NULL);
+
+#ifdef SATURATION_PENALIZING
+	saturationPenalization = 0.0f;
+	nInferences = 0;
+#endif
 }
 
 
@@ -155,6 +165,10 @@ void Network::createPhenotype() {
 			previousInputs.get(),
 			currentInputs.get()
 		);
+
+#ifdef SATURATION_PENALIZING
+		topNodeP->setSaturationPenalizationPtr(&saturationPenalization);
+#endif
 	}
 };
 
@@ -171,6 +185,7 @@ void Network::preTrialReset() {
 
 
 void Network::step(const std::vector<float>& obs) {
+	nInferences++;
 	std::copy(currentInputs.get(), currentInputs.get() + phenotypeInArraySize, previousInputs.get());
 	std::copy(obs.begin(), obs.end(), topNodeP->currentInput);
 	topNodeP->forward();
@@ -571,6 +586,25 @@ bool Network::hasChild(GenotypeNode* parent, GenotypeNode* potentialChild) {
 	return parent->hasChild(checked, potentialChild);
 }
 
+
+float Network::getSaturationPenalization()
+{
+	if (nInferences == 0) {
+		std::cerr <<
+			"ERROR : getSaturationPenalization() WAS CALLED, BUT THE NETWORK HAS NEVER BEEN USED BEFORE !"
+			<< std::endl;
+		return 0.0f;
+	}
+
+	std::vector<int> genomeState(genome.size() + 1);
+	for (int i = 0; i < nSimpleNeurons; i++) {
+		genomeState[i] = 1; // simple neurons cost only 1 function evaluation each.
+	}
+	topNodeG->position = (int)genome.size();
+	topNodeG->getNnonLinearities(genomeState);
+
+	return saturationPenalization / (nInferences * genomeState[genome.size()]);
+}
 
 // TODO take genome.size() and maybe childrenInBias into consideration.
 float Network::getRegularizationLoss() {

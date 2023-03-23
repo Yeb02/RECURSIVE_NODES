@@ -392,10 +392,25 @@ void Population::computeFitnesses(std::vector<float> avgScorePerSpecimen) {
 	}
 	normalizeArray(regularizationScore.data(), N_SPECIMENS);
 
+
+#ifdef SATURATION_PENALIZING
+	// compute and normalize the saturation term
+	std::vector<float> saturationScore(N_SPECIMENS);
+	for (int i = 0; i < N_SPECIMENS; i++) {
+		saturationScore[i] = networks[i]->getSaturationPenalization();
+	}
+	normalizeArray(saturationScore.data(), N_SPECIMENS);
+#endif
+
+
 	// Then, the fitness is simply a weighted sum of the 2 intermediate measures, score and regularization.
 	float fMax = -10000.0f;
 	for (int i = 0; i < N_SPECIMENS; i++) {
 		fitnesses[i] = avgScorePerSpecimen[i] - regularizationFactor * regularizationScore[i];
+#ifdef SATURATION_PENALIZING
+		fitnesses[i] += -.05f * saturationScore[i];
+#endif
+
 		if (fitnesses[i] > fMax) {
 			fMax = fitnesses[i];
 			fittestSpecimen = i;

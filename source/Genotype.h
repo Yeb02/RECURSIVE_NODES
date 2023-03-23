@@ -128,6 +128,9 @@ struct GenotypeNode {
 	// Used to compute the size of the array containing dynamic outputs of the phenotype.
 	void computeOutArraySize(std::vector<int>& genomeState);
 
+	// Compute how many non linearities (tanh, relu, ..) the phenotype (yes, phenotype) has.
+	void getNnonLinearities(std::vector<int>& genomeState);
+
 	bool hasChild(std::vector<int>& checked, GenotypeNode* potentialChild);
 
 	// Mutate real-valued floating point parameters

@@ -23,6 +23,7 @@ struct PhenotypeConnexion {   // responsible of its pointers
 #endif
 
 
+
 	// Should not be called !
 	PhenotypeConnexion(const PhenotypeConnexion&) {};
 
@@ -48,6 +49,10 @@ struct PhenotypeNode {
 	float localM[2]; // computed in this node. Wasted space for simple neurons. TODO
 	float totalM[2]; // parent's + local M.    Wasted space for simple neurons. TODO
 
+#ifdef SATURATION_PENALIZING
+	float* saturationPenalizationPtr;		 //Wasted space for simple neurons. TODO
+#endif
+	 
 
 	// Pointers to its children. Responsible for their lifetime !
 	std::vector<PhenotypeNode> children;
@@ -77,5 +82,8 @@ struct PhenotypeNode {
 	void accumulateW(float factor);
 
 	void setArrayPointers(float* po, float* co, float* pi, float* ci);
+
+	//#ifdef SATURATION_PENALIZING
+	void setSaturationPenalizationPtr(float* saturationPenalizationPtr);
 
 };

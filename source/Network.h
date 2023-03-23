@@ -43,6 +43,8 @@ public:
 	// a positive float, increasing with the networks number of parameters and their amplitudes. Ignores biases.
 	float getRegularizationLoss();
 
+	float getSaturationPenalization();
+
 	int inputSize, outputSize;
 
 private:
@@ -55,6 +57,11 @@ private:
 	// Must be : reset to all 0s at the start of each trial;
 	// created alongside PhenotypeNode creation; freed alongside PhenotypeNode deletion.
 	std::unique_ptr<float[]> previousOutputs, currentOutputs, previousInputs, currentInputs;
+
+#ifdef SATURATION_PENALIZING
+	float saturationPenalization;
+	int nInferences;
+#endif
 
 	int phenotypeInArraySize, phenotypeOutArraySize;
 

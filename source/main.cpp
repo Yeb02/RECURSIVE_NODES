@@ -29,7 +29,6 @@ int main()
     int nDifferentTrials = 4;
     int nSteps = 10000;
 
-
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
     // different kinds of trials can be put in the vector.
     vector<unique_ptr<Trial>> trials;

@@ -29,7 +29,19 @@
 #define CONTINUOUS_LEARNING
 
 
+// IN DEVELOPPEMENT
 // When defined, tries to deduce information on the desirable mutation direction from weights learned over lifetime.
 // WIP. On continuous cartpole, CONTINUOUS_LEARNING + GUIDED_MUTATIONS drastically improve convergence speed. 
 // So adding a factor decreasing its amplitude over generations could be useful.
 #define GUIDED_MUTATIONS
+
+
+// IN DEVELOPPEMENT
+// When defined, for each network, float sp = sum of a function F of each activation of the network, at each step.
+// F is of the kind pow(activation, 2*k), so that its symmetric around 0 and decreasing in [-1,0]. (=> increasing in [0, -1])
+// At the end of the lifetime, sp is divided by the numer of steps and the number of activations, as both may differ from
+// one specimen to another. The vector of [sp/(nA*nS) for each specimen] is normalized (mean 0 var 1), and for each specimen
+// the corresponding value in the vector is substracted to the score in parallel of size and amplitude regularization terms
+// when computing fitness. The lower sum(F), the fitter.
+#define SATURATION_PENALIZING
+  
