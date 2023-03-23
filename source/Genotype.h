@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <cmath>
+#include <iostream>
 
 #include "Random.h"
 #include "Config.h"
@@ -45,7 +46,7 @@ struct GenotypeConnexion {
 #endif
 
 
-	GenotypeConnexion() {};
+	GenotypeConnexion() { std::cerr << " SHOULD NEVER BE CALLED !" << std::endl; };
 
 	GenotypeConnexion(int oID, int dID, int nLines, int nColumns, initType init);
 
@@ -145,29 +146,33 @@ struct GenotypeNode {
 	// Removes the rID child in the children list.
 	void removeChild(int rID);
 
-	// Resizes the matrices of every connexion between the children and the input, adding a column.
-	void incrementInputSize();
+	// Also resizes the matrices of every connexion between the children and the input, adding a column. Returns a 
+	// boolean indicating whether the operation was allowed or not. If not, nothing happened. 
+	bool incrementInputSize();
 	// Resizes the connexion matrices linking the children together.
 	void onChildInputSizeIncremented(GenotypeNode* modifiedType);
 	// Util for incrementInputSize and onChildInputSizeIncremented
 	void incrementDestinationInputSize(int i);
 
-	// Resizes the matrices of every connexion between the children and the output, adding a line.
-	void incrementOutputSize();
+	// Also resizes the matrices of every connexion between the children and the output, adding a line. Returns a 
+	// boolean indicating whether the operation was allowed or not. If not, nothing happened. 
+	bool incrementOutputSize();
 	// Resizes the connexion matrices linking the children together.
 	void onChildOutputSizeIncremented(GenotypeNode* modifiedType);
 	// Util for incrementOutputSize and onChildOutputSizeIncremented
 	void incrementOriginOutputSize(int i);
 
-	// Resizes the matrices of every connexion between the children and the input, deleting the id-th column.
-	void decrementInputSize(int id);
+	// Also resizes the matrices of every connexion between the children and the input, deleting the id-th column. 
+	// Returns a boolean indicating whether the operation was allowed or not. If not, nothing happened. 
+	bool decrementInputSize(int id);
 	// Resizes the connexion matrices linking the children together.
 	void onChildInputSizeDecremented(GenotypeNode* modifiedType, int id);
 	// Util for decrementInputSize and onChildInputSizeDecremented
 	void decrementDestinationInputSize(int i, int id);
 
-	// Resizes the matrices of every connexion between the children and the output, deleting the id-th line.
-	void decrementOutputSize(int id);
+	// Also resizes the matrices of every connexion between the children and the output, deleting the id-th line. 
+	// Returns a boolean indicating whether the operation was allowed or not. If not, nothing happened. 
+	bool decrementOutputSize(int id);
 	// Resizes the connexion matrices linking the children together.
 	void onChildOutputSizeDecremented(GenotypeNode* modifiedType, int id);
 	// Util for decrementOutputSize and onChildOutputSizeDecremented

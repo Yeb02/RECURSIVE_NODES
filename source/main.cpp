@@ -22,9 +22,9 @@ int main()
 
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
-#ifdef _DEBUG
-    nThreads = 1;
-#endif
+//#ifdef _DEBUG
+//    nThreads = 1;
+//#endif
     int nSpecimens = nThreads * 64;
     int nDifferentTrials = 8;
     int nSteps = 10000;
@@ -43,8 +43,17 @@ int main()
 #endif
     }
 
+    
+    PopulationEvolutionParameters params;
+    params.selectionPressure = 0.0f;
+    params.regularizationFactor = 0.1f;
+    params.nichingNorm = 0.0f;
+    params.useSameTrialInit = false;
+    params.normalizedScoreGradients = false;
+
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
-    population.setEvolutionParameters(-1.0f, .1f, .0f, true); 
+    population.setEvolutionParameters(params); 
+
     // Only the last _nTrialsEvaluated are used for fitness calculations. Others are only used for learning.
     int _nTrialsEvaluated = nDifferentTrials ;          // (int)trials.size(), or 4, or (int)trials.size() / 4, ...
 
@@ -77,37 +86,39 @@ int main()
         }
 #endif
 
-
-        //population.setEvolutionParameters(sinf((float)i / 2.0f), .1f, 0.0f, false); // parameters can be changed at each step.
+        // params.selectionPressure = sinf((float)i / 2.0f);
+        //population.setEvolutionParameters(params); // parameters can be changed at each step.
         population.step(trials, _nTrialsEvaluated);
 
-        if ((i + 1) % 100 == 0) { // Defragmentate. Not implemented yet.
-            string fileName = population.save();
-            population.load(fileName);
-        }
+
+        if ((i + 1) % 10000 == 0) population.defragmentate(); // Defragmentate. Not implemented yet.
     }
     population.stopThreads();
 
-
-#ifdef CARTPOLE_T
-    // If the Cartpole trial was used, copy the console output in the "data" array of 
-    // RECURSIVE_NODES\python\CartPoleData.py    and run   RECURSIVE_NODES\python\CartPoleVisualizer.py
-    // to observe the behaviour !
-    Network* n = population.getSpecimenPointer(population.fittestSpecimen);
-    trials[0]->reset();
-    n->createPhenotype();
-    n->preTrialReset();
-    cout << "\n";
-    while (!trials[0]->isTrialOver) {
-        n->step(trials[0]->observations);
-        trials[0]->step(n->getOutput());
-        cout << ", " << trials[0]->observations[0] << ", " << trials[0]->observations[2];
-    }
-    cout << "\n" << trials[0]->score;
-#endif
-
     return 0;
 }
+
+
+
+
+// old code:
+
+//#ifdef CARTPOLE_T 
+//// If the Cartpole trial was used, copy the console output in the "data" array of 
+//// RECURSIVE_NODES\python\CartPoleData.py    and run   RECURSIVE_NODES\python\CartPoleVisualizer.py
+//// to observe the behaviour !
+//Network* n = population.getSpecimenPointer(population.fittestSpecimen);
+//trials[0]->reset();
+//n->createPhenotype();
+//n->preTrialReset();
+//cout << "\n";
+//while (!trials[0]->isTrialOver) {
+//    n->step(trials[0]->observations);
+//    trials[0]->step(n->getOutput());
+//    cout << ", " << trials[0]->observations[0] << ", " << trials[0]->observations[2];
+//}
+//cout << "\n" << trials[0]->score;
+//#endif
 
 
 // scipy tests

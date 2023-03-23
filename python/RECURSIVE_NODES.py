@@ -33,7 +33,7 @@ get_fittest_network_handle.argtypes = [c_void_p]
 get_fittest_network_handle.restype = c_void_p
 
 set_evolution_parameters = libc.set_evolution_parameters
-set_evolution_parameters.argtypes = [c_void_p, c_float, c_float]
+set_evolution_parameters.argtypes = [c_void_p, c_float, c_float, c_float]
 set_evolution_parameters.restype = None
 
 prepare_network = libc.prepare_network

@@ -42,8 +42,12 @@ extern "C" {
 	RECURSIVE_NODES_API Network* get_fittest_network_handle(Population* population) {
 		return population->getSpecimenPointer(population->fittestSpecimen);
 	}
-	RECURSIVE_NODES_API void set_evolution_parameters(Population* population, float f0, float regularizationFactor) {
-		population->setEvolutionParameters(f0, regularizationFactor);
+	RECURSIVE_NODES_API void set_evolution_parameters(Population* population, float selectionPressure, float regularizationFactor, float nichingNorm) {
+		PopulationEvolutionParameters params;
+		params.selectionPressure = selectionPressure;
+		params.regularizationFactor = regularizationFactor;
+		params.nichingNorm = nichingNorm;
+		population->setEvolutionParameters(params);
 	}
 	
 	RECURSIVE_NODES_API void prepare_network(Network* n) {

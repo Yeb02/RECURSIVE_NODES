@@ -13,7 +13,7 @@ out_size = 2  #continuous case
 print(in_size, out_size)
 
 population = create_population(in_size, out_size, N_SPECIMENS)
-set_evolution_parameters(population, .2, .05)
+set_evolution_parameters(population, .0, .1, .5)
 drawer = initialize_drawer(720, 480)
 
 #  Use type compatible with c++ arrays

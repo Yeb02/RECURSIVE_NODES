@@ -19,7 +19,7 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 	accumulator = std::make_unique<float[]>(s);
 #endif
 
-	SET_BINOMIAL(s, .5f); // gamma and eta.
+	SET_BINOMIAL(s, .5f); // for gamma and eta.
 	float factor = .3f / (float)s;
 
 	if (init == ZERO || (init == IDENTITY && nLines != nColumns)) {
@@ -64,12 +64,12 @@ GenotypeConnexion::GenotypeConnexion(int oID, int dID, int nLines, int nColumns,
 			for (int c = 0; c < nColumns; c++) {
 
 				// tanh'(0) = 1, so * 1.25 is a correct-ish approximation to invert. 
-				v = l == c ? 1.25f : 0.0f;
+				v = l == c ? 1.25f : NORMAL_01 * .1f;
 				A[i] = NORMAL_01 * .2f;
 				B[i] = NORMAL_01 * .2f;
 				C[i] = NORMAL_01 * .2f;
 				D[i] = NORMAL_01 * .2f;
-				alpha[i] = 0.0f;
+				alpha[i] = NORMAL_01 * .1f;
 				eta[i] = factor * (float) BINOMIAL + .1f;
 				w[i] = v;
 #ifdef CONTINUOUS_LEARNING
@@ -127,23 +127,22 @@ GenotypeConnexion::GenotypeConnexion(const GenotypeConnexion& gc) {
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
 
-	//memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
-	std::copy(eta.get(), eta.get() + s, gc.eta.get()); // todo replace memcpy by std::copy everywhere
-	memcpy(A.get(), gc.A.get(), sizeof(float) * s);
-	memcpy(B.get(), gc.B.get(), sizeof(float) * s);
-	memcpy(C.get(), gc.C.get(), sizeof(float) * s);
-	memcpy(D.get(), gc.D.get(), sizeof(float) * s);
-	memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
-	memcpy(w.get(), gc.w.get(), sizeof(float) * s);
+	std::copy(gc.eta.get(), gc.eta.get() + s, eta.get());
+	std::copy(gc.A.get(), gc.A.get() + s, A.get());
+	std::copy(gc.B.get(), gc.B.get() + s, B.get());
+	std::copy(gc.C.get(), gc.C.get() + s, C.get());
+	std::copy(gc.D.get(), gc.D.get() + s, D.get());
+	std::copy(gc.w.get(), gc.w.get() + s, w.get());
+	std::copy(gc.alpha.get(), gc.alpha.get() + s, alpha.get());
 
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
-	memcpy(gamma.get(), gc.gamma.get(), sizeof(float) * s);
+	std::copy(gc.gamma.get(), gc.gamma.get() + s, gamma.get());
 #endif
 
 #ifdef GUIDED_MUTATIONS
 	accumulator = std::make_unique<float[]>(s);
-	memcpy(accumulator.get(), gc.accumulator.get(), sizeof(float) * s);
+	std::copy(gc.accumulator.get(), gc.accumulator.get() + s, accumulator.get());
 #endif
 }
 
@@ -164,21 +163,22 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
 
-	memcpy(eta.get(), gc.eta.get(), sizeof(float) * s);
-	memcpy(A.get(), gc.A.get(), sizeof(float) * s);
-	memcpy(B.get(), gc.B.get(), sizeof(float) * s);
-	memcpy(C.get(), gc.C.get(), sizeof(float) * s);
-	memcpy(alpha.get(), gc.alpha.get(), sizeof(float) * s);
-	memcpy(w.get(), gc.w.get(), sizeof(float) * s);
+	std::copy(gc.eta.get(), gc.eta.get() + s, eta.get());
+	std::copy(gc.A.get(), gc.A.get() + s, A.get());
+	std::copy(gc.B.get(), gc.B.get() + s, B.get());
+	std::copy(gc.C.get(), gc.C.get() + s, C.get());
+	std::copy(gc.D.get(), gc.D.get() + s, D.get());
+	std::copy(gc.w.get(), gc.w.get() + s, w.get());
+	std::copy(gc.alpha.get(), gc.alpha.get() + s, alpha.get());
 
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
-	memcpy(gamma.get(), gc.gamma.get(), sizeof(float) * s);
+	std::copy(gc.gamma.get(), gc.gamma.get() + s, gamma.get());
 #endif
 
 #ifdef GUIDED_MUTATIONS
 	accumulator = std::make_unique<float[]>(s);
-	memcpy(accumulator.get(), gc.accumulator.get(), sizeof(float) * s);
+	std::copy(gc.accumulator.get(), gc.accumulator.get() + s, accumulator.get());
 #endif
 
 	return *this;
@@ -237,17 +237,23 @@ void GenotypeNode::mutateFloats() {
 			case 5: aPtr = childrenConnexions[listID].w.get(); break;
 			case 6:  // eta
 				aPtr = childrenConnexions[listID].eta.get(); 
-				// this allows for high precision mutations when eta (or 1- eta) is close to 1.
-				aPtr[matrixID] = UNIFORM_01 > .05f ?
-						aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01-.5f) + aPtr[matrixID] :
-						aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
+				// this allows for high precision mutations when eta (or 1-eta) is close to 0 or 1.
+				if (UNIFORM_01 > .05f) [[likely]] {
+					aPtr[matrixID] += aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01 - .5f);
+				}
+				else [[unlikely]] {
+					aPtr[matrixID] = aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
+				}		
 				break;
 #ifdef CONTINUOUS_LEARNING
 			case 7:  // gamma
 				aPtr = childrenConnexions[listID].gamma.get(); 
-				aPtr[matrixID] = UNIFORM_01 > .05f ?
-					aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01 - .5f) + aPtr[matrixID] :
-					aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
+				if (UNIFORM_01 > .05f) [[likely]] {
+					aPtr[matrixID] += aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01 - .5f);
+				}
+				else [[unlikely]] {
+					aPtr[matrixID] = aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
+				}
 				break;
 #endif
 			}
@@ -304,18 +310,26 @@ void GenotypeNode::addConnexion() {
 	bool alreadyExists;
 	int dInSize, oOutSize;
 	for (int i = 0; i < maxAttempts; i++) {
-		c1 = INT_0X(children.size() + 1 + _inputBias) - 1 - _inputBias; // in [-1-inputBias, children.size() - 1]
-		c2 = INT_0X(children.size() + 1 + _outputBias); // in [0, children.size() + outputBias]
+		c1 = INT_0X(children.size() + 2 + _inputBias) - 1 - _inputBias; // in [-1-inputBias, children.size()]
+		c2 = INT_0X(children.size() + 2 + _outputBias); // in [0, children.size() + outputBias+1]
 
 		if (c1 <= -1) {
-			c1 = INPUT_ID; //INPUT_ID could be != -1 in future versions.
+			c1 = INPUT_ID; 
 			oOutSize = inputSize;
 		}
+		else if (c1 == children.size()) {
+			c1 = MODULATION_ID; 
+			oOutSize = 2;
+		} 
 		else oOutSize = children[c1]->outputSize;
 
-		if (c2 >= children.size()) {
+		if (c2 > children.size()) {
 			dInSize = outputSize;
 			c2 = (int)children.size();
+		}
+		else if (c2 == children.size()) {
+			dInSize = 2;
+			c2 = MODULATION_ID;
 		}
 		else dInSize = children[c2]->inputSize;
 
@@ -335,9 +349,9 @@ void GenotypeNode::addConnexion() {
 	}
 }
 void GenotypeNode::removeConnexion() {
-	if (childrenConnexions.size() <= 1 + 1) return; // not allowed to fall below 1 connexion + neuromodulation. Still can happen in a convoluted case.
+	if (childrenConnexions.size() <= 1) return; 
 	int id = INT_0X(childrenConnexions.size());
-	if (childrenConnexions[id].destinationID == MODULATION_ID) return; // not allowed to disconnect neuromodulation.
+	//if (origin = input && childrenConnexions[id].destinationID == MODULATION_ID) return; // not allowed to disconnect input->neuromodulation.
 	childrenConnexions.erase(childrenConnexions.begin() + id);
 }
 
@@ -379,7 +393,7 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 	childrenConnexions.emplace_back((int)children.size(), dID, destinationsInputSize, child->outputSize, GenotypeConnexion::ZERO);
 	children.push_back(child);
 
-	childrenInBias.insert(childrenInBias.begin() + sumChildrenInputSizes, child->inputSize, 0);
+	childrenInBias.insert(childrenInBias.begin() + sumChildrenInputSizes, child->inputSize, 0.0f);
 	for (int i = sumChildrenInputSizes; i < sumChildrenInputSizes + child->inputSize; i++) {
 		childrenInBias[i] = NORMAL_01 * .2f;
 	}
@@ -410,28 +424,35 @@ void GenotypeNode::removeChild(int rID) {
 			childrenConnexions[i].originID--;
 		}
 	}
-	childrenInBias.erase(childrenInBias.begin(), childrenInBias.begin() + children[rID]->inputSize);
+	auto i0 = childrenInBias.begin() + concatenatedChildrenInputBeacons[rID];
+	childrenInBias.erase(i0, i0 + children[rID]->inputSize);
 
 	children.erase(children.begin() + rID);
 	computeBeacons();
 }
 
-void GenotypeNode::incrementInputSize() {
+bool GenotypeNode::incrementInputSize() {
+	if (inputSize >= MAX_BLOCK_INPUT_SIZE) return false;
 	inputSize++;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		if (childrenConnexions[i].originID == INPUT_ID) {
 			incrementOriginOutputSize(i);
 		}
 	}
+	return true;
 }
 void GenotypeNode::onChildInputSizeIncremented(GenotypeNode* modifiedType) {
 	int id;
-	int nInsertions = 0;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		id = childrenConnexions[i].destinationID;
 		if (id != children.size() && id != MODULATION_ID && children[id] == modifiedType) {
 			incrementDestinationInputSize(i);
-			childrenInBias.insert(childrenInBias.begin() + concatenatedChildrenInputBeacons[id] + nInsertions, NORMAL_01 * .2f);
+		}
+	}
+	int nInsertions = 0;
+	for (int i = 0; i < children.size(); i++) {
+		if (children[i] == modifiedType) {
+			childrenInBias.insert(childrenInBias.begin() + concatenatedChildrenInputBeacons[i] + nInsertions, NORMAL_01 * .2f);
 			nInsertions++;
 		}
 	}
@@ -484,7 +505,8 @@ void GenotypeNode::incrementOriginOutputSize(int i) {
 }
 
 
-void GenotypeNode::incrementOutputSize() {
+bool GenotypeNode::incrementOutputSize() {
+	if (outputSize >= MAX_BLOCK_OUTPUT_SIZE) return false;
 	outputSize++;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		if (childrenConnexions[i].destinationID == children.size()) {
@@ -492,6 +514,7 @@ void GenotypeNode::incrementOutputSize() {
 		}
 	}
 	childrenInBias.push_back(NORMAL_01*.2f);
+	return true;
 }
 void GenotypeNode::onChildOutputSizeIncremented(GenotypeNode* modifiedType) {
 	int id;
@@ -545,8 +568,8 @@ void GenotypeNode::incrementDestinationInputSize(int i) {
 }
 
 
-void GenotypeNode::decrementInputSize(int id) {
-	if (inputSize == 1) return;
+bool GenotypeNode::decrementInputSize(int id) {
+	if (inputSize <= 1) return false;
 	inputSize--;
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
@@ -554,15 +577,20 @@ void GenotypeNode::decrementInputSize(int id) {
 			decrementOriginOutputSize(i, id);
 		}
 	}
+	return true;
 }
 void GenotypeNode::onChildInputSizeDecremented(GenotypeNode* modifiedType, int id) {
 	int nID;
-	int nErasures = 0;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		nID = childrenConnexions[i].destinationID;
 		if (nID != children.size() && nID != MODULATION_ID && children[nID] == modifiedType) {
 			decrementDestinationInputSize(i, id);
-			childrenInBias.erase(childrenInBias.begin() + concatenatedChildrenInputBeacons[nID] + id - nErasures);
+		}
+	}
+	int nErasures = 0;
+	for (int i = 0; i < children.size(); i++) {
+		if (children[i] == modifiedType) {
+			childrenInBias.erase(childrenInBias.begin() + concatenatedChildrenInputBeacons[i] + id - nErasures);
 			nErasures++;
 		}
 	}
@@ -616,8 +644,8 @@ void GenotypeNode::decrementOriginOutputSize(int i, int id) {
 }
 
 
-void GenotypeNode::decrementOutputSize(int id) {
-	if (outputSize == 1) return;
+bool GenotypeNode::decrementOutputSize(int id) {
+	if (outputSize <= 1) return false;
 	outputSize--;
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
@@ -626,6 +654,7 @@ void GenotypeNode::decrementOutputSize(int id) {
 		}
 	}
 	childrenInBias.erase(childrenInBias.begin() + concatenatedChildrenInputBeacons[children.size()] + id);
+	return true;
 }
 void GenotypeNode::onChildOutputSizeDecremented(GenotypeNode* modifiedType, int id) {
 	int nID;
@@ -691,7 +720,7 @@ void GenotypeNode::updateDepth(std::vector<int>& genomeState) {
 	genomeState[position] = 1;
 }
 
-void GenotypeNode::computeInArraySize(std::vector<int>& genomeState) { //// TODO BOTH ARE THE SAME ?
+void GenotypeNode::computeInArraySize(std::vector<int>& genomeState) { 
 	int s = inputSize;
 	for (int i = 0; i < children.size(); i++) {
 		if (genomeState[children[i]->position] == 0) {
@@ -702,7 +731,7 @@ void GenotypeNode::computeInArraySize(std::vector<int>& genomeState) { //// TODO
 	genomeState[position] = s;
 }
 
-void GenotypeNode::computeOutArraySize(std::vector<int>& genomeState) {  //// TODO BOTH ARE THE SAME ?
+void GenotypeNode::computeOutArraySize(std::vector<int>& genomeState) {  
 	int s = outputSize;
 	for (int i = 0; i < children.size(); i++) {
 		if (genomeState[children[i]->position] == 0) {
@@ -712,7 +741,6 @@ void GenotypeNode::computeOutArraySize(std::vector<int>& genomeState) {  //// TO
 	}
 	genomeState[position] = s;
 }
-
 
 void GenotypeNode::copyParameters(GenotypeNode* n) {
 	if (n->isSimpleNeuron) {

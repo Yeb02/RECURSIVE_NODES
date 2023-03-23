@@ -165,6 +165,7 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 		}
 
 		for (int i = i0; i < i0 + subArraySize; i++) {
+
 			networks[i]->mutate(); 
 			networks[i]->createPhenotype();
 		}
@@ -186,9 +187,8 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 				doneProcessing.notify_one();
 			} else { ul.unlock(); }
 
-			// WAIT FOR SCORE OPERATION. (NORMALIZATION ?)
+			// WAIT FOR NON THREADED OPERATION ON THE SCORE ARRAY.
 
-			//std::unique_lock<std::mutex> ul(m);
 			ul.lock();
 			startProcessing.wait(ul, [&currentThreadIteration, this] {return (currentThreadIteration == threadIteration) || mustTerminate; });
 			ul.unlock();
@@ -225,7 +225,9 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	int tSize = (int)trials.size();
 	int i0 = tSize - nTrialsEvaluated;
 
-	// Mutate, then evaluate the specimens on trials. 
+	// Mutate, then evaluate the specimens on trials:
+
+	bool normalizedScoreGradients = false; // experimental, default=false. Only used with CONTINUOUS_LEARNING && GUIDED_MUTATIONS
 	std::vector<float> scores(tSize * N_SPECIMENS);
 	if (N_THREADS > 1) {
 
@@ -252,11 +254,10 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 				doneProcessing.wait(lg, [] {return nDoneProcessing == 0; });
 			}
 
-			// Non threaded operations on threads:
-			if (i < tSize) {
-				//normalizeArray(pScores + i * N_SPECIMENS, N_SPECIMENS);
+			// Non threaded operations on score array:
+			if (i < tSize && normalizedScoreGradients) {
+				normalizeArray(pScores + i * N_SPECIMENS, N_SPECIMENS);
 			}
-
 		}
 	}
 	else {
@@ -269,7 +270,9 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			pScores = &scores[i * N_SPECIMENS];
 			evaluate(0, N_SPECIMENS, trials[i].get(), pScores);
 
-			// normalize scores ?
+			if (normalizedScoreGradients) {
+				normalizeArray(pScores, N_SPECIMENS);
+			}
 
 			for (int i = 0; i < N_SPECIMENS; i++) {
 				networks[i]->postTrialUpdate(pScores[i]);
@@ -280,32 +283,54 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 
 	// LOGGING SCORES. MONITORING ONLY, CAN BE DISABLED.
 	if (true) {
-		std::vector<float> avgScoresPerTrial(nTrialsEvaluated);
-
-		float maxScore = -1000000.0f;
-		float score, avgFactor = 1.0f / (float)nTrialsEvaluated;
-		for (int i = 0; i < N_SPECIMENS; i++) {
-			score = 0;
-			for (int j = i0; j < tSize; j++) {
-				score += scores[i * tSize + j];
-				avgScoresPerTrial[j - i0] += scores[i * tSize + j];
+		if (normalizedScoreGradients) {
+			float maxScore = -1000000.0f, score;
+			int maxScoreID = -1;
+			for (int i = 0; i < N_SPECIMENS; i++) {
+				score = 0;
+				for (int j = i0; j < tSize; j++) {
+					score += scores[i + j * N_SPECIMENS];
+				}
+				if (score > maxScore) {
+					maxScore = score;
+					maxScoreID = i;
+				}
 			}
-			score *= avgFactor;
-			if (score > maxScore) {
-				maxScore = score;
+			trials[0]->reset();
+			Network* n = networks[maxScoreID];
+			n->createPhenotype();
+			n->preTrialReset();
+			while (!trials[0]->isTrialOver) {
+				n->step(trials[0]->observations);
+				trials[0]->step(n->getOutput());
 			}
+			std::cout << "At generation " << evolutionStep
+				<< ", best specimen's score on new trial = " << trials[0]->score << std::endl;
 		}
-
-
-		for (int j = 0; j < nTrialsEvaluated; j++) avgScoresPerTrial[j] /= (float)N_SPECIMENS;
-		float avgavgf = 0.0f;
-		for (float f : avgScoresPerTrial) avgavgf += f;
-		avgavgf /= nTrialsEvaluated;
-		std::cout << "At threadIteration " << evolutionStep
+		else {
+			std::vector<float> avgScoresPerTrial(nTrialsEvaluated);
+			float maxScore = -1000000.0f;
+			float score, avgFactor = 1.0f / (float)nTrialsEvaluated;
+			for (int i = 0; i < N_SPECIMENS; i++) {
+				score = 0;
+				for (int j = i0; j < tSize; j++) {
+					score += scores[i + j * N_SPECIMENS];
+					avgScoresPerTrial[j - i0] += scores[i + j * N_SPECIMENS];
+				}
+				score *= avgFactor;
+				if (score > maxScore) {
+					maxScore = score;
+				}
+			}
+			for (int j = 0; j < nTrialsEvaluated; j++) avgScoresPerTrial[j] /= (float)N_SPECIMENS;
+			float avgavgf = 0.0f;
+			for (float f : avgScoresPerTrial) avgavgf += f;
+			avgavgf /= nTrialsEvaluated;
+			std::cout << "At generation " << evolutionStep
 			<< ", max score = " << maxScore
 			<< ", avg avg score = " << avgavgf << ".\n";
 		//std::cout << maxScore << ", ";
-
+		}
 	}
 
 
@@ -317,9 +342,9 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		mins.resize(nTrialsEvaluated); // 0 init is fine cause there WILL be values < 0.
 		for (int j = i0; j < tSize; j++) {
 			for (int i = 0; i < N_SPECIMENS; i++) {
-				sums[j - i0] += scores[i + j*tSize];
-				if (scores[i + j * tSize] < mins[j - i0]) {
-					mins[j - i0] = scores[i + j * tSize];
+				sums[j - i0] += scores[i + j * N_SPECIMENS];
+				if (scores[i + j * N_SPECIMENS] < mins[j - i0]) {
+					mins[j - i0] = scores[i + j * N_SPECIMENS];
 				}
 			}
 		}
@@ -333,9 +358,9 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		for (int i = 0; i < N_SPECIMENS; i++) {
 			float s = 0.0f;
 			for (int j = i0; j < tSize; j++) {
-				s += powf((scores[i + j * tSize] - mins[j-i0]) * sums[j-i0], nichingNorm);
+				s += powf((scores[i + j * N_SPECIMENS] - mins[j-i0]) * sums[j-i0], nichingNorm);
 			}
-			// Dividing by nTrialsEvaluated so that changing nTrialsEvaluated does not
+			// Dividing s by nTrialsEvaluated so that changing nTrialsEvaluated does not
 			// influence too much other hyperparameters.
 			avgScorePerSpecimen[i] = powf(s/(float) nTrialsEvaluated, invNichingNorm);
 		}
@@ -343,7 +368,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	else {
 		for (int j = i0; j < tSize; j++) {
 			for (int i = 0; i < N_SPECIMENS; i++) {
-				avgScorePerSpecimen[i] += scores[i + j * tSize];
+				avgScorePerSpecimen[i] += scores[i + j * N_SPECIMENS];
 			}
 		}
 	}
@@ -381,7 +406,7 @@ void Population::computeFitnesses(std::vector<float> avgScorePerSpecimen) {
 
 	if (fMax == selectionPressure) {
 		std::cerr <<
-		"WARNING : selectionPressure TOO HIGH, ALL SPECIMENS REJECTED. SHOULD BE IN [-1 , 1] FOR STABILITY."
+		"WARNING : selectionPressure TOO HIGH, ALL SPECIMENS REJECTED. < 1 RECOMMENDED FOR STABILITY, < 0 TO BE SURE."
 		<< std::endl;
 
 		fitnesses[fittestSpecimen] = 1.0f;

@@ -105,7 +105,9 @@ void Network::postTrialUpdate(float score) {
 
 
 #if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
-		topNodeP->accumulateW(score); // Optional !
+		//topNodeP->accumulateW(score);	// Optional, requires population.normalizedScoreGradients = true.
+		topNodeP->accumulateW(1.0f);  // Optional.
+		//topNodeP->accumulateW(1.0f);  // Optional, not implemented yet.
 #endif
 	}
 	else {
@@ -178,7 +180,8 @@ void Network::step(const std::vector<float>& obs) {
 // TODO mutation rates should be functions of the network size.
 void Network::mutate() {
 
-	// value in pairs should be equal, or at least the first greater than the second, to introduce some kind of regularization.
+	// The first constexpr value in each pair should be greater than the second, 
+	// or at worst equal, to introduce some kind of spontaneous regularization.
 
 	constexpr float createConnexionProbability = .01f;
 	constexpr float deleteConnexionProbability = .002f;
@@ -229,43 +232,55 @@ void Network::mutate() {
 		for (int i = nSimpleNeurons; i < genome.size(); i++) {
 			r = UNIFORM_01;
 			if (r < incrementInputSizeProbability) {
-				genome[i]->incrementInputSize();
-				for (int j = 0; j < genome.size(); j++) {
-					genome[j]->onChildInputSizeIncremented(genome[i].get());
+				bool success = genome[i]->incrementInputSize();
+				if (success) {
+					for (int j = 0; j < genome.size(); j++) {
+						genome[j]->onChildInputSizeIncremented(genome[i].get());
+					}
+					topNodeG->onChildInputSizeIncremented(genome[i].get());
 				}
 			}
 
 			r = UNIFORM_01;
 			if (r < incrementOutputSizeProbability) {
-				genome[i]->incrementOutputSize();
-				for (int j = 0; j < genome.size(); j++) {
-					genome[j]->onChildOutputSizeIncremented(genome[i].get());
+				bool success = genome[i]->incrementOutputSize();
+				if (success) {
+					for (int j = 0; j < genome.size(); j++) {
+						genome[j]->onChildOutputSizeIncremented(genome[i].get());
+					}
+					topNodeG->onChildOutputSizeIncremented(genome[i].get());
 				}
 			}
 
 			int rID;
 			r = UNIFORM_01;
-			if (r < decrementInputSizeProbability && genome[i]->inputSize > 0) {
+			if (r < decrementInputSizeProbability) {
 				rID = INT_0X(genome[i]->inputSize);
-				genome[i]->decrementInputSize(rID);
-				for (int j = 0; j < genome.size(); j++) {
-					genome[j]->onChildInputSizeDecremented(genome[i].get(), rID);
+				bool success = genome[i]->decrementInputSize(rID);
+				if (success) {
+					for (int j = 0; j < genome.size(); j++) {
+						genome[j]->onChildInputSizeDecremented(genome[i].get(), rID);
+					}
+					topNodeG->onChildInputSizeDecremented(genome[i].get(), rID);
 				}
 			}
 
 			r = UNIFORM_01;
-			if (r < decrementOutputSizeProbability && genome[i]->outputSize > 0) {
+			if (r < decrementOutputSizeProbability) {
 				rID = INT_0X(genome[i]->outputSize);
-				genome[i]->decrementOutputSize(rID);
-				for (int j = 0; j < genome.size(); j++) {
-					genome[j]->onChildOutputSizeDecremented(genome[i].get(), rID);
+				bool success = genome[i]->decrementOutputSize(rID);
+				if (success) {
+					for (int j = 0; j < genome.size(); j++) {
+						genome[j]->onChildOutputSizeDecremented(genome[i].get(), rID);
+					}
+					topNodeG->onChildOutputSizeDecremented(genome[i].get(), rID);
 				}
 			}
 		}
 	}
 
 
-	// WARNING THE FOLLOWING ORDER MUST BE RESPECTED IN THE FUNCTION !!!   
+	// The following order must be respected in the function !   LEGACY ? TODO check.   
 	// adding a child --> replacing a child --> removing a child --> duplicating a child --> removing unused nodes
 	
 	
@@ -371,6 +386,7 @@ void Network::mutate() {
 		if (UNIFORM_01 < removeChildProbability && topNodeG->children.size() > 0) {
 			int rID = INT_0X(topNodeG->children.size());
 			topNodeG->removeChild(rID);
+			updateDepths(); // necessary ?
 		}
 	}
 
@@ -405,11 +421,10 @@ void Network::mutate() {
 		}
 	}
 
-	// Removing unused nodes. Find a better solution.
+	// Removing unused nodes. Find a better solution. TODO .
 	if (UNIFORM_01 < .03f) {
 		removeUnusedNodes();   
 	}
-	
 
 	// Node Boxing : boxes one of the children. The shallower the child, the more likely it is to succeed.
 	{
@@ -461,15 +476,14 @@ void Network::mutate() {
 	}
 	
 	
-	// Update beacons for forward(), and update mutational distances.
+	// Update mutational distances.
 	for (int i = nSimpleNeurons; i < genome.size(); i++) {
-		genome[i]->computeBeacons();
 		genome[i]->mutationalDistance++;
 	}
-	topNodeG->computeBeacons();
 	topNodeG->mutationalDistance++;
 
-	// Phenotype may have become outdated, and is no longer needed for updates.
+	// Phenotype may have become outdated, and is no longer needed for updates. It must be recreated before
+	// next inference.
 	topNodeP.reset(NULL);
 }
 

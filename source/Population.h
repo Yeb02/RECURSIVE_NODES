@@ -43,6 +43,24 @@ The process is repeated as many times as their are specimens, we then proceed to
 */
 
 
+// Contains the parameters for population evolution. Detail on each parameter in the Population class
+// declaration. (Population.h)
+struct PopulationEvolutionParameters {
+	float regularizationFactor;
+	float nichingNorm;
+	float selectionPressure;
+	bool useSameTrialInit;
+	bool normalizedScoreGradients;
+
+	//defaults:
+	PopulationEvolutionParameters() {
+		selectionPressure = 0.0f;
+		regularizationFactor = 0.1f;
+		nichingNorm = 0.0f;
+		useSameTrialInit = false;
+		normalizedScoreGradients = false;
+	}
+};
 
 
 // A group of a fixed number of individuals, optimized with a genetic algorithm.
@@ -60,12 +78,12 @@ public:
 	Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS);
 	void computeFitnesses(std::vector<float> avgScorePerSpecimen);
 	void createOffsprings();
-	void setEvolutionParameters(float selectionPressure = .0f, float regularizationFactor = .1f,
-							    float nichingNorm=1.0f, bool useSameTrialInit=false) {
-		this->regularizationFactor = regularizationFactor;
-		this->selectionPressure = selectionPressure;
-		this->nichingNorm = nichingNorm;
-		this->useSameTrialInit = useSameTrialInit;
+	void setEvolutionParameters(PopulationEvolutionParameters params) {
+		this->regularizationFactor = params.regularizationFactor;
+		this->selectionPressure = params.selectionPressure;
+		this->nichingNorm = params.nichingNorm;
+		this->useSameTrialInit = params.useSameTrialInit;
+		this->normalizedScoreGradients = params.normalizedScoreGradients;
 	}
 
 	// DLL util only:
@@ -75,11 +93,11 @@ public:
 	std::string save() { 
 		return std::string("");
 	}; 
-	void load(std::string fileName) {}; 
+	void destroyThenLoad(std::string fileName) {};
 	void defragmentate() {
 		std::string fileName = save();
 		// delete population
-		load(fileName);
+		destroyThenLoad(fileName);
 		// delete file
 	}  
 
@@ -87,7 +105,10 @@ public:
 	int get_N_SPECIMENS() { return N_SPECIMENS; };
 	Network* getSpecimenPointer(int i) { return networks[i]; };
 
+	// Indice in the networks list of the fittest specimen at this step.
 	int fittestSpecimen;
+
+	// Current number of generations since initialization.
 	int evolutionStep;
 
 private:
@@ -96,7 +117,7 @@ private:
 	void evaluate(const int i0, const int subArraySize, Trial* trial, float* scores);
 	int N_SPECIMENS, N_THREADS;
 	std::vector<Network*> networks;
-	// Indice in the networks list of the fittest specimen at this step.
+	
 
 	// The relative importance of the normalized regularization factor to the score. 0 means no regularization,
 	// 1 means regularization is as important as score. Recommended value varies with the task, .03f is a safe baseline.
@@ -107,7 +128,7 @@ private:
 	// and equal weight in the global fitness.
 	float nichingNorm;
 
-	// Should be in [1, 1]. When selecting "parents" for the next generation, rejects all specimens
+	// Should be < 1. When selecting "parents" for the next generation, rejects all specimens
 	// below selectionPressure in the gaussian of fitnesses (mean 0 var ~1). Values too high may cause a
 	// warning and undesired behaviour. Can be constant or changed at each steps, with for instance:
 	// UNIFORM_01 -.5f     OR   sinf((float)iteration / 3.0f)   OR ...
@@ -117,9 +138,19 @@ private:
 	// each specimen. In most cases, this completely eliminates the stochasticity of fitness function.
 	bool useSameTrialInit;
 
+	// Experimental, default=false. Only used with CONTINUOUS_LEARNING && GUIDED_MUTATIONS. If true, for each specimen,
+	// postTrialUpdate adds the learned weights wLifetime to the accumulators, wLifetime being weighted by either:
+	//   - score in the [NORMALIZED score per specimen on this trial]  array.
+	//   - relative score to that of its parent ON THE SAME TRIAL WITH SIMILAR INIT at last step.
+	// AND THEN ZEROS wLifetime !
+	bool normalizedScoreGradients; 
+
+	// The vector of fitness per specimen, >0. Fitness 0 = probability 0 of generating offspring.
 	std::vector<float> fitnesses;
 
-	// unused if N_THREADS = 0 or 1:
+
+	// Used only if N_THREADS > 1 (i.e. multithreading enabled):
+
 	std::vector<std::thread> threads;
 	std::vector<Trial*> globalTrials;
 	float* pScores;

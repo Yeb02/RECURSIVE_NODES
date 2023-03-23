@@ -198,7 +198,7 @@ void PhenotypeNode::forward() {
 				originArray = localM;
 			}
 			else {
-				originArray = children[destinationID].currentOutput;
+				originArray = children[originID].currentOutput;
 			}
 
 			for (int i = 0; i < nl; i++) {
@@ -247,7 +247,7 @@ void PhenotypeNode::forward() {
 				originArray = localM;
 			}
 			else {
-				originArray = children[destinationID].currentOutput;
+				originArray = children[originID].currentOutput;
 			}
 
 			for (int i = 0; i < nl; i++) {
@@ -302,7 +302,7 @@ void PhenotypeNode::forward() {
 				originArray = localM;
 			}
 			else {
-				originArray = children[destinationID].currentOutput;
+				originArray = children[originID].currentOutput;
 			}
 
 			for (int i = 0; i < nl; i++) { // nl = 1 in this case
@@ -354,7 +354,7 @@ void PhenotypeNode::forward() {
 				originArray = localM;
 			}
 			else {
-				originArray = children[destinationID].currentOutput;
+				originArray = children[originID].currentOutput;
 			}
 
 			for (int i = 0; i < nl; i++) { // nl = 1 in this case

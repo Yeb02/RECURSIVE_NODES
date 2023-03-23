@@ -17,7 +17,7 @@ public:
         paused = false;
         if (!font.loadFromFile("Roboto-Black.ttf"))
         {
-            std::cerr << "DRAWING OPTION IS ENABLED BUT THE SPECIFIED TEXT FONT (.ttf) WAS NOT FOUND."
+            std::cerr << "'DRAWING' DIRECTIVE IS ENABLED BUT THE SPECIFIED TEXT FONT (.ttf) WAS NOT FOUND. "
                 << "MAKE SURE IT IS ALONGSIDE THE EXECUTABLE, OR IN THE ACTIVE DIRECTORY." << std::endl;
         }
     };
@@ -100,7 +100,9 @@ public:
             int oID, dID;
             for (int j = 0; j < gNode->childrenConnexions.size(); j++) {
                 oID = gNode->childrenConnexions[j].originID;
-                oID = oID == INPUT_ID ? (int)gNode->children.size() + 1 : oID;
+                if (oID == INPUT_ID) oID = (int)gNode->children.size() + 1;
+                else if (oID == MODULATION_ID) oID = (int)gNode->children.size() + 2;
+                
                 dID = gNode->childrenConnexions[j].destinationID;
                 dID = dID == MODULATION_ID ? (int)gNode->children.size() + 2 : dID;
 
