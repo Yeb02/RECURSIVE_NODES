@@ -7,13 +7,14 @@ Implements a 3 loops optimization algorithm to tackle reinforcement learning cha
 <p align="center">
   <img src="Capture.PNG">
 </p>
+<em>Visualization of one network. The numbers inside circles correspond to the node 'Node n°X'.</em>
 
 &nbsp;
 ##### KNOWN BUGS: None, report any !
 ##### TODO: Save a model or a population, with boost.serialize. Then heap defragmentation.
 &nbsp;
-Several variants of the algorithms are implemented, change the active preprocessor directives in config.h to compile a custom version. More info in the file.
-The program can be compiled into an executable, to experiment on the implemented c++ trials. As of now, 3 trials are implemented: XoR with memorization, gym's cartpole, and the T-Maze. More to come !
+Several variants of the algorithm are implemented, change the active preprocessor directives in config.h to compile a custom version. More info in the file.
+The program can be compiled into an executable, to experiment on the implemented c++ trials. As of now, 3 trials are implemented: XoR with memorization, gym's cartpole, and T-Maze. More to come !
 
 It can also be compiled into a dll, to use in python with ctypes. One can then evaluate the algorithm on any python trial, like on openAI's gym's for instance. A demo can be found in python\gym_cartpole.py. It is still in developpement, so stick close to the demo's architecture if you dont want to run into undefined behaviours.
 
