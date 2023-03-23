@@ -195,11 +195,11 @@ void Network::mutate() {
 	constexpr float addChildProbability = .01f;
 	constexpr float removeChildProbability = .002f;
 
-	constexpr float childReplacementProbability = .01f;
+	constexpr float childReplacementProbability = .02f;
 
 	constexpr float nodeBoxingProbability = .003f;
 	
-	constexpr float nodeDuplicationProbability = .002f;
+	constexpr float nodeDuplicationProbability = .02f;
 
 	float r;
 

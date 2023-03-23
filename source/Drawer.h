@@ -54,13 +54,16 @@ public:
 
         text.setFont(font);
         text.setCharacterSize(15);
+        text.setFillColor(sf::Color::White);
+        text.setString("CHILDREN NODES COLOR LEGEND:   Red = output   Green = input   Yellow = modulation    Blue = complex node    White = simple neuron");
+        text.setPosition(10.0f, w.getSize().y - 30.0f);
+        w.draw(text);
 
         selfConnexion.setFillColor(sf::Color::Transparent);
         selfConnexion.setOutlineColor(sf::Color::White);
         selfConnexion.setOutlineThickness(1.0f);
 
         if (paused) {
-            text.setFillColor(sf::Color::White);
             text.setString("PAUSED !  Press SPACE to resume.");
             text.setPosition(10.0f, 10.0f);
             w.draw(text);
@@ -71,7 +74,7 @@ public:
         for (int i = (int)n->genome.size(); i >= n->nSimpleNeurons; i--) {
             if (x0 + offset > w.getSize().x) {
                 x0 = offset; 
-                y0 = 2.75f * offset;
+                y0 = 2.25f * offset;
             }
             GenotypeNode* gNode;
             text.setFillColor(sf::Color::White);

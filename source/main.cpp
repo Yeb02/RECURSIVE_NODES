@@ -45,7 +45,7 @@ int main()
 
     
     PopulationEvolutionParameters params;
-    params.selectionPressure = 0.0f;
+    params.selectionPressure = -0.0f;
     params.regularizationFactor = 0.1f;
     params.nichingNorm = 0.0f;
     params.useSameTrialInit = false;
