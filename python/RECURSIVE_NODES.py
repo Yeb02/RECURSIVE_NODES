@@ -65,5 +65,27 @@ initialize_drawer.argtypes = [c_int, c_int]
 initialize_drawer.restype = c_void_p
 
 draw_network = libc.draw_network
-draw_network.argtypes = [c_void_p, c_void_p]
+draw_network.argtypes = [c_void_p, c_void_p, c_int]
 draw_network.restype = None
+
+
+#utils:
+
+# takes a c-float array by reference and its size, and linearly
+#transforms it so that it has mean 0 and variance 1.
+def center_reduce(a, size):
+    E = 0.0
+    for i in range(size):
+        E += a[i]
+
+    E /= size
+    var = 0.0
+    for i in range(size):
+        a[i] -= E
+        var += a[i] * a[i]
+
+    invStddev = 1.0/(var**.5)
+    for i in range(size):
+        a[i] *= invStddev
+
+    return

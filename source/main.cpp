@@ -8,7 +8,7 @@
 #include "Drawer.h"
 #endif 
 
-#define LOGV(v) for (const auto e : v) {cout << e << " ";}; cout << "\n"
+#define LOGV(v) for (const auto e : v) {cout << std::setprecision(2)<< e << " ";}; cout << "\n"
 #define LOG(x) cout << x << endl;
 
 using namespace std;
@@ -22,9 +22,9 @@ int main()
 
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
-//#ifdef _DEBUG
-//    nThreads = 1;
-//#endif
+#ifdef _DEBUG
+    nThreads = 1;
+#endif
     int nSpecimens = nThreads * 64;
     int nDifferentTrials = 4;
     int nSteps = 10000;
@@ -42,19 +42,21 @@ int main()
 #endif
     }
 
-    
+    // In visual studio, hover your cursor on the parameters name to see their description !
     PopulationEvolutionParameters params;
-    params.selectionPressure = -0.0f;
-    params.regularizationFactor = 0.15f;
+    params.selectionPressure = 0.0f;
     params.nichingNorm = 0.0f;
     params.useSameTrialInit = false;
     params.normalizedScoreGradients = false;
+    params.saturationFactor = 0.05f;
+    params.regularizationFactor = 0.05f; // +2.0f * params.saturationFactor;
+    params.targetNSpecimens = 0;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
     population.setEvolutionParameters(params); 
 
     // Only the last _nTrialsEvaluated are used for fitness calculations. Others are only used for learning.
-    int _nTrialsEvaluated = nDifferentTrials ;          // (int)trials.size(), or 4, or (int)trials.size() / 4, ...
+    int _nTrialsEvaluated = nDifferentTrials ;   // = (int)trials.size(), or 4, or (int)trials.size() / 4, ...
 
 
     LOG("Using " << nThreads << ".");
@@ -66,7 +68,7 @@ int main()
     population.startThreads(nThreads);
     for (int i = 0; i < nSteps; i++) {
 #ifdef DRAWING
-        drawer.draw(population.getSpecimenPointer(population.fittestSpecimen));
+        drawer.draw(population.getSpecimenPointer(population.fittestSpecimen), i);
         if (drawer.paused) {
             i--;
             continue;
@@ -91,34 +93,12 @@ int main()
         population.step(trials, _nTrialsEvaluated);
 
 
-        if ((i + 1) % 10000 == 0) population.defragmentate(); // Defragmentate. Not implemented yet.
+        //if ((i + 1) % 10000 == 0) population.defragmentate(); // Defragmentate. Not implemented yet.
     }
     population.stopThreads();
 
     return 0;
 }
-
-
-
-
-// old code:
-
-//#ifdef CARTPOLE_T 
-//// If the Cartpole trial was used, copy the console output in the "data" array of 
-//// RECURSIVE_NODES\python\CartPoleData.py    and run   RECURSIVE_NODES\python\CartPoleVisualizer.py
-//// to observe the behaviour !
-//Network* n = population.getSpecimenPointer(population.fittestSpecimen);
-//trials[0]->reset();
-//n->createPhenotype();
-//n->preTrialReset();
-//cout << "\n";
-//while (!trials[0]->isTrialOver) {
-//    n->step(trials[0]->observations);
-//    trials[0]->step(n->getOutput());
-//    cout << ", " << trials[0]->observations[0] << ", " << trials[0]->observations[2];
-//}
-//cout << "\n" << trials[0]->score;
-//#endif
 
 
 // scipy tests

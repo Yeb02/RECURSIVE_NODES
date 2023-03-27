@@ -17,4 +17,6 @@ extern thread_local std::binomial_distribution<int> Bdistribution;
 // yeah .... see Notes of https://en.cppreference.com/w/cpp/numeric/random/uniform_real_distribution
 //#define INT_0X(x) (int)(Udistribution(generator) * (float)(x)-.000000000001f) 
 // This is blazing fast:
+
+// Random integer in [0, x-1]
 #define INT_0X(x) (int)(((uint64_t)UIdistribution(generator) * (x)) >> 32)

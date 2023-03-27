@@ -31,8 +31,10 @@
 
 // IN DEVELOPPEMENT
 // When defined, tries to deduce information on the desirable mutation direction from weights learned over lifetime.
-// WIP. On continuous cartpole, CONTINUOUS_LEARNING + GUIDED_MUTATIONS drastically improve convergence speed. 
-// So adding a factor decreasing its amplitude over generations could be useful.
+// WIP. On continuous cartpole, CONTINUOUS_LEARNING + GUIDED_MUTATIONS drastically improve convergence speed. (You 
+// may need to increase the value fed to accumulateW in Network::postTrialUpdate(), to 10 or 50., and deltaWclipRange to
+// 1.0 or 2.0 in GenotypeNode::mutateFloats())
+// Adding a factor decreasing the effect over generations could be interesting, TODO .
 #define GUIDED_MUTATIONS
 
 

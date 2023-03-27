@@ -173,7 +173,7 @@ void GenotypeNode::computeBeacons() {
 
 void GenotypeNode::mutateFloats() {
 #ifdef CONTINUOUS_LEARNING
-	constexpr int nArrays = 8;  // added gamma
+	constexpr int nArrays = 8;  // 7+gamma
 #else 
 	constexpr int nArrays = 7;
 #endif
@@ -183,9 +183,12 @@ void GenotypeNode::mutateFloats() {
 
 	constexpr float pMutation = .4f; // .2f ??
 
+#ifdef GUIDED_MUTATIONS
+	// w += clip[-deltaWclipRange,deltaWclipRange](deltaW)
+	constexpr float deltaWclipRange = .3f;
+#endif
+
 	// Mutate int(nArrays*Pmutation*nParam) parameters in the inter-children connexions.
-
-
 	float* aPtr = nullptr;
 	for (int listID = 0; listID < childrenConnexions.size(); listID++) {
 		int size = childrenConnexions[listID].nLines * childrenConnexions[listID].nColumns;
@@ -205,61 +208,56 @@ void GenotypeNode::mutateFloats() {
 			case 3: aPtr = childrenConnexions[listID].D.get(); break;
 			case 4: aPtr = childrenConnexions[listID].alpha.get(); break;
 			case 5: aPtr = childrenConnexions[listID].w.get(); break;
-			case 6:  // eta
-				aPtr = childrenConnexions[listID].eta.get(); 
-				// this allows for high precision mutations when eta (or 1-eta) is close to 0 or 1.
-				if (UNIFORM_01 > .05f) [[likely]] {
-					aPtr[matrixID] += aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01 - .5f);
-				}
-				else [[unlikely]] {
-					aPtr[matrixID] = aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
-				}		
-				break;
+			case 6:  aPtr = childrenConnexions[listID].eta.get(); break;
 #ifdef CONTINUOUS_LEARNING
-			case 7:  // gamma
-				aPtr = childrenConnexions[listID].gamma.get(); 
-				if (UNIFORM_01 > .05f) [[likely]] {
-					aPtr[matrixID] += aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01 - .5f);
-				}
-				else [[unlikely]] {
-					aPtr[matrixID] = aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
-				}
-				break;
+			case 7:  aPtr = childrenConnexions[listID].gamma.get(); break;
 #endif
 			}
 
-			if (arrayN < 6) {
+			if (arrayN < 6) { // A, B, C, D, w, alpha
 				aPtr[matrixID] *= .9f + NORMAL_01 * a;
 				aPtr[matrixID] += NORMAL_01 * b;
+			}
+			else { // eta, gamma
+				if (UNIFORM_01 > .05f) [[likely]] {
+					aPtr[matrixID] += aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01 - .5f);
+				}
+				else [[unlikely]] {
+					aPtr[matrixID] = aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
+				}
 			}
 		}
 
 #ifdef GUIDED_MUTATIONS
-		if (nApparitions == 0) continue;
-		float invFactor = 1.0f / (float)nApparitions; // should be outside the loop, here for readability
+		if (nAccumulations == 0) continue;
+		float invFactor = 1.0f / (float)nAccumulations; // should be outside the loop, here for readability
 		for (int k = 0; k < size; k++) {
-			childrenConnexions[listID].w[k] += .3f * childrenConnexions[listID].accumulator[k] * invFactor;
+			float rawDelta = childrenConnexions[listID].accumulator[k] * invFactor;
+			childrenConnexions[listID].w[k] += std::max(std::min(rawDelta, deltaWclipRange), -deltaWclipRange);
 			childrenConnexions[listID].accumulator[k] = 0.0f;
 		}
 #endif
 	}
 
-	for (int i = 0; i < sumChildrenInputSizes + outputSize; i++) {
-		childrenInBias[i] *= .9f + NORMAL_01 * a;
-		childrenInBias[i] += NORMAL_01 * b;
+	// Bias mutations
+	int nBiases = (int)childrenInBias.size();
+	SET_BINOMIAL(nBiases, pMutation);
+	int _nMutations = BINOMIAL;
+	for (int i = 0; i < _nMutations; i++) {
+		int id = INT_0X(nBiases);
+		childrenInBias[id] *= .8f + NORMAL_01 * a;
+		childrenInBias[id] += NORMAL_01 * b *.5f;
 	}
 
-
-	biasM[0] *= .9f + NORMAL_01 * a;
-	biasM[0] += NORMAL_01 * b;
-
-
-	biasM[1] *= .9f + NORMAL_01 * a;
-	biasM[1] += NORMAL_01 * b;
+	for (int i = 0; i < 2; i++) {
+		if (UNIFORM_01 > pMutation) { continue; }
+		biasM[i] *= .8f + NORMAL_01 * a;
+		biasM[i] += NORMAL_01 * b * .5f;
+	}
+	
 
 #ifdef GUIDED_MUTATIONS
-	// Important !
-	nApparitions = 0;
+	nAccumulations = 0;
 #endif
 }
 
@@ -354,12 +352,16 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 		destinationsInputSize = children[dID]->inputSize;
 	}
 
-	childrenConnexions.emplace_back(oID, (int)children.size(), child->inputSize,      originOutputSize, GenotypeConnexion::ZERO);
-	childrenConnexions.emplace_back((int)children.size(), dID, destinationsInputSize, child->outputSize, GenotypeConnexion::ZERO);
-	children.push_back(child);
+	int newChildID = (int)children.size();
 
-	childrenInBias.insert(childrenInBias.begin() + sumChildrenInputSizes, child->inputSize, 0.0f);
-	for (int i = sumChildrenInputSizes; i < sumChildrenInputSizes + child->inputSize; i++) {
+	childrenConnexions.emplace_back(oID, newChildID, child->inputSize,      originOutputSize, GenotypeConnexion::ZERO);
+	childrenConnexions.emplace_back(newChildID, dID, destinationsInputSize, child->outputSize, GenotypeConnexion::ZERO);
+	
+	children.emplace_back(child);
+
+	int i0 = concatenatedChildrenInputBeacons[newChildID];
+	childrenInBias.insert(childrenInBias.begin() + i0, child->inputSize, 0.0f);
+	for (int i = i0; i < i0 + child->inputSize; i++) {
 		childrenInBias[i] = NORMAL_01 * .2f;
 	}
 
@@ -367,7 +369,8 @@ void GenotypeNode::addChild(GenotypeNode* child) {
 }
 void GenotypeNode::removeChild(int rID) {
 
-	// Erase connexions that lead to the removed child. Slow algorithm, but does not matter here.
+	// Erase connexions that lead to the removed child. Very slow algorithm, but does not matter here.
+	// Should instead copy connexions to keep, and redirect the vector there.
 	int initialSize = (int)childrenConnexions.size();
 	int nRemovals = 0;
 	int i = 0;
@@ -676,7 +679,7 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 
 
 void GenotypeNode::getNnonLinearities(std::vector<int>& genomeState) {
-	constexpr int modulationMultiplier = 4; // must be set to the same value in Phenotype::forward. TODO cleaner.
+	constexpr int modulationMultiplier = 0; // must be set to the same value in Phenotype::forward. TODO cleaner.
 	int n = outputSize + 2 * modulationMultiplier;
 	for (int i = 0; i < children.size(); i++) {
 		if (genomeState[children[i]->position] == 0) children[i]->getNnonLinearities(genomeState);
@@ -717,6 +720,20 @@ void GenotypeNode::computeOutArraySize(std::vector<int>& genomeState) {
 	genomeState[position] = s;
 }
 
+#ifdef SATURATION_PENALIZING
+// Used to compute the size of the array containing the average saturations of the phenotype.
+void GenotypeNode::computeSaturationArraySize(std::vector<int>& genomeState) {
+	int s = inputSize + 2 + outputSize;
+	for (int i = 0; i < children.size(); i++) {
+		if (genomeState[children[i]->position] == 0) {
+			children[i]->computeSaturationArraySize(genomeState);
+		}
+		s += genomeState[children[i]->position];
+	}
+	genomeState[position] = s;
+}
+#endif 
+
 void GenotypeNode::copyParameters(GenotypeNode* n) {
 	if (n->isSimpleNeuron) {
 		isSimpleNeuron = true;
@@ -726,6 +743,7 @@ void GenotypeNode::copyParameters(GenotypeNode* n) {
 		depth = 0;
 		position = n->position;
 		closestNode = NULL;
+		phenotypicMultiplicity = n->phenotypicMultiplicity;
 	}
 	else {
 		isSimpleNeuron = false;
@@ -747,9 +765,9 @@ void GenotypeNode::copyParameters(GenotypeNode* n) {
 			childrenConnexions.emplace_back(n->childrenConnexions[j]);
 		}
 #ifdef GUIDED_MUTATIONS
-		nApparitions = n->nApparitions;
+		nAccumulations = n->nAccumulations;
 #endif
-		
+		phenotypicMultiplicity = n->phenotypicMultiplicity; 		
 	}
 }
 

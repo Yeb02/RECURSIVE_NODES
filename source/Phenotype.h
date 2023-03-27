@@ -34,10 +34,10 @@ struct PhenotypeConnexion {   // responsible of its pointers
 	// only called at construction.
 	void zeroWlifetime(int s); 
 
-	//#ifndef CONTINUOUS_LEARNING
-	// factor = 1/nInferences., wLifetime += alpha*avgH*factor
+#ifndef CONTINUOUS_LEARNING
+	// factor = 1/nInferencesP., wLifetime += alpha*avgH*factor
 	void updateWatTrialEnd(int s, float factor, float* alpha);
-
+#endif
 
 	~PhenotypeConnexion() {};
 };
@@ -45,7 +45,7 @@ struct PhenotypeConnexion {   // responsible of its pointers
 struct PhenotypeNode {
 	GenotypeNode* type;
 
-	int nInferences; // store how many inferences this node has performed since last interTrialReset.
+	int nInferencesP; // store how many inferences this node has performed since last preTrialReset.
 	float localM[2]; // computed in this node. Wasted space for simple neurons. TODO
 	float totalM[2]; // parent's + local M.    Wasted space for simple neurons. TODO
 
@@ -54,17 +54,21 @@ struct PhenotypeNode {
 #endif
 	 
 
-	// Pointers to its children. Responsible for their lifetime !
+	// Pointers to its children.
 	std::vector<PhenotypeNode> children;
 
 	// Vector of structs containing pointers to the dynamic connexion matrices linking children
 	std::vector<PhenotypeConnexion> childrenConnexions;
 	
-	// Not managed by Phenotype node, but by network !
+	// Not managed by Phenotype node, but by network. Never call free or delete on these. They
+	// are guaranteed to be valid when accessed from a phenotype node.
 	float* previousOutput; 
 	float* currentOutput;
 	float* previousInput;
 	float* currentInput;
+#ifdef SATURATION_PENALIZING
+	float* averageActivation;
+#endif
 
 	PhenotypeNode(GenotypeNode* type);
 	~PhenotypeNode() {};
@@ -73,17 +77,20 @@ struct PhenotypeNode {
 
 	void forward();
 
-	// #ifndef CONTINUOUS_LEARNING
-	void updateWatTrialEnd(float invNInferences);
+#ifndef CONTINUOUS_LEARNING
+	void updateWatTrialEnd(float invnInferencesP);
+#endif
 
-	//#ifdef GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
+#ifdef GUIDED_MUTATIONS 
 	// Accumulates wLifetime of the phenotype connexion in the accumulate[] array of their 
 	// corresponding genotype connexion template, then zeros wLifetime. Weighted by "factor".
 	void accumulateW(float factor);
+#endif
 
-	void setArrayPointers(float* po, float* co, float* pi, float* ci);
+	// The last parameters is optional and only used when SATURATION_PENALIZING is defined.
+	void setArrayPointers(float* po, float* co, float* pi, float* ci, float* aa = nullptr);
 
-	//#ifdef SATURATION_PENALIZING
+#ifdef SATURATION_PENALIZING
 	void setSaturationPenalizationPtr(float* saturationPenalizationPtr);
-
+#endif
 };

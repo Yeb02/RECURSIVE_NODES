@@ -59,11 +59,27 @@ private:
 	std::unique_ptr<float[]> previousOutputs, currentOutputs, previousInputs, currentInputs;
 
 #ifdef SATURATION_PENALIZING
+	// Sum over all the phenotype's activations, over the lifetime, of activation^10.
 	float saturationPenalization;
-	int nInferences;
+
+	// Used only to average saturationPenalization and averageActivation[] over the forward passes.
+	int nInferencesN; 
+
+	// Follows the same usage pattern as the 4 arrays for plasticity updates. Size phenotypeSaturationArraySize.
+	// Used to store, for each activation function of the phenotype, its average output over lifetime, for use in
+	// getSaturationPenalization().
+	std::unique_ptr<float[]> averageActivation;
+
+	// size of the averageActivation array.
+	int phenotypeSaturationArraySize;
 #endif
 
 	int phenotypeInArraySize, phenotypeOutArraySize;
+
+	// Sets phenotypicMultiplicity for each node of the genome, and the topNode. Must be called after each
+	// structural modification of the genotype, i.e. after Network creation or mutations. Not necessary at copy 
+	// construction.
+	void computePhenotypicMultiplicities();
 
 	// Requires genome be sorted by ascending depth !!
 	// Called with a small probability in mutations. Deletes all nodes that do not show up in the phenotype.

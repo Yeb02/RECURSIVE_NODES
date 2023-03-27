@@ -15,7 +15,35 @@
 #define INPUT_ID -1			// In a genotype connexion, means the origin node is the parent's input.
 #define MODULATION_ID -2    // In a genotypex connexion, means the destination node is the parent's modulation. 
 
+// Utils:
 inline float ReLU(float x) { return x > 0 ? x : 0; }
+inline int binarySearch(std::vector<float>& proba, float value) {
+	int inf = 0;
+	int sup = (int)proba.size() - 1;
+
+	if (proba[inf] > value) {
+		return inf;
+	}
+
+	int mid;
+	int max_iter = 15;
+	while (sup - inf >= 1 && max_iter--) {
+		mid = (sup + inf) / 2;
+		if (proba[mid] < value && value <= proba[mid + 1]) {
+			return mid + 1;
+		}
+		else if (proba[mid] < value) {
+			inf = mid;
+		}
+		else {
+			sup = mid;
+		}
+	}
+	return 0; // not necessarily a failure, since floating point approximation prevents the sum from reaching 1.
+	//throw "Binary search failure !";
+}
+
+
 
 struct GenotypeConnexion {
 	// IDENTITY is valid only if nLines == nColumns. If not, the ZERO case is used.
@@ -65,14 +93,15 @@ struct GenotypeConnexion {
 	~GenotypeConnexion() {};
 };
 
+
 struct GenotypeNode {
 
 	bool isSimpleNeuron;
-	float (*f)(float); // NULL if Node is a bloc. Else pointer to tanH, cos, ReLU
+	float (*f)(float); // NULL if Node is a bloc. Else pointer to tanH, cos, ReLU, ...
 	int inputSize, outputSize; // >= 1
 
 	
-	// Contains pointers to the genotypes of the children
+	// Contains pointers to the genotypes of the children.
 	std::vector<GenotypeNode*> children;
 
 	// Vector of structs holding pointers to the fixed connexion matrices linking children
@@ -81,20 +110,23 @@ struct GenotypeNode {
 	// neuromodulation bias.
 	float biasM[2];
 
-	// Depth of the children tree. =0 for simple neurons, at least 1 otherwise
+	// Depth of the children tree. =0 for simple neurons, at least 1 otherwise, even if there are no children.
 	int depth;
 
-	// The position in the genome vector. Must be genome.size() - 1 for the top node.
+	// The position in the genome vector. Must be genome.size() for the top node.
 	int position;
 
 	// Point towards the node it was cloned from or boxed from on the tree of life. 
 	GenotypeNode* closestNode;
 
-	// How far it went from the closestNode with mutations (does not account 
+	// How many iterations of floating point values mutations it has undergone since it was created.
 	int mutationalDistance;
 
 	// = sum(child->inputSize for child in children)
 	int sumChildrenInputSizes;
+
+	// How many times this node appears in the phenotype.
+	int phenotypicMultiplicity;
 
 	// Has len(children) + 1 elements, and contains :
 	// 0, children[0]->inputsize, children[0]->inputsize+children[1]->inputsize, ....
@@ -104,11 +136,17 @@ struct GenotypeNode {
 	std::vector<float> childrenInBias;
 
 #ifdef GUIDED_MUTATIONS
-	int nApparitions;
+	//  = [How many instances of this node the network has] * [how many times wLifetime was accumulated].
+	int nAccumulations;
 #endif
 	// Empty definition because many attributes are set by the network owning this. Same reason for no copy constructor.
 	GenotypeNode() 
-	{};
+	{
+		phenotypicMultiplicity = 0;
+#ifdef GUIDED_MUTATIONS
+		nAccumulations = 0;
+#endif
+	};
 
 	~GenotypeNode() {};
 
@@ -127,6 +165,12 @@ struct GenotypeNode {
 
 	// Used to compute the size of the array containing dynamic outputs of the phenotype.
 	void computeOutArraySize(std::vector<int>& genomeState);
+
+
+#ifdef SATURATION_PENALIZING
+	// Used to compute the size of the array containing the average saturations of the phenotype.
+	void computeSaturationArraySize(std::vector<int>& genomeState);
+#endif 
 
 	// Compute how many non linearities (tanh, relu, ..) the phenotype (yes, phenotype) has.
 	void getNnonLinearities(std::vector<int>& genomeState);
@@ -181,3 +225,4 @@ struct GenotypeNode {
 	// Util for decrementOutputSize and onChildOutputSizeDecremented
 	void decrementOriginOutputSize(int i, int id);
 };
+

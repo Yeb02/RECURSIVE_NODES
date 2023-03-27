@@ -8,11 +8,7 @@
 #include "Random.h"
 
 
-#ifdef KMEANS
-// KMeans implementation: https://github.com/genbattle/dkm.git
-#include "dkm.h"
-#endif
-
+// Threading utils
 std::mutex m;
 std::condition_variable startProcessing;
 std::condition_variable doneProcessing;
@@ -22,7 +18,7 @@ int nTerminated = 0;
 int nDoneProcessing = 0;
 
 
-// Utils:
+// Util:
 void normalizeArray(float* v, int size) {
 	float avg = 0.0f;
 	for (int i = 0; i < size; i++) {
@@ -40,49 +36,28 @@ void normalizeArray(float* v, int size) {
 		v[i] *= InvStddev;
 	}
 }
-int binarySearch(std::vector<float>& proba, float value) {
-	int inf = 0;
-	int sup = (int) proba.size() - 1;
-
-	if (proba[inf] > value) {
-		return inf;
-	}
-
-	int mid;
-	int max_iter = 15;
-	while (sup - inf >= 1 && max_iter--) {
-		mid = (sup + inf) / 2;
-		if (proba[mid] < value && value <= proba[mid + 1]) {
-			return mid + 1;
-		}
-		else if (proba[mid] < value) {
-			inf = mid;
-		}
-		else {
-			sup = mid;
-		}
-	}
-	return 0; // not necessarily a failure, since floating point approximation prevents the sum from reaching 1.
-	//throw "Binary search failure !";
-}
 
 
-Population::Population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS) :
-	N_SPECIMENS(N_SPECIMENS), N_THREADS(0), pScores(nullptr), threadIteration(0), mustTerminate(false)
+Population::Population(int IN_SIZE, int OUT_SIZE, int nSpecimens) :
+	nSpecimens(nSpecimens), N_THREADS(0), pScores(nullptr), threadIteration(0), mustTerminate(false)
 {
 	threads.reserve(0);
 	globalTrials.reserve(0);
-	networks.resize(N_SPECIMENS);
-	fitnesses.resize(N_SPECIMENS);
-	for (int i = 0; i < N_SPECIMENS; i++) {
+	networks.resize(nSpecimens);
+	fitnesses.resize(nSpecimens);
+	for (int i = 0; i < nSpecimens; i++) {
 		networks[i] = new Network(IN_SIZE, OUT_SIZE);
 	}
-	fittestSpecimen = 0;
+	
 	regularizationFactor = .1f;
 	selectionPressure = .0f;
 	nichingNorm = 1.0f;
 	useSameTrialInit = false;
+	normalizedScoreGradients = false;
+	saturationFactor = 0.0f;
+	targetNSpecimens = 0;
 
+	fittestSpecimen = 0;
 	evolutionStep = 0;
 }
 
@@ -104,6 +79,8 @@ void Population::stopThreads() {
 
 	for (int t = 0; t < N_THREADS; t++) threads[t].join();
 
+	N_THREADS = 0;
+
 }
 
 void Population::startThreads(int N_THREADS) {
@@ -117,7 +94,7 @@ void Population::startThreads(int N_THREADS) {
 
 	threads.reserve(N_THREADS);
 	threadIteration = -1;
-	int subArraySize = N_SPECIMENS / N_THREADS;
+	int subArraySize = nSpecimens / N_THREADS;
 	int i0;
 	for (int t = 0; t < N_THREADS; t++) {  
 		i0 = t * subArraySize;
@@ -172,7 +149,7 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 		
 
 		for (int i = 0; i < localTrials.size(); i++) {
-			float* localScorePtr = pScores + i * N_SPECIMENS;
+			float* localScorePtr = pScores + i * nSpecimens;
 
 			for (int j = i0; j < i0 + subArraySize; j++) {
 				networks[j]->preTrialReset();
@@ -225,10 +202,8 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	int tSize = (int)trials.size();
 	int i0 = tSize - nTrialsEvaluated;
 
-	// Mutate, then evaluate the specimens on trials:
-
-	bool normalizedScoreGradients = false; // experimental, default=false. Only used with CONTINUOUS_LEARNING && GUIDED_MUTATIONS
-	std::vector<float> scores(tSize * N_SPECIMENS);
+	// Mutate, then evaluate the specimens on trials. Threaded operation if specified.
+	std::vector<float> scores(tSize * nSpecimens);
 	if (N_THREADS > 1) {
 
 		// acquire pointers to this step's trials.
@@ -256,25 +231,25 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 
 			// Non threaded operations on score array:
 			if (i < tSize && normalizedScoreGradients) {
-				normalizeArray(pScores + i * N_SPECIMENS, N_SPECIMENS);
+				normalizeArray(pScores + i * nSpecimens, nSpecimens);
 			}
 		}
 	}
 	else {
-		for (int i = 0; i < N_SPECIMENS; i++) {
+		for (int i = 0; i < nSpecimens; i++) {
 			networks[i]->mutate();
 			networks[i]->createPhenotype();
 		}
 
 		for (int i = 0; i < tSize; i++) {
-			pScores = &scores[i * N_SPECIMENS];
-			evaluate(0, N_SPECIMENS, trials[i].get(), pScores);
+			pScores = &scores[i * nSpecimens];
+			evaluate(0, nSpecimens, trials[i].get(), pScores);
 
 			if (normalizedScoreGradients) {
-				normalizeArray(pScores, N_SPECIMENS);
+				normalizeArray(pScores, nSpecimens);
 			}
 
-			for (int i = 0; i < N_SPECIMENS; i++) {
+			for (int i = 0; i < nSpecimens; i++) {
 				networks[i]->postTrialUpdate(pScores[i]);
 			}
 		}
@@ -286,10 +261,10 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		if (normalizedScoreGradients) {
 			float maxScore = -1000000.0f, score;
 			int maxScoreID = -1;
-			for (int i = 0; i < N_SPECIMENS; i++) {
+			for (int i = 0; i < nSpecimens; i++) {
 				score = 0;
 				for (int j = i0; j < tSize; j++) {
-					score += scores[i + j * N_SPECIMENS];
+					score += scores[i + j * nSpecimens];
 				}
 				if (score > maxScore) {
 					maxScore = score;
@@ -311,18 +286,18 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			std::vector<float> avgScoresPerTrial(nTrialsEvaluated);
 			float maxScore = -1000000.0f;
 			float score, avgFactor = 1.0f / (float)nTrialsEvaluated;
-			for (int i = 0; i < N_SPECIMENS; i++) {
+			for (int i = 0; i < nSpecimens; i++) {
 				score = 0;
 				for (int j = i0; j < tSize; j++) {
-					score += scores[i + j * N_SPECIMENS];
-					avgScoresPerTrial[j - i0] += scores[i + j * N_SPECIMENS];
+					score += scores[i + j * nSpecimens];
+					avgScoresPerTrial[j - i0] += scores[i + j * nSpecimens];
 				}
 				score *= avgFactor;
 				if (score > maxScore) {
 					maxScore = score;
 				}
 			}
-			for (int j = 0; j < nTrialsEvaluated; j++) avgScoresPerTrial[j] /= (float)N_SPECIMENS;
+			for (int j = 0; j < nTrialsEvaluated; j++) avgScoresPerTrial[j] /= (float)nSpecimens;
 			float avgavgf = 0.0f;
 			for (float f : avgScoresPerTrial) avgavgf += f;
 			avgavgf /= nTrialsEvaluated;
@@ -335,46 +310,46 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 
 
 	// Result-based niching, if nichingNorm > 0. Otherwise, simple sum and normalization.
-	std::vector<float> avgScorePerSpecimen(N_SPECIMENS);
+	std::vector<float> avgScorePerSpecimen(nSpecimens);
 	if (nichingNorm > 0.0f) {
 		std::vector<float> sums, mins;
 		sums.resize(nTrialsEvaluated);
 		mins.resize(nTrialsEvaluated); // 0 init is fine cause there WILL be values < 0.
 		for (int j = i0; j < tSize; j++) {
-			for (int i = 0; i < N_SPECIMENS; i++) {
-				sums[j - i0] += scores[i + j * N_SPECIMENS];
-				if (scores[i + j * N_SPECIMENS] < mins[j - i0]) {
-					mins[j - i0] = scores[i + j * N_SPECIMENS];
+			for (int i = 0; i < nSpecimens; i++) {
+				sums[j - i0] += scores[i + j * nSpecimens];
+				if (scores[i + j * nSpecimens] < mins[j - i0]) {
+					mins[j - i0] = scores[i + j * nSpecimens];
 				}
 			}
 		}
 
 		for (int i = 0; i < nTrialsEvaluated; i++) {
-			sums[i] -= mins[i] * (float)N_SPECIMENS;
+			sums[i] -= mins[i] * (float)nSpecimens;
 			sums[i] = 1.0f / sums[i];
 		}
 
 		float invNichingNorm = 1.0f/ nichingNorm;
-		for (int i = 0; i < N_SPECIMENS; i++) {
+		for (int i = 0; i < nSpecimens; i++) {
 			float s = 0.0f;
 			for (int j = i0; j < tSize; j++) {
-				s += powf((scores[i + j * N_SPECIMENS] - mins[j-i0]) * sums[j-i0], nichingNorm);
+				s += powf((scores[i + j * nSpecimens] - mins[j-i0]) * sums[j-i0], nichingNorm);
 			}
 			// Dividing s by nTrialsEvaluated so that changing nTrialsEvaluated does not
 			// influence too much other hyperparameters.
-			avgScorePerSpecimen[i] = powf(s/(float) nTrialsEvaluated, invNichingNorm);
+			//avgScorePerSpecimen[i] = powf(s/(float) nTrialsEvaluated, invNichingNorm);
+			avgScorePerSpecimen[i] = powf(s, invNichingNorm);
 		}
 	} 
 	else {
 		for (int j = i0; j < tSize; j++) {
-			for (int i = 0; i < N_SPECIMENS; i++) {
-				avgScorePerSpecimen[i] += scores[i + j * N_SPECIMENS];
+			for (int i = 0; i < nSpecimens; i++) {
+				avgScorePerSpecimen[i] += scores[i + j * nSpecimens];
 			}
 		}
 	}
 
-	normalizeArray(avgScorePerSpecimen.data(), N_SPECIMENS); // TODO, check if necessary.
-
+	normalizeArray(avgScorePerSpecimen.data(), nSpecimens); 
 
 	computeFitnesses(avgScorePerSpecimen);
 
@@ -386,29 +361,29 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 void Population::computeFitnesses(std::vector<float> avgScorePerSpecimen) {
 
 	// compute and normalize the regularization term
-	std::vector<float> regularizationScore(N_SPECIMENS);
-	for (int i = 0; i < N_SPECIMENS; i++) {
+	std::vector<float> regularizationScore(nSpecimens);
+	for (int i = 0; i < nSpecimens; i++) {
 		regularizationScore[i] = networks[i]->getRegularizationLoss();
 	}
-	normalizeArray(regularizationScore.data(), N_SPECIMENS);
+	normalizeArray(regularizationScore.data(), nSpecimens);
 
 
 #ifdef SATURATION_PENALIZING
 	// compute and normalize the saturation term
-	std::vector<float> saturationScore(N_SPECIMENS);
-	for (int i = 0; i < N_SPECIMENS; i++) {
+	std::vector<float> saturationScore(nSpecimens);
+	for (int i = 0; i < nSpecimens; i++) {
 		saturationScore[i] = networks[i]->getSaturationPenalization();
 	}
-	normalizeArray(saturationScore.data(), N_SPECIMENS);
+	normalizeArray(saturationScore.data(), nSpecimens);
 #endif
 
 
 	// Then, the fitness is simply a weighted sum of the 2 intermediate measures, score and regularization.
 	float fMax = -10000.0f;
-	for (int i = 0; i < N_SPECIMENS; i++) {
+	for (int i = 0; i < nSpecimens; i++) {
 		fitnesses[i] = avgScorePerSpecimen[i] - regularizationFactor * regularizationScore[i];
 #ifdef SATURATION_PENALIZING
-		fitnesses[i] += -.05f * saturationScore[i];
+		fitnesses[i] -= saturationFactor * saturationScore[i];
 #endif
 
 		if (fitnesses[i] > fMax) {
@@ -430,21 +405,37 @@ void Population::computeFitnesses(std::vector<float> avgScorePerSpecimen) {
 }
 
 void Population::createOffsprings() {
+
+	// Compute probabilities for roulette wheel selection.
 	float fitnessSum = 0.0f;
-	for (int i = 0; i < N_SPECIMENS; i++) {
+	for (int i = 0; i < nSpecimens; i++) {
 		fitnessSum += fitnesses[i];
 	}
-
-	std::vector<float> probabilities(N_SPECIMENS);
+	std::vector<float> probabilities(nSpecimens);
 	probabilities[0] = fitnesses[0] / fitnessSum;
-	for (int i = 1; i < N_SPECIMENS; i++) {
+	for (int i = 1; i < nSpecimens; i++) {
 		probabilities[i] = probabilities[i - 1] + fitnesses[i] / fitnessSum;
 	}
 
-	bool updated = false;  // we keep track of one of the fittest specimen's clones.
+	// Establish the number of specimens to create.
+	int nOffsprings = nSpecimens;
+	if (targetNSpecimens != 0 && targetNSpecimens != nSpecimens) { 
+		if (N_THREADS > 1 && targetNSpecimens % N_THREADS != 0) {
+			nOffsprings = ((targetNSpecimens / N_THREADS) + 1) * N_THREADS;
+			std::cerr <<
+				"WARNING: THE CHOSEN NUMBER OF SPECIMENS IS NOT A MUTLIPLE OF THE NUMBER OF THREADS. " <<
+				"USING ROUNDED UP NUMBER : " << nOffsprings
+				<< std::endl;
+			targetNSpecimens = nOffsprings;
+		} 
+		nOffsprings = targetNSpecimens;
+	}
+
+	// Create the next generation, while keeping track of one of the fittest specimen's children.
+	bool updated = false;  
 	int parentID;
-	std::vector<Network*> tempNetworks(N_SPECIMENS);
-	for (int i = 0; i < N_SPECIMENS; i++) {
+	std::vector<Network*> tempNetworks(nOffsprings);
+	for (int i = 0; i < nOffsprings; i++) {
 		parentID = binarySearch(probabilities, UNIFORM_01);
 		tempNetworks[i] = new Network(networks[parentID]);
 		if (parentID == fittestSpecimen && !updated) {
@@ -453,8 +444,17 @@ void Population::createOffsprings() {
 		}
 	}
 
-	for (int i = 0; i < N_SPECIMENS; i++) {
+
+	// Clean up and update
+	for (int i = 0; i < nSpecimens; i++) {
 		delete networks[i];
+	}
+	if (nOffsprings != nSpecimens) {
+		nSpecimens = nOffsprings;
+		networks.resize(nSpecimens);
+		fitnesses.resize(nSpecimens);
+	}
+	for (int i = 0; i < nSpecimens; i++) {
 		networks[i] = tempNetworks[i];
 	}
 }

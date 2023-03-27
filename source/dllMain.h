@@ -16,9 +16,9 @@ extern "C" {
 
 	BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved);
 
-	RECURSIVE_NODES_API Population* create_population(int IN_SIZE, int OUT_SIZE, int N_SPECIMENS)
+	RECURSIVE_NODES_API Population* create_population(int IN_SIZE, int OUT_SIZE, int nSpecimens)
 	{
-		Population* p = new Population(IN_SIZE, OUT_SIZE, N_SPECIMENS);
+		Population* p = new Population(IN_SIZE, OUT_SIZE, nSpecimens);
 		//void* p2 = reinterpret_cast<void*>(p);
 		return p;
 	}
@@ -27,7 +27,7 @@ extern "C" {
 		delete population;
 	}
 	RECURSIVE_NODES_API void compute_fitnesses(Population* population, float* arrayPtr) {
-		std::vector<float> avgScorePerSpecimen(arrayPtr, arrayPtr+population->get_N_SPECIMENS());
+		std::vector<float> avgScorePerSpecimen(arrayPtr, arrayPtr+population->get_nSpecimens());
 		population->computeFitnesses(avgScorePerSpecimen);
 	}
 	RECURSIVE_NODES_API void create_offsprings(Population* population) {
@@ -68,8 +68,8 @@ extern "C" {
 	RECURSIVE_NODES_API Drawer* initialize_drawer(int w, int h) {
 		return new Drawer(w, h);
 	}
-	RECURSIVE_NODES_API void draw_network(Drawer* drawer, Network* n) {
-		drawer->draw(n);
+	RECURSIVE_NODES_API void draw_network(Drawer* drawer, Network* n, int step) {
+		drawer->draw(n, step);
 	}
 #endif
 }

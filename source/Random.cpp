@@ -1,6 +1,11 @@
 #include "Random.h"
+#include <chrono>
 
-thread_local std::default_random_engine generator;
+
+// I am unsure of the correctness of this process...
+thread_local auto seed = std::chrono::system_clock::now().time_since_epoch().count();
+thread_local std::default_random_engine generator((unsigned int)seed);
+
 thread_local std::uniform_real_distribution<float> Udistribution(0.0f, 1.0f);
 thread_local std::uniform_int_distribution<uint32_t> UIdistribution(0, UINT32_MAX);
 thread_local std::normal_distribution<float> Ndistribution(0.0, 1.0);

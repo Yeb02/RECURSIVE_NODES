@@ -59,14 +59,14 @@ PhenotypeNode::PhenotypeNode(GenotypeNode* type) : type(type)
 	}
 
 	// LocalM and TotalM are not instantiated here because a call to preTrialReset() 
-	// must be made before any forward pass. (Or call to postTrialUpdate). nInferences is 
+	// must be made before any forward pass. (Or call to postTrialUpdate). nInferencesP is 
 	// in the same situation but is instantiated to detect those unexpected calls.
-	nInferences = 0;
+	nInferencesP = 0;
 };
 
-#if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
+#if defined GUIDED_MUTATIONS
 void PhenotypeNode::accumulateW(float factor) {
-	type->nApparitions++;
+	type->nAccumulations++;
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
 		for (int j = 0; j < s; j++) {
@@ -84,35 +84,41 @@ void PhenotypeNode::accumulateW(float factor) {
 #endif
 
 #ifndef CONTINUOUS_LEARNING
-void PhenotypeNode::updateWatTrialEnd(float invNInferences) {
-	if (nInferences == 0) return; // should not have been called in the first place.
+void PhenotypeNode::updateWatTrialEnd(float invnInferencesP) {
+	if (nInferencesP == 0) return; // should not have been called in the first place.
 
 	for (int i = 0; i < children.size(); i++) {
-		if (!children[i].type->isSimpleNeuron) children[i].updateWatTrialEnd(invNInferences);
+		if (!children[i].type->isSimpleNeuron) children[i].updateWatTrialEnd(invnInferencesP);
 	}
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
 		int s = type->childrenConnexions[i].nLines * type->childrenConnexions[i].nColumns;
-		childrenConnexions[i].updateWatTrialEnd(s, invNInferences, type->childrenConnexions[i].alpha.get());
+		childrenConnexions[i].updateWatTrialEnd(s, invnInferencesP, type->childrenConnexions[i].alpha.get());
 	}
 }
 #endif
 
-void PhenotypeNode::setArrayPointers(float* po, float* co, float* pi, float* ci) {
+void PhenotypeNode::setArrayPointers(float* po, float* co, float* pi, float* ci, float* aa) {
 
 	previousOutput = po;
 	currentOutput = co;
 	previousInput = pi;
 	currentInput = ci;
+#ifdef SATURATION_PENALIZING
+	averageActivation = aa;
+#endif
 
 	po += type->outputSize;
 	co += type->outputSize;
 	pi += type->inputSize;
 	ci += type->inputSize;
+#ifdef SATURATION_PENALIZING
+	aa += type->isSimpleNeuron ? 1 : type->inputSize + type->outputSize + 2; // and in this order in the array.
+#endif
 
 
 	for (int i = 0; i < children.size(); i++) {
-		children[i].setArrayPointers(po, co, pi, ci);
+		children[i].setArrayPointers(po, co, pi, ci, aa);
 	}
 }
 
@@ -131,10 +137,11 @@ void PhenotypeNode::preTrialReset() {
 	totalM[1] = 0.0f;
 	localM[0] = 0.0f;
 	localM[1] = 0.0f;
-	nInferences = 0;
+	nInferencesP = 0;
 }
 
 
+#ifdef SATURATION_PENALIZING
 void PhenotypeNode::setSaturationPenalizationPtr(float* saturationPenalizationPtr) {
 	this->saturationPenalizationPtr = saturationPenalizationPtr;
 	for (int i = 0; i < children.size(); i++) {
@@ -142,6 +149,7 @@ void PhenotypeNode::setSaturationPenalizationPtr(float* saturationPenalizationPt
 		children[i].setSaturationPenalizationPtr(saturationPenalizationPtr);
 	}
 }
+#endif
 
 
 void PhenotypeNode::forward() {
@@ -149,11 +157,11 @@ void PhenotypeNode::forward() {
 	int nc, nl, matID;
 
 #ifdef SATURATION_PENALIZING
-	constexpr float modulationMultiplier = 4.0f; // must be set to the same value in Genotype::getNnonLinearities. TODO cleaner.
-	constexpr float saturationExponent = 10.0f;  // one could try lower values... But they must be 2*integer.
+	constexpr float modulationMultiplier = 0.0f; // must be set to the same value in Genotype::getNnonLinearities. TODO cleaner.
+	constexpr float saturationExponent = 20.0f;  // one could try lower values... But they must be 2*integer.
 #endif
 
-	nInferences++;
+	nInferencesP++;
 
 
 	// STEP 1: SAVE THIS NODE'S PREVIOUS OUTPUT AND PREVIOUS LOCAL M, FOR HEBBIAN RULES LATER ON.
@@ -164,6 +172,12 @@ void PhenotypeNode::forward() {
 	previousLocalM[0] = localM[0];
 	previousLocalM[1] = localM[1];
 
+#ifdef SATURATION_PENALIZING
+	// Update the input activation.
+	for (int i = 0; i < type->inputSize; i++) {
+		averageActivation[i] += currentInput[i];
+	}
+#endif
 
 	// STEP 2: INITIALIZE ALL PRE-SYNAPTIC INPUTS WITH THE ASSOCIATED WEIGHT
 
@@ -185,7 +199,8 @@ void PhenotypeNode::forward() {
 	// COULD BE UPDATED SIMULTANEOUSLY, BUT TO SPEED UP INFORMATION TRANSMITION IT HAPPENS "TYPE" BY "TYPE, IN THE 
 	// FOLLOWING ORDER:  neuromodulation node -> complex children -> simple children -> output node.
 
-	// #ifdef SATURATION_PENALIZING, also update saturationPenalizationPtr at each activation function evaluation.
+	// #ifdef SATURATION_PENALIZING, also update saturationPenalizationPtr and averageActivation at each
+	// evaluation of an activation function. (complex children handle their part)
 
 
 	// STEP 3A: neuromodulation node.
@@ -237,6 +252,8 @@ void PhenotypeNode::forward() {
 		// neuromodulation is weighted stronger because more important.
 		* saturationPenalizationPtr += modulationMultiplier * powf(localM[0], saturationExponent);
 		* saturationPenalizationPtr += modulationMultiplier * powf(localM[1], saturationExponent);
+		averageActivation[type->inputSize + type->outputSize + 0] += localM[0];
+		averageActivation[type->inputSize + type->outputSize + 1] += localM[1];
 #endif
 	}
 
@@ -340,7 +357,7 @@ void PhenotypeNode::forward() {
 			}
 		}
 
-		// Apply child's forward function and manage its io:
+		// Apply child's forward function and manage its I-O:
 		for (int i = 0; i < children.size(); i++) {
 			if (children[i].type->isSimpleNeuron) {
 				children[i].previousOutput[0] = children[i].currentOutput[0];
@@ -348,6 +365,7 @@ void PhenotypeNode::forward() {
 				children[i].currentOutput[0] = children[i].currentInput[0];
 #ifdef SATURATION_PENALIZING
 				* saturationPenalizationPtr += powf(children[i].currentInput[0], saturationExponent);
+				children[i].averageActivation[0] += children[i].currentInput[0];
 #endif
 			}
 		}
@@ -399,6 +417,7 @@ void PhenotypeNode::forward() {
 			currentOutput[i] = tanhf(currentOutput[i]);
 #ifdef SATURATION_PENALIZING
 			* saturationPenalizationPtr += powf(currentOutput[i], saturationExponent);
+			averageActivation[type->inputSize + i] += currentOutput[i];
 #endif
 		}
 	}

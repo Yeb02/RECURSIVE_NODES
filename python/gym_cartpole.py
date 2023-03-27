@@ -2,7 +2,7 @@ import gym
 from RECURSIVE_NODES import *
 import ctypes
 
-print("If causes a syntax error, update your version of gym, things have changed a lot.")
+print("If there is a syntax error, update your version of gym, the lib has changed a lot.\n")
 env = gym.make("CartPole-v1")
 
 N_SPECIMENS = 500
@@ -12,15 +12,13 @@ in_size = env.observation_space.shape[0]
 out_size = 1
 
 population = create_population(in_size, out_size, N_SPECIMENS)
-set_evolution_parameters(population, .0, .1, 0.0)
+set_evolution_parameters(population, .5, .05, 0.0)
 drawer = initialize_drawer(1080, 480)
 
 #  Use type compatible with c++ arrays
 scores = (ctypes.c_float * N_SPECIMENS)()                      
 observation = (ctypes.c_float * in_size)()                          
 action = (ctypes.c_float * out_size)()      
-
-inv_N_TRIALS = 1/N_TRIALS
 
 maxTrialSteps = 1000
 evolutionStep = 0
@@ -52,11 +50,13 @@ while True:
             if score > maxScore: 
                 maxScore = score
             scores[i] += score
-        scores[i] *= inv_N_TRIALS
-
+        
+    
+    # even thought scores are supposed to have mean 0 and var 1, here it worsens perfs.
+    # center_reduce(scores, N_SPECIMENS) 
     compute_fitnesses(population, scores)
     create_offsprings(population)
-    draw_network(drawer, get_fittest_network_handle(population))
+    draw_network(drawer, get_fittest_network_handle(population), evolutionStep)
     print(f"At iteration {evolutionStep}, max score was {maxScore}")
     evolutionStep += 1
     if maxScore >= 500 : 

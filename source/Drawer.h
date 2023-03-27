@@ -22,7 +22,7 @@ public:
         }
     };
 
-    void draw(Network* n) {
+    void draw(Network* n, int step) {
 
         constexpr float nodeRadius = 10.0f;
         constexpr float wheelRadius = 40.0f;
@@ -55,8 +55,11 @@ public:
         text.setFont(font);
         text.setCharacterSize(15);
         text.setFillColor(sf::Color::White);
-        text.setString("CHILDREN NODES COLOR LEGEND:   Red = output   Green = input   Yellow = modulation    Blue = complex node    White = simple neuron");
+        text.setString("NODE COLOR LEGEND:   Red = output   Green = input   Yellow = modulation    Blue = complex node    White = simple neuron");
         text.setPosition(10.0f, w.getSize().y - 30.0f);
+        w.draw(text);
+        text.setString("Generation " + std::to_string(step));
+        text.setPosition(w.getSize().x - 150.0f, 10.0f);
         w.draw(text);
 
         selfConnexion.setFillColor(sf::Color::Transparent);
@@ -72,18 +75,18 @@ public:
 
         float x0 = offset/2.0f, y0 = offset/1.5f;
         for (int i = (int)n->genome.size(); i >= n->nSimpleNeurons; i--) {
+            GenotypeNode* gNode = i == n->genome.size() ? n->topNodeG.get() : n->genome[i].get();
+            if (gNode->phenotypicMultiplicity == 0) {continue;}
             if (x0 + offset > w.getSize().x) {
                 x0 = offset; 
                 y0 = 2.25f * offset;
             }
-            GenotypeNode* gNode;
+            
             text.setFillColor(sf::Color::White);
             if (i == n->genome.size()) {
-                gNode = n->topNodeG.get();
                 text.setString("Top node, depth " + std::to_string(gNode->depth));
             }
             else {
-                gNode = n->genome[i].get();
                 text.setString("Node n°" + std::to_string(gNode->position)  + ", depth " + std::to_string(gNode->depth));
             }
             text.setPosition(x0-1.25f*wheelRadius, y0 + 1.75f * wheelRadius);
