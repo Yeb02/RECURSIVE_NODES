@@ -76,7 +76,7 @@ void PhenotypeNode::accumulateW(float factor) {
 	}
 
 	for (int i = 0; i < children.size(); i++) {
-		if (!children[i].type->isSimpleNeuron) {
+		if (children[i].type->nodeType == GenotypeNode::COMPLEX) {
 			children[i].accumulateW(factor);
 		}
 	}
@@ -88,7 +88,7 @@ void PhenotypeNode::updateWatTrialEnd(float invnInferencesP) {
 	if (nInferencesP == 0) return; // should not have been called in the first place.
 
 	for (int i = 0; i < children.size(); i++) {
-		if (!children[i].type->isSimpleNeuron) children[i].updateWatTrialEnd(invnInferencesP);
+		if (children[i].type->nodeType == GenotypeNode::COMPLEX) children[i].updateWatTrialEnd(invnInferencesP);
 	}
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
@@ -113,7 +113,8 @@ void PhenotypeNode::setArrayPointers(float* po, float* co, float* pi, float* ci,
 	pi += type->inputSize;
 	ci += type->inputSize;
 #ifdef SATURATION_PENALIZING
-	aa += type->isSimpleNeuron ? 1 : type->inputSize + type->outputSize + 2; // and in this order in the array.
+	aa += type->nodeType != GenotypeNode::COMPLEX ? 
+		1 : type->inputSize + type->outputSize + 2; // and in this order in the array.
 #endif
 
 
@@ -126,7 +127,9 @@ void PhenotypeNode::setArrayPointers(float* po, float* co, float* pi, float* ci,
 void PhenotypeNode::preTrialReset() {
 
 	for (int i = 0; i < children.size(); i++) {
-		if (!children[i].type->isSimpleNeuron) children[i].preTrialReset();
+		if (children[i].type->nodeType == GenotypeNode::COMPLEX) {
+			children[i].preTrialReset();
+		}
 	}
 
 	for (int i = 0; i < childrenConnexions.size(); i++) {
@@ -145,8 +148,9 @@ void PhenotypeNode::preTrialReset() {
 void PhenotypeNode::setSaturationPenalizationPtr(float* saturationPenalizationPtr) {
 	this->saturationPenalizationPtr = saturationPenalizationPtr;
 	for (int i = 0; i < children.size(); i++) {
-		if (children[i].type->isSimpleNeuron){continue;}
-		children[i].setSaturationPenalizationPtr(saturationPenalizationPtr);
+		if (children[i].type->nodeType == GenotypeNode::COMPLEX) {
+			children[i].setSaturationPenalizationPtr(saturationPenalizationPtr);
+		}
 	}
 }
 #endif
@@ -264,7 +268,7 @@ void PhenotypeNode::forward() {
 			destinationID = type->childrenConnexions[id].destinationID;
 			if (destinationID == children.size() ||
 				destinationID == MODULATION_ID ||
-				children[destinationID].type->isSimpleNeuron) {
+				children[destinationID].type->nodeType != GenotypeNode::COMPLEX) {
 
 				continue;
 			}
@@ -301,7 +305,7 @@ void PhenotypeNode::forward() {
 
 		// transmit data and apply forward:
 		for (int i = 0; i < children.size(); i++) {
-			if (!children[i].type->isSimpleNeuron) {
+			if (children[i].type->nodeType == GenotypeNode::COMPLEX) {
 				children[i].totalM[0] = this->totalM[0];
 				children[i].totalM[1] = this->totalM[1];
 				for (int j = 0; j < children[i].type->inputSize; j++) {
@@ -322,7 +326,7 @@ void PhenotypeNode::forward() {
 			destinationID = type->childrenConnexions[id].destinationID;
 			if (destinationID == children.size() ||
 				destinationID == MODULATION_ID ||
-				!children[destinationID].type->isSimpleNeuron) {
+				children[destinationID].type->nodeType == GenotypeNode::COMPLEX) {
 
 				continue;
 			}
@@ -359,9 +363,17 @@ void PhenotypeNode::forward() {
 
 		// Apply child's forward function and manage its I-O:
 		for (int i = 0; i < children.size(); i++) {
-			if (children[i].type->isSimpleNeuron) {
+			GenotypeNode::NODE_TYPE type = children[i].type->nodeType;
+			if (type != GenotypeNode::COMPLEX) {
 				children[i].previousOutput[0] = children[i].currentOutput[0];
-				children[i].currentInput[0] = children[i].type->f(children[i].currentInput[0]);
+
+				if (type == GenotypeNode::TANH) {
+					children[i].currentInput[0] = tanhf(children[i].currentInput[0]);
+				}
+				else if (type == GenotypeNode::DERIVATOR) {
+					children[i].currentInput[0] = children[i].currentInput[0] - children[i].previousInput[0];
+				}
+				
 				children[i].currentOutput[0] = children[i].currentInput[0];
 #ifdef SATURATION_PENALIZING
 				* saturationPenalizationPtr += powf(children[i].currentInput[0], saturationExponent);
@@ -376,12 +388,19 @@ void PhenotypeNode::forward() {
 		// propagate.
 		for (int id = 0; id < childrenConnexions.size(); id++) {
 			destinationID = type->childrenConnexions[id].destinationID;
+
+			// TODO TODO TODO
+			// How does it converge when this block is on 
 			if (destinationID == children.size() ||
 				destinationID == MODULATION_ID ||
-				!children[destinationID].type->isSimpleNeuron) {
+				children[destinationID].type->nodeType == GenotypeNode::COMPLEX) {
 
 				continue;
 			}
+			// instead of this one ?????? TODO TODO TODO
+			/*if (destinationID != children.size() ) {
+				continue;
+			}*/
 
 			originID = type->childrenConnexions[id].originID;
 			nl = type->childrenConnexions[id].nLines;

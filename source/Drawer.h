@@ -130,7 +130,7 @@ public:
 
             for (int j = 0; j < gNode->children.size(); j++) {
                 node.setPosition(Xs[j], Ys[j]);
-                if (gNode->children[j]->isSimpleNeuron) {
+                if (gNode->children[j]->nodeType != GenotypeNode::COMPLEX) {
                     node.setFillColor(sf::Color::White);
                 }
                 else {

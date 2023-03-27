@@ -16,7 +16,6 @@
 #define MODULATION_ID -2    // In a genotypex connexion, means the destination node is the parent's modulation. 
 
 // Utils:
-inline float ReLU(float x) { return x > 0 ? x : 0; }
 inline int binarySearch(std::vector<float>& proba, float value) {
 	int inf = 0;
 	int sup = (int)proba.size() - 1;
@@ -95,9 +94,12 @@ struct GenotypeConnexion {
 
 
 struct GenotypeNode {
+	// DERIVATOR outputs the difference between input at this step and input at the previous step.
+	// I dont really know what to expect when it comes to applying hebbian rules to it... At least 
+	// it is (in a way) linear.
+	const enum NODE_TYPE { COMPLEX = 0, TANH = 1, DERIVATOR = 2 };
 
-	bool isSimpleNeuron;
-	float (*f)(float); // NULL if Node is a bloc. Else pointer to tanH, cos, ReLU, ...
+	NODE_TYPE nodeType; // COMPLEX, or one of the sub-types of simple.
 	int inputSize, outputSize; // >= 1
 
 	

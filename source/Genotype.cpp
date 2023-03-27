@@ -735,9 +735,8 @@ void GenotypeNode::computeSaturationArraySize(std::vector<int>& genomeState) {
 #endif 
 
 void GenotypeNode::copyParameters(GenotypeNode* n) {
-	if (n->isSimpleNeuron) {
-		isSimpleNeuron = true;
-		f = n->f;
+	if (n->nodeType != COMPLEX) {
+		nodeType = n->nodeType;
 		inputSize = n->inputSize;
 		outputSize = n->outputSize;
 		depth = 0;
@@ -746,8 +745,7 @@ void GenotypeNode::copyParameters(GenotypeNode* n) {
 		phenotypicMultiplicity = n->phenotypicMultiplicity;
 	}
 	else {
-		isSimpleNeuron = false;
-		f = NULL;
+		nodeType = n->nodeType;
 		inputSize = n->inputSize;
 		outputSize = n->outputSize;
 		childrenInBias.assign(n->childrenInBias.begin(), n->childrenInBias.end());

@@ -333,3 +333,182 @@ Trial* TMazeTrial::clone() {
 	TMazeTrial* t = new TMazeTrial(switchesSide);
 	return (Trial*)t;
 }
+
+
+
+
+NLinksPendulumTrial::NLinksPendulumTrial(bool continuousControl, int nLinks) :
+	continuousControl(continuousControl), nLinks(nLinks)
+{
+	netInSize = 2 + nLinks * 3;
+	netOutSize = 1;
+
+	observations.resize(netInSize);
+
+	thetas = std::make_unique<float[]>(nLinks);
+	thetas0 = std::make_unique<float[]>(nLinks);
+
+	xs  = std::make_unique<float[]>(nLinks+1);
+	vxs = std::make_unique<float[]>(nLinks+1);
+	ys  = std::make_unique<float[]>(nLinks+1);
+	vys = std::make_unique<float[]>(nLinks+1);
+	pxs = std::make_unique<float[]>(nLinks + 1);
+	pys = std::make_unique<float[]>(nLinks + 1);
+
+	reset();
+}
+
+void NLinksPendulumTrial::reset(bool sameSeed) {
+	score = 0.0f;
+	isTrialOver = false;
+	currentNStep = 0;
+
+	if (!sameSeed) {
+		x0 = UNIFORM_01 - .5f;
+		thetas0[0] = -1.57079f + (UNIFORM_01 - .5f);
+		for (int i = 1; i < nLinks; i++) {
+			thetas0[i] = (UNIFORM_01 - .5f);
+		}
+		
+	}
+
+	xs[0] = x0;
+	ys[0] = 0.0f;
+
+	// pxs and pys need not be initialized.
+
+	observations[0] = xs[0];
+
+	float _x = xs[0], _y = ys[0], l = 1.0f;
+	for (int i = 0; i < nLinks; i++) {
+		thetas[i] = thetas0[i];
+
+		_x += l * cosf(thetas[i]);
+		_y += l * cosf(thetas[i]);
+		xs[i + 1] = _x;
+		ys[i + 1] = _y;
+		observations[2*i+1] = cosf(thetas[i]);
+		observations[2*i+2] = sinf(thetas[i]);
+		l *= .7f;
+	}
+}
+
+void NLinksPendulumTrial::step(const float* actions) {
+	constexpr float gravity = 9.8f; 
+	constexpr float mCart = 1.0f;
+	constexpr float force_mag = 10.0f;
+
+	constexpr float tau = .01f;
+	constexpr int nSubSteps = 5;
+
+	// DO NOT CHANGE THESE 5, OR IF YOU DO MAKE SURE THEY ARE ALSO CHANGED IN reset() (spaghetti mama mia)
+	constexpr float mPole = .2f;
+	constexpr float mPoleDecay = .7f; // = m of pole i+1 / m of pole i
+	constexpr float lPole = 1.0f;
+	constexpr float lPoleDecay = .7f; // = l of pole i+1 / l of pole i. Change it in reset() too !!!
+	constexpr float xRange = 3.0f;  // serves in reset() for x0 initialisation.
+
+
+	if (abs(xs[0]) > xRange || currentNStep >= STEP_LIMIT) isTrialOver = true;
+	if (isTrialOver) return;
+
+
+	float force;
+	if (continuousControl) force = actions[0];
+	else force = actions[0] > 0 ? 1.0f : -1.0f;
+
+
+	// physics update:
+	for (int s = 0; s < nSubSteps; s++) {
+
+		xs[0] += tau * force * force_mag / mCart;
+		pxs[0] = xs[0];
+		pys[0] = ys[0];
+		for (int i = 1; i < nLinks + 1; i++) {
+			ys[i] -= tau * gravity;
+			pxs[i] = xs[i];
+			pys[i] = ys[i];
+			xs[i] += vxs[i] * tau;
+			ys[i] += vys[i] * tau;
+		}
+
+		float m = mPole, l = lPole;
+		for (int i = 1; i < nLinks+1; i++) {
+			float dx = xs[i] - xs[i-1];
+			float dy = ys[i] - ys[i-1];
+			float d = sqrtf(dx * dx + dy * dy);
+			float w0 = i==1 ? 0.0f : 1.0f / (m/mPoleDecay);
+			float w1 = m;
+			float corr = (l - d) / (d *(w0 + w1));
+			xs[i - 1] -= w0 * corr * dx;
+			ys[i - 1] -= w0 * corr * dy;
+			xs[i] += w1 * corr * dx;
+			ys[i] += w1 * corr * dy;
+			m *= mPoleDecay;
+			l *= lPoleDecay;
+		}
+		for (int i = 1; i < nLinks+1; i++) {
+			vxs[i] = (xs[i] - pxs[i]) / tau;
+			vys[i] = (ys[i] - pys[i]) / tau;
+		}
+	}
+
+	// thetas and observations update
+	observations[0] = xs[0];
+	float l = lPole;
+	for (int i = 0; i < nLinks; i++) {
+		float theta_i = acosf((xs[i + 1] - xs[i]) / l);
+		theta_i = ys[i + 1] > ys[i] ? theta_i : -theta_i;  // be careful of the discontinuity (mod 2pi). 
+
+		observations[2 * i + 1] = (xs[i + 1] - xs[i]) / l;             // cos theta
+		observations[2 * i + 2] = (ys[i + 1] - ys[i]) / l;             // sin theta
+
+		thetas[i] = theta_i;
+		l *= lPoleDecay;
+	}
+
+	currentNStep++;
+	score += ys[0];
+	return;
+}
+
+void NLinksPendulumTrial::copy(Trial* t0) {
+	NLinksPendulumTrial* t = dynamic_cast<NLinksPendulumTrial*>(t0);
+	nLinks = t->nLinks;
+	continuousControl = t->continuousControl;
+	netInSize = t->netInSize;
+
+	observations.resize(netInSize);
+
+	thetas.reset(new float[nLinks]);
+	thetas0.reset(new float[nLinks]);
+	
+	xs.reset(new float[nLinks + 1]);
+	vxs.reset(new float[nLinks + 1]);
+	ys.reset(new float[nLinks + 1]);
+	vys.reset(new float[nLinks + 1]);
+	pxs.reset(new float[nLinks + 1]);
+	pys.reset(new float[nLinks + 1]);
+
+	x0 = t->x0;
+	for (int i = 0; i < nLinks; i++) {
+		thetas0[i] = t->thetas0[i];
+	}
+	
+	reset(true);
+}
+
+Trial* NLinksPendulumTrial::clone() {
+	NLinksPendulumTrial* t = new NLinksPendulumTrial(continuousControl, nLinks);
+	
+	t->x0 = x0;
+
+	for (int i = 0; i < nLinks; i++) {
+		t->thetas0[i] = thetas0[i];
+	}
+
+	t->reset(true);
+
+	return (Trial*)t;
+}
+

@@ -39,6 +39,8 @@ int main()
         trials.emplace_back(new XorTrial(2,5));  
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
+elif defined N_LINKS_PENDULUM_T
+        trials.emplace_back(new NLinksPendulumTrial(false, 1));
 #endif
     }
 

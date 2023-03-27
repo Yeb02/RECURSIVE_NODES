@@ -82,7 +82,7 @@ public:
 	void outerLoopUpdate(void* data) override {};
 
 	// or 30000... Gym's baseline is either 200 or 500, which is quite short with tau=0.02.
-	static const int STEP_LIMIT = 1000; 
+	static const int STEP_LIMIT = 100; 
 
 private:
 	bool continuousControl;
@@ -115,3 +115,37 @@ private:
 	int nSubTrials;
 };
 
+
+// Observation are: [cartX, cosTheta1 ,sinTheta1, cosTheta2, ... sinThetaNLinks)], where cosines and sines  
+// are with respect to the global axis. The zero radians is the trigonometric standard, horizontal right.
+// The network is not fed the speed of the arms. It model will have to infer it by itself. For this purpose,
+// the "DERIVATOR" simple neuron was added. 
+class NLinksPendulumTrial : public Trial {
+
+public:
+	NLinksPendulumTrial(bool continuousControl, int nJoins);
+	void step(const float* actions) override;
+	void reset(bool sameSeed = false) override;
+	void copy(Trial* t) override;
+	Trial* clone() override;
+	void outerLoopUpdate(void* data) override {};
+
+	static const int STEP_LIMIT = 1000;
+
+private:
+	bool continuousControl;
+	int nLinks;
+
+	// initial values
+	float x0;
+	std::unique_ptr<float[]> thetas0;
+
+	// Redundant but useful
+	std::unique_ptr<float[]> thetas;
+
+	// Cartesian state
+	std::unique_ptr<float[]> xs, vxs, ys, vys;
+
+	// Positions at previous step.
+	std::unique_ptr<float[]> pxs, pys;
+};

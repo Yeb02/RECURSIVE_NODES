@@ -47,19 +47,27 @@ Network::Network(Network* n) {
 Network::Network(int inputSize, int outputSize) :
 inputSize(inputSize), outputSize(outputSize)
 {
-	nSimpleNeurons = 1;
+	nSimpleNeurons = 2;
 	genome.reserve(nSimpleNeurons + 3);
 	for (int i = 0; i < nSimpleNeurons; i++) genome.emplace_back(new GenotypeNode());
 
 	int i = 0;
 
 	// 0: TanH simple neuron
-	genome[i]->isSimpleNeuron = true;
+	genome[i]->nodeType = GenotypeNode::TANH;
 	genome[i]->inputSize = 1;
 	genome[i]->outputSize = 1;
-	genome[i]->f = *tanhf;
 	genome[i]->depth = 0;
 	genome[i]->position = 0;
+	genome[i]->closestNode = NULL;
+
+	i++;
+	// 1: Derivator simple neuron : outputs the differences between its input at this step and at the previous step.
+	genome[i]->nodeType = GenotypeNode::DERIVATOR;
+	genome[i]->inputSize = 1;
+	genome[i]->outputSize = 1;
+	genome[i]->depth = 0;
+	genome[i]->position = 1;
 	genome[i]->closestNode = NULL;
 	
 	// 1: ReLu, or cos, or whatever could make sense with hebbian rules. (cos probably does not =\ )
@@ -67,11 +75,10 @@ inputSize(inputSize), outputSize(outputSize)
 	
 	topNodeG = std::make_unique<GenotypeNode>();
 
-	topNodeG->isSimpleNeuron = false;
+	topNodeG->nodeType = GenotypeNode::COMPLEX;
 	topNodeG->inputSize = inputSize;
 	topNodeG->outputSize = outputSize;
 	topNodeG->sumChildrenInputSizes = outputSize;
-	topNodeG->f = NULL;
 	topNodeG->depth = 1;
 	topNodeG->position = -1;
 	topNodeG->closestNode = NULL;
@@ -647,8 +654,7 @@ void Network::mutate() {
 		if (!aborted) {
 			GenotypeNode* box = new GenotypeNode();
 
-			box->isSimpleNeuron = false;
-			box->f = NULL;
+			box->nodeType = GenotypeNode::COMPLEX;
 			box->inputSize = boxedNode->inputSize;
 			box->outputSize = boxedNode->outputSize;
 			

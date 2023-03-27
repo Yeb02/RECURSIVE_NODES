@@ -20,6 +20,7 @@
 #define CARTPOLE_T
 //#define XOR_T
 //#define TMAZE_T
+//#define N_LINKS_PENDULUM_T
 
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
