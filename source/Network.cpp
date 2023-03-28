@@ -127,7 +127,8 @@ void Network::postTrialUpdate(float score) {
 
 #if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
 	if (topNodeP->nInferencesP != 0) {
-		float trialLengthFactor = 1.0f / logf((float)topNodeP->nInferencesP);
+		//float trialLengthFactor = 1.0f / logf((float)topNodeP->nInferencesP);
+		float trialLengthFactor = 1.0f / (float)topNodeP->nInferencesP;
 
 		// One and only one of these three calls to accumulateW MUST be active:
 		
@@ -136,7 +137,7 @@ void Network::postTrialUpdate(float score) {
 		//topNodeP->accumulateW(1.0f*score*trialLengthFactor);			 
 
 		// Drastically improves perfs when learning is "too simple". Constant factor between 5 and 100 recommended.
-		topNodeP->accumulateW(10.0f * trialLengthFactor);
+		topNodeP->accumulateW(5.0f * trialLengthFactor);
 
 		// Not implemented yet.
 		//topNodeP->accumulateW((score-parentScore) * trialLengthFactor);  
@@ -778,13 +779,14 @@ void Network::computePhenotypicMultiplicities() {
 }
 
 
+// requires the genome be sorted by ascending (and up to date) depths.
 void Network::removeUnusedNodes() {
 	std::vector<int> occurences(genome.size());
 	for (int i = 0; i < (int)topNodeG->children.size(); i++) {
 		occurences[topNodeG->children[i]->position]++;
 	}
 
-	for (int i = (int)genome.size()-1; i >= nSimpleNeurons; i--) { // requires the genome be sorted by ascending depths.
+	for (int i = (int)genome.size()-1; i >= nSimpleNeurons; i--) { 
 
 		if (occurences[i] == 0) { // genome[i] is unused. It must be removed.
 
@@ -801,7 +803,6 @@ void Network::removeUnusedNodes() {
 			genome.erase(genome.begin() + i);
 			for (int j = i; j < genome.size(); j++) genome[j]->position = j;
 
-			i--;
 			continue;
 		}
 
@@ -834,7 +835,8 @@ float Network::getSaturationPenalization()
 	}
 	topNodeG->position = (int)genome.size();
 	topNodeG->getNnonLinearities(genomeState);
-	float p1 = saturationPenalization / (nInferencesN * genomeState[genome.size()]);
+	int nNonLinearities = genomeState[genome.size()] - inputSize - outputSize;
+	float p1 = nNonLinearities != 0 ? saturationPenalization / (nInferencesN * nNonLinearities) : 0.0f;
 
 
 	float p2 = 0.0f;
@@ -877,14 +879,13 @@ float Network::getRegularizationLoss() {
 				amplitudes[i] += abs(n->childrenConnexions[j].w[k]);
 			}
 		}
-		nParams[i] *= nArrays;
 		for (int j = 0; j < n->children.size(); j++) {
 			nParams[i] += nParams[n->children[j]->position];
 			amplitudes[i] += amplitudes[n->children[j]->position];
 		}
 	}
 
-	float a = (float)amplitudes[genome.size()] / (float)nParams[genome.size()]; // amplitude term
-	float b = logf((float)nParams[genome.size()] / (float)nArrays);				// size term
-	return .1f*a + 0.1f * a * b + .3f * b; // The whole vector will be reduced, so multiplying all terms by a common factor does nothing.
+	float a = (float)amplitudes[genome.size()] / (float)(nParams[genome.size()]*nArrays); // amplitude term
+	float b = logf(inputSize + outputSize + (float)nParams[genome.size()]);				  // size term
+	return 0.2f*a*(1.0f + b) + 1.0f * b; // The whole vector will be reduced, so multiplying all terms by a common factor does nothing.
 }

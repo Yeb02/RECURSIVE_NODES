@@ -1,8 +1,9 @@
 #pragma once
 
 #include <iostream>
-#include <mutex>
-#include <condition_variable>
+#include <algorithm> // std::sort
+#include <mutex>     // threading
+#include <condition_variable> // threading
 
 #include "Population.h"
 #include "Random.h"
@@ -30,8 +31,8 @@ void normalizeArray(float* v, int size) {
 		v[i] -= avg;
 		variance += v[i] * v[i];
 	}
+	if (variance < .001f) return;
 	float InvStddev = 1.0f / sqrtf(variance / (float) size);
-	if (abs(InvStddev) < .001f) return;
 	for (int i = 0; i < size; i++) {
 		v[i] *= InvStddev;
 	}
@@ -349,7 +350,9 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		}
 	}
 
-	normalizeArray(avgScorePerSpecimen.data(), nSpecimens); 
+	if (!rankingFitness) {
+		normalizeArray(avgScorePerSpecimen.data(), nSpecimens);
+	}
 
 	computeFitnesses(avgScorePerSpecimen);
 
@@ -358,7 +361,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	evolutionStep++;
 }
 
-void Population::computeFitnesses(std::vector<float> avgScorePerSpecimen) {
+void Population::computeFitnesses(std::vector<float> &avgScorePerSpecimen) {
 
 	// compute and normalize the regularization term
 	std::vector<float> regularizationScore(nSpecimens);
@@ -376,6 +379,34 @@ void Population::computeFitnesses(std::vector<float> avgScorePerSpecimen) {
 	}
 	normalizeArray(saturationScore.data(), nSpecimens);
 #endif
+
+
+
+	if (rankingFitness) {
+		std::vector<int> positions(nSpecimens);
+		for (int i = 0; i < nSpecimens; i++) {
+			positions[i] = i;
+		}
+		// sort position by ascending fitnesses.
+		std::sort(positions.begin(), positions.end(), [&avgScorePerSpecimen](int a, int b) -> bool
+			{
+				return avgScorePerSpecimen[a] < avgScorePerSpecimen[b];
+			}
+		);
+		float invPop = 1.0f / (float)nSpecimens;
+		for (int i = 0; i < nSpecimens; i++) {
+			// linear in [-1,1], -1 for the worst specimen, 1 for the best
+			float positionValue = (float)(2 * i - nSpecimens) * invPop; 
+			// arbitrary, to make it a bit more selective. 
+			positionValue = 4.0f * powf(positionValue*.8f, 3.0f);
+
+			avgScorePerSpecimen[positions[i]] = positionValue;
+		}
+	}
+	else {
+		normalizeArray(avgScorePerSpecimen.data(), nSpecimens);
+	}
+
 
 
 	// Then, the fitness is simply a weighted sum of the 2 intermediate measures, score and regularization.

@@ -203,8 +203,9 @@ void PhenotypeNode::forward() {
 	// COULD BE UPDATED SIMULTANEOUSLY, BUT TO SPEED UP INFORMATION TRANSMITION IT HAPPENS "TYPE" BY "TYPE, IN THE 
 	// FOLLOWING ORDER:  neuromodulation node -> complex children -> simple children -> output node.
 
-	// #ifdef SATURATION_PENALIZING, also update saturationPenalizationPtr and averageActivation at each
-	// evaluation of an activation function. (complex children handle their part)
+	// #ifdef SATURATION_PENALIZING, also update saturationPenalizationPtr (all children's Ins and Outs, + its own M)
+	// and averageActivation at each evaluation of an activation function. (complex children handle their part)
+	
 
 
 	// STEP 3A: neuromodulation node.
@@ -315,6 +316,13 @@ void PhenotypeNode::forward() {
 #endif
 				}
 				children[i].forward();
+
+#ifdef SATURATION_PENALIZING
+				for (int j = 0; j < children[i].type->outputSize; j++) {
+					* saturationPenalizationPtr += powf(children[i].currentOutput[j], saturationExponent);
+
+				}
+#endif
 			}
 		}
 	}
@@ -363,14 +371,14 @@ void PhenotypeNode::forward() {
 
 		// Apply child's forward function and manage its I-O:
 		for (int i = 0; i < children.size(); i++) {
-			GenotypeNode::NODE_TYPE type = children[i].type->nodeType;
-			if (type != GenotypeNode::COMPLEX) {
+			GenotypeNode::NODE_TYPE _type = children[i].type->nodeType;
+			if (_type != GenotypeNode::COMPLEX) {
 				children[i].previousOutput[0] = children[i].currentOutput[0];
 
-				if (type == GenotypeNode::TANH) {
+				if (_type == GenotypeNode::TANH) {
 					children[i].currentInput[0] = tanhf(children[i].currentInput[0]);
 				}
-				else if (type == GenotypeNode::DERIVATOR) {
+				else if (_type == GenotypeNode::DERIVATOR) {
 					children[i].currentInput[0] = children[i].currentInput[0] - children[i].previousInput[0];
 				}
 				
@@ -389,18 +397,9 @@ void PhenotypeNode::forward() {
 		for (int id = 0; id < childrenConnexions.size(); id++) {
 			destinationID = type->childrenConnexions[id].destinationID;
 
-			// TODO TODO TODO
-			// How does it converge when this block is on 
-			if (destinationID == children.size() ||
-				destinationID == MODULATION_ID ||
-				children[destinationID].type->nodeType == GenotypeNode::COMPLEX) {
-
+			if (destinationID != children.size() ) {
 				continue;
 			}
-			// instead of this one ?????? TODO TODO TODO
-			/*if (destinationID != children.size() ) {
-				continue;
-			}*/
 
 			originID = type->childrenConnexions[id].originID;
 			nl = type->childrenConnexions[id].nLines;
@@ -436,7 +435,6 @@ void PhenotypeNode::forward() {
 			currentOutput[i] = tanhf(currentOutput[i]);
 #ifdef SATURATION_PENALIZING
 			* saturationPenalizationPtr += powf(currentOutput[i], saturationExponent);
-			averageActivation[type->inputSize + i] += currentOutput[i];
 #endif
 		}
 	}

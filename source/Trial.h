@@ -82,7 +82,7 @@ public:
 	void outerLoopUpdate(void* data) override {};
 
 	// or 30000... Gym's baseline is either 200 or 500, which is quite short with tau=0.02.
-	static const int STEP_LIMIT = 100; 
+	static const int STEP_LIMIT = 1000; 
 
 private:
 	bool continuousControl;
@@ -105,10 +105,16 @@ public:
 	};
 
 	static const int corridorLength = 5;
+	static const int nInferencesBetweenEnvSteps = 3;
 
 private:
+	// the network performs nInferencesBetweenEnvSteps inferences between each step of the environment,
+	// to give enough time for information to flow through.
+	int inferenceStep;
+
 	// to be set in main.cpp's loop at each step.
 	bool switchesSide;
+
 	void subTrialReset();
 
 	bool wentLeft;

@@ -75,7 +75,6 @@ while True:
             scores[i] += score
         scores[i] *= inv_N_TRIALS
 
-    center_reduce(scores, N_SPECIMENS)
     compute_fitnesses(population, scores)
     create_offsprings(population)
     draw_network(drawer, get_fittest_network_handle(population), step)

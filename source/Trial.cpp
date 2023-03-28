@@ -233,6 +233,7 @@ void TMazeTrial::reset(bool sameSeed) {
 void TMazeTrial::subTrialReset() {
 	wentLeft = false;
 	currentNStep = 0;
+	inferenceStep = 0;
 	nSubTrials++;
 	observations[0] = -1.0f;
 	observations[1] = -1.0f;
@@ -249,6 +250,14 @@ void TMazeTrial::step(const float* actions) {
 	constexpr int straight4 = turn2 + corridorLength;
 
 	float a = actions[0]; //readability
+
+	if (inferenceStep > 0) {
+		inferenceStep++;
+		if (inferenceStep >= nInferencesBetweenEnvSteps) {
+			inferenceStep = 0;
+		}
+		return;
+	}
 	
 	if (currentNStep < straight1) {
 		if (abs(a) > .3f) {

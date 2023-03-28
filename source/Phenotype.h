@@ -50,6 +50,7 @@ struct PhenotypeNode {
 	float totalM[2]; // parent's + local M.    Wasted space for simple neurons. TODO
 
 #ifdef SATURATION_PENALIZING
+	// A parent updates it for its children (in and out), not for itself.
 	float* saturationPenalizationPtr;		 //Wasted space for simple neurons. TODO
 #endif
 	 

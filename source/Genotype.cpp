@@ -680,7 +680,7 @@ void GenotypeNode::decrementDestinationInputSize(int i, int id) {
 
 void GenotypeNode::getNnonLinearities(std::vector<int>& genomeState) {
 	constexpr int modulationMultiplier = 0; // must be set to the same value in Phenotype::forward. TODO cleaner.
-	int n = outputSize + 2 * modulationMultiplier;
+	int n = inputSize + 2 * modulationMultiplier + outputSize;
 	for (int i = 0; i < children.size(); i++) {
 		if (genomeState[children[i]->position] == 0) children[i]->getNnonLinearities(genomeState);
 		n += genomeState[children[i]->position];

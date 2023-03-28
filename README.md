@@ -10,8 +10,8 @@ Implements a 3 loops optimization algorithm to tackle reinforcement learning cha
 <em>Visualization of one network. The numbers inside circles correspond to the node 'Node n°X'.</em>
 
 &nbsp;
-##### KNOWN BUGS: Still converges (way slower) when output is disconnected. Possible? Also, rare mutation causes index error. Working on it.
-##### TODO: Save a model or a population, with boost.serialize. Then heap defragmentation.
+##### KNOWN BUGS: None, report any !
+##### TODO: Save a model or a population, with boost.serialize. Then heap defragmentation. Then make simple phenotype nodes implicit for performance.
 &nbsp;
 Several variants of the algorithm are implemented, change the active preprocessor directives in config.h to compile a custom version. More info in the file.
 The program can be compiled into an executable, to experiment on the implemented c++ trials. As of now, 3 trials are implemented: XoR with memorization, gym's cartpole, and T-Maze. More to come !

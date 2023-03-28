@@ -90,6 +90,16 @@ struct PopulationEvolutionParameters {
 	int targetNSpecimens;
 
 
+	// EvaluateFitness() is supposed to receive a vector of fitnesses, 1 value per specimen, more or less normally 
+	// distributed (the function handles centering and reducing). However, many trials have no such measure
+	// of the fitness : it may be exponential, or too noisy , or ... In general, it wont be easily interpretable for
+	// generating offsprings with the best probabilities. 
+	// And even if it were the  case, the distribution of fitnesses ultimately depends on the population itself.
+	// This is why a ranking-fitness should be used in the general case, instead of raw trial scores. Scores may be
+	// relevant for certain trials, but do not use them when unsure.
+	bool rankingFitness;
+
+
 	//defaults:
 	PopulationEvolutionParameters() {
 		selectionPressure = 0.0f;
@@ -99,6 +109,7 @@ struct PopulationEvolutionParameters {
 		normalizedScoreGradients = false;
 		saturationFactor = .05f;
 		targetNSpecimens = 0;
+		rankingFitness = true;
 	}
 };
 
@@ -122,8 +133,8 @@ public:
 
 	Population(int IN_SIZE, int OUT_SIZE, int nSpecimens);
 
-	// The input vector avgScorePerSpecimen must have mean 0 and variance 1 !
-	void computeFitnesses(std::vector<float> avgScorePerSpecimen);
+	// No requirement on avgScorePerSpecimen, other that a higher score = a better specimen.
+	void computeFitnesses(std::vector<float>& avgScorePerSpecimen);
 
 	void createOffsprings();
 	void setEvolutionParameters(PopulationEvolutionParameters params) {
@@ -134,6 +145,7 @@ public:
 		this->normalizedScoreGradients = params.normalizedScoreGradients;
 		this->saturationFactor = params.saturationFactor;
 		this->targetNSpecimens = params.targetNSpecimens;
+		this->rankingFitness = params.rankingFitness;
 	}
 
 
@@ -199,7 +211,7 @@ private:
 	float regularizationFactor, nichingNorm, selectionPressure, saturationFactor;
 
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
-	bool useSameTrialInit, normalizedScoreGradients; 
+	bool useSameTrialInit, normalizedScoreGradients, rankingFitness;
 
 
 

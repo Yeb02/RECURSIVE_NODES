@@ -72,7 +72,7 @@ draw_network.restype = None
 #utils:
 
 # takes a c-float array by reference and its size, and linearly
-#transforms it so that it has mean 0 and variance 1.
+#transforms it so that it has mean 0 and variance 1. (used in previous versions, not anymore)
 def center_reduce(a, size):
     E = 0.0
     for i in range(size):

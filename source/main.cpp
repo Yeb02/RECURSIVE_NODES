@@ -39,17 +39,19 @@ int main()
         trials.emplace_back(new XorTrial(2,5));  
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
-elif defined N_LINKS_PENDULUM_T
+#elif defined N_LINKS_PENDULUM_T
         trials.emplace_back(new NLinksPendulumTrial(false, 1));
 #endif
     }
 
-    // In visual studio, hover your cursor on the parameters name to see their description !
+    // In visual studio, hover your cursor on the parameters name to see their description ! They are initialized 
+    // by default to safe values, the initilaization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
     params.selectionPressure = 0.0f;
     params.nichingNorm = 0.0f;
     params.useSameTrialInit = false;
     params.normalizedScoreGradients = false;
+    params.rankingFitness = true;
     params.saturationFactor = 0.05f;
     params.regularizationFactor = 0.05f; // +2.0f * params.saturationFactor;
     params.targetNSpecimens = 0;

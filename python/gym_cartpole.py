@@ -20,7 +20,7 @@ scores = (ctypes.c_float * N_SPECIMENS)()
 observation = (ctypes.c_float * in_size)()                          
 action = (ctypes.c_float * out_size)()      
 
-maxTrialSteps = 1000
+maxTrialSteps = 50000
 evolutionStep = 0
 while True:
     maxScore = 0
@@ -51,9 +51,7 @@ while True:
                 maxScore = score
             scores[i] += score
         
-    
-    # even thought scores are supposed to have mean 0 and var 1, here it worsens perfs.
-    # center_reduce(scores, N_SPECIMENS) 
+
     compute_fitnesses(population, scores)
     create_offsprings(population)
     draw_network(drawer, get_fittest_network_handle(population), evolutionStep)
