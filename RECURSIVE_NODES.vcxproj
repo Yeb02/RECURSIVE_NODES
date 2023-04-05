@@ -21,7 +21,7 @@
   <ItemGroup>
     <ClCompile Include="source\dllMain.cpp" />
     <ClCompile Include="source\Genotype.cpp" />
-    <ClCompile Include="source\Grid.cpp" />
+    <ClCompile Include="source\Environment.cpp" />
     <ClCompile Include="source\Network.cpp" />
     <ClCompile Include="source\Phenotype.cpp" />
     <ClCompile Include="source\Population.cpp" />
@@ -34,7 +34,7 @@
     <ClInclude Include="source\dllMain.h" />
     <ClInclude Include="source\Drawer.h" />
     <ClInclude Include="source\Genotype.h" />
-    <ClInclude Include="source\Grid.h" />
+    <ClInclude Include="source\Environment.h" />
     <ClInclude Include="source\Network.h" />
     <ClInclude Include="source\Phenotype.h" />
     <ClInclude Include="source\Population.h" />

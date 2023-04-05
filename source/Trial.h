@@ -155,3 +155,29 @@ private:
 	// Positions at previous step.
 	std::unique_ptr<float[]> pxs, pys;
 };
+
+
+// The trial is split in two phases. In the first one, the network is presented with a set of 
+// motif-response pairs. In the second phase, the network is presented with motifs from the first
+// step, but the responses are set to 0. The task of the network is to output the associated response 
+// for each motif. The parameter binary of the constructor determines whether the motif-response pair 
+// should be binary {-1,1}, or continuous [-1,1]. 
+class MemoryTrial : public Trial {
+
+public:
+	MemoryTrial(int nMotifs, int motifSize, int responseSize, bool binary=true);
+	void step(const float* actions) override;
+	void reset(bool sameSeed = false) override;
+	void copy(Trial* t) override;
+	Trial* clone() override;
+	void outerLoopUpdate(void* data) override {};
+
+
+private:
+	int nMotifs, motifSize, responseSize;
+
+	bool binary;
+
+	// matrix of size nMotifs * (motifSize+responseSize)
+	std::unique_ptr<float[]> motifResponsePairs;
+};

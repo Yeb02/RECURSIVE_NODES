@@ -17,17 +17,18 @@
 
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
 // These do not affect the DLL.
-#define CARTPOLE_T
-//#define XOR_T
+//#define CARTPOLE_T
+#define XOR_T
 //#define TMAZE_T
 //#define N_LINKS_PENDULUM_T
+//#define MEMORY_T
 
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
 // allow for a very long term memory, in parallel with E and H but much slower. Better performance overall.
 // Should be defined if there is just 1 trial, or equivalently no trials at all. Could be on even if there 
 // are multiple trials. 
-#define CONTINUOUS_LEARNING
+//#define CONTINUOUS_LEARNING
 
 
 // IN DEVELOPPEMENT
@@ -36,7 +37,7 @@
 // may need to increase the value fed to accumulateW in Network::postTrialUpdate(), to 10 or 50., and deltaWclipRange to
 // 1.0 or 2.0 in GenotypeNode::mutateFloats())
 // Adding a factor decreasing the effect over generations could be interesting, TODO .
-#define GUIDED_MUTATIONS
+//#define GUIDED_MUTATIONS
 
 
 // IN DEVELOPPEMENT

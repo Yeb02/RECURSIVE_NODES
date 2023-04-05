@@ -78,7 +78,7 @@ private:
 
 	// Sets phenotypicMultiplicity for each node of the genome, and the topNode. Must be called after each
 	// structural modification of the genotype, i.e. after Network creation or mutations. Not necessary at copy 
-	// construction.
+	// construction. The genomes does not need to be sorted nor the depths up to date.
 	void computePhenotypicMultiplicities();
 
 	// Requires genome be sorted by ascending depth !!

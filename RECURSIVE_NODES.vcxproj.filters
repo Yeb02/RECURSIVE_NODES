@@ -45,7 +45,7 @@
     <ClCompile Include="source\dllMain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\Grid.cpp">
+    <ClCompile Include="source\Environment.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -191,7 +191,7 @@
     <ClInclude Include="source\Drawer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\Grid.h">
+    <ClInclude Include="source\Environment.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\config.h">

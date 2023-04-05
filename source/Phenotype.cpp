@@ -20,7 +20,9 @@ PhenotypeConnexion::PhenotypeConnexion(int s)
 #ifndef CONTINUOUS_LEARNING
 void PhenotypeConnexion::updateWatTrialEnd(int s, float factor, float* alpha) {
 	for (int i = 0; i < s; i++) {
-		wLifetime[i] += alpha[i] * avgH[i] * factor;
+		// When the following line is commented, there is no learning at all between trials. 
+		// Useful for benchmarking.
+		wLifetime[i] += alpha[i] * avgH[i] * factor; 
 	}
 }
 #endif

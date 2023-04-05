@@ -40,7 +40,11 @@ void XorTrial::step(const float* actions) {
 	//constexpr int startResponsePhase = 10;
 	//constexpr int endResponsePhase = 15;
 
-	
+	if (isTrialOver)
+	{
+		return;
+	}
+
 	if (currentNStep == delay) {
 		for (int i = 0; i < vSize; i++)  observations[i] = v2[i] ? 1.0f : -1.0f;
 	}
@@ -56,13 +60,7 @@ void XorTrial::step(const float* actions) {
 
 	if (currentNStep >= delay*3) {
 		isTrialOver = true;
-
-		// score normalization, not necessary
-		if (currentNStep == delay * 3) {
-			//score /= (float)(delay * vSize);
-			score = (score >= (vSize * delay - .0001f)) ? 1.0f : 0.0f;
-			
-		}
+		score /= vSize * delay;
 	}
 
 	currentNStep++;
@@ -251,6 +249,11 @@ void TMazeTrial::step(const float* actions) {
 
 	float a = actions[0]; //readability
 
+	if (nSubTrials >= 20) {
+		isTrialOver = true;
+		return;
+	}
+
 	if (inferenceStep > 0) {
 		inferenceStep++;
 		if (inferenceStep >= nInferencesBetweenEnvSteps) {
@@ -309,7 +312,7 @@ void TMazeTrial::step(const float* actions) {
 			subTrialReset();
 		}
 		else {
-			if ((a>0) ^ wentLeft) {
+			if ((a < 0) ^ wentLeft) {
 				score -= .3f;
 				subTrialReset();
 			}
@@ -328,9 +331,6 @@ void TMazeTrial::step(const float* actions) {
 	}
 
 	currentNStep++;
-	if (nSubTrials >= 20) {
-		isTrialOver = true;
-	}
 }
 
 void TMazeTrial::copy(Trial* t0) {
@@ -368,7 +368,7 @@ NLinksPendulumTrial::NLinksPendulumTrial(bool continuousControl, int nLinks) :
 }
 
 void NLinksPendulumTrial::reset(bool sameSeed) {
-	score = 0.0f;
+	score = - (1.0f - powf(.7f, (float)nLinks)) / (1.0f - .7f) ;
 	isTrialOver = false;
 	currentNStep = 0;
 
@@ -410,7 +410,7 @@ void NLinksPendulumTrial::step(const float* actions) {
 	constexpr float tau = .01f;
 	constexpr int nSubSteps = 5;
 
-	// DO NOT CHANGE THESE 5, OR IF YOU DO MAKE SURE THEY ARE ALSO CHANGED IN reset() (spaghetti mama mia)
+	// DO NOT CHANGE THESE 5, OR IF YOU DO MAKE SURE THEY ARE ALSO CHANGED IN reset() (spaghetti mama mia) 
 	constexpr float mPole = .2f;
 	constexpr float mPoleDecay = .7f; // = m of pole i+1 / m of pole i
 	constexpr float lPole = 1.0f;
@@ -447,7 +447,7 @@ void NLinksPendulumTrial::step(const float* actions) {
 			float dy = ys[i] - ys[i-1];
 			float d = sqrtf(dx * dx + dy * dy);
 			float w0 = i==1 ? 0.0f : 1.0f / (m/mPoleDecay);
-			float w1 = m;
+			float w1 = 1.0f/m;
 			float corr = (l - d) / (d *(w0 + w1));
 			xs[i - 1] -= w0 * corr * dx;
 			ys[i - 1] -= w0 * corr * dy;
@@ -463,7 +463,7 @@ void NLinksPendulumTrial::step(const float* actions) {
 	}
 
 	// thetas and observations update
-	observations[0] = xs[0];
+	observations[0] = xs[0]/xRange;
 	float l = lPole;
 	for (int i = 0; i < nLinks; i++) {
 		float theta_i = acosf((xs[i + 1] - xs[i]) / l);
@@ -477,7 +477,7 @@ void NLinksPendulumTrial::step(const float* actions) {
 	}
 
 	currentNStep++;
-	score += ys[0];
+	score = std::max(score, ys[nLinks]);
 	return;
 }
 
@@ -518,6 +518,128 @@ Trial* NLinksPendulumTrial::clone() {
 
 	t->reset(true);
 
+	return (Trial*)t;
+}
+
+
+
+MemoryTrial::MemoryTrial(int nMotifs, int motifSize, int responseSize, bool binary ) :
+	nMotifs(nMotifs), motifSize(motifSize), responseSize(responseSize), binary(binary)
+{
+	netInSize = responseSize + motifSize;
+	netOutSize = responseSize;
+	motifResponsePairs = std::make_unique<float[]>(nMotifs * (responseSize + motifSize));
+	observations.resize(netInSize);
+	reset(false);
+}
+
+void MemoryTrial::reset(bool sameSeed) {
+	score = 0.0f;
+	isTrialOver = false;
+	currentNStep = 0;
+
+	if (!sameSeed) {
+		int id = 0;
+		for (int i = 0; i < nMotifs; i++) {
+			for (int j = 0; j < responseSize+motifSize; j++) {
+				motifResponsePairs[id] = 2.0f * UNIFORM_01 - 1.0f;
+				if (binary) {
+					motifResponsePairs[id] = motifResponsePairs[id] > 0 ? 1.0f : -1.0f;
+				}
+				id++;
+			}
+		}
+	}
+
+	// observation is set exclusively by step().
+}
+
+// During the evaluation, each motif is shown evaluationExposure steps before we actually compute a score,
+// for evaluationDuration steps.
+void MemoryTrial::step(const float* actions) {
+	constexpr int learningExposure = 10;  // how long each motif is shown during the training phase
+
+	// how long each motif is shown during the evaluation phase, not accounting for 
+	constexpr int evaluationExposure = 10; 
+
+	constexpr int evaluationDuration = 5; // n steps for which a score is computed
+	
+	if (isTrialOver) return;
+
+	int motifID = 0;
+	int subStep = 0;
+	if (currentNStep < nMotifs * learningExposure) { // learning phase
+		motifID = currentNStep / learningExposure;
+		subStep = currentNStep % learningExposure;
+		if (subStep == 0) {
+			for (int j = 0; j < responseSize + motifSize; j++) {
+				observations[j] = motifResponsePairs[j + motifID*(motifSize+responseSize)];
+			}
+		}
+	}
+	else if (currentNStep < nMotifs * (learningExposure + evaluationExposure + evaluationDuration)) {										// evaluation phase
+		int a = currentNStep - nMotifs * learningExposure;
+		int b = evaluationExposure + evaluationDuration;
+		motifID = a / b;
+		subStep = a % b;
+		if (subStep == 0) {
+			for (int j = 0; j < motifSize; j++) {
+				observations[j] = motifResponsePairs[j + motifID * (motifSize + responseSize)];
+			}
+			for (int j = motifSize; j < motifSize+responseSize; j++) {
+				observations[j] = 0.0f;
+			}
+		}
+		if (subStep >= evaluationExposure) {
+			if (binary) {
+				for (int j = motifSize; j < motifSize+ responseSize; j++) {
+					score += motifResponsePairs[j + motifID * (motifSize + responseSize)] * actions[j-motifSize] > 0 ?
+						1.0f : 0.0f;
+				}
+			}
+			else {
+				for (int j = motifSize; j < motifSize + responseSize; j++) {
+					float diff = motifResponsePairs[j + motifID * (motifSize + responseSize)] * actions[j - motifSize];
+					score += powf(diff, 2.0f);
+				}
+			}
+			
+		}
+	}
+	else {
+		isTrialOver = true;
+		score /= (float) (evaluationDuration * nMotifs * responseSize);
+	}
+
+	currentNStep++;
+
+
+}
+
+void MemoryTrial::copy(Trial* t0) {
+	MemoryTrial* t = dynamic_cast<MemoryTrial*>(t0);
+	nMotifs = t->nMotifs;
+	motifSize = t->motifSize;
+	responseSize = t->responseSize;
+	binary = t->binary;
+	
+	netInSize = responseSize + motifSize;
+	netOutSize = responseSize;
+	motifResponsePairs.reset(new float[nMotifs * (responseSize + motifSize)]);
+	for (int i = 0; i < (responseSize + motifSize) * nMotifs; i++) {
+		motifResponsePairs[i] = t->motifResponsePairs[i];
+	}
+	observations.resize(netInSize);
+
+	reset(true);
+}
+
+Trial* MemoryTrial::clone() {
+	MemoryTrial* t = new MemoryTrial(nMotifs, motifSize, responseSize, binary);
+	for (int i = 0; i < (responseSize + motifSize) * nMotifs; i++) {
+		t->motifResponsePairs[i] = motifResponsePairs[i];
+	}
+	t->reset(true);
 	return (Trial*)t;
 }
 

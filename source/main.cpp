@@ -36,20 +36,22 @@ int main()
 #ifdef CARTPOLE_T
         trials.emplace_back(new CartPoleTrial(true)); // Parameter corresponds to continuous control.
 #elif defined XOR_T
-        trials.emplace_back(new XorTrial(2,5));  
+        trials.emplace_back(new XorTrial(1,5));  
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
 #elif defined N_LINKS_PENDULUM_T
-        trials.emplace_back(new NLinksPendulumTrial(false, 1));
+        trials.emplace_back(new NLinksPendulumTrial(false, 2));
+#elif defined MEMORY_T
+        trials.emplace_back(new MemoryTrial(2, 4, 2, true));
 #endif
     }
 
     // In visual studio, hover your cursor on the parameters name to see their description ! They are initialized 
     // by default to safe values, the initilaization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = 0.0f;
+    params.selectionPressure = -0.0f;
     params.nichingNorm = 0.0f;
-    params.useSameTrialInit = false;
+    params.useSameTrialInit = true;
     params.normalizedScoreGradients = false;
     params.rankingFitness = true;
     params.saturationFactor = 0.05f;

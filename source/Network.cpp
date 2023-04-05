@@ -52,13 +52,12 @@ inputSize(inputSize), outputSize(outputSize)
 	for (int i = 0; i < nSimpleNeurons; i++) genome.emplace_back(new GenotypeNode());
 
 	int i = 0;
-
 	// 0: TanH simple neuron
 	genome[i]->nodeType = GenotypeNode::TANH;
 	genome[i]->inputSize = 1;
 	genome[i]->outputSize = 1;
 	genome[i]->depth = 0;
-	genome[i]->position = 0;
+	genome[i]->position = i;
 	genome[i]->closestNode = NULL;
 
 	i++;
@@ -67,12 +66,12 @@ inputSize(inputSize), outputSize(outputSize)
 	genome[i]->inputSize = 1;
 	genome[i]->outputSize = 1;
 	genome[i]->depth = 0;
-	genome[i]->position = 1;
+	genome[i]->position = i;
 	genome[i]->closestNode = NULL;
-	
-	// 1: ReLu, or cos, or whatever could make sense with hebbian rules. (cos probably does not =\ )
 
-	
+
+
+	// Top node
 	topNodeG = std::make_unique<GenotypeNode>();
 
 	topNodeG->nodeType = GenotypeNode::COMPLEX;
@@ -80,7 +79,7 @@ inputSize(inputSize), outputSize(outputSize)
 	topNodeG->outputSize = outputSize;
 	topNodeG->sumChildrenInputSizes = outputSize;
 	topNodeG->depth = 1;
-	topNodeG->position = -1;
+	topNodeG->position = (int)genome.size();
 	topNodeG->closestNode = NULL;
 	topNodeG->mutationalDistance = 0;
 	topNodeG->children.resize(0);
@@ -242,7 +241,7 @@ void Network::mutate() {
 	// or at worst equal, to introduce some kind of spontaneous regularization.
 
 	constexpr float createConnexionProbability = .01f;
-	constexpr float deleteConnexionProbability = .001f;
+	constexpr float deleteConnexionProbability = .002f;
 
 	constexpr float incrementInputSizeProbability = .003f;
 	constexpr float decrementInputSizeProbability = .002f;
@@ -251,13 +250,13 @@ void Network::mutate() {
 	constexpr float decrementOutputSizeProbability = .002f;
 
 	constexpr float addChildProbability = .01f;
-	constexpr float removeChildProbability = .001f;
+	constexpr float removeChildProbability = .002f;
 
 	constexpr float childReplacementProbability = .05f;
 
 	constexpr float nodeBoxingProbability = .005f;
-	
-	constexpr float nodeDuplicationProbability = .03f;
+
+	constexpr float nodeDuplicationProbability = .01f;
 
 	float r;
 
@@ -268,13 +267,22 @@ void Network::mutate() {
 	}
 #endif
 
-	/*std::vector<int> nParameters
-	for (int i = nSimpleNeurons; i < genome.size() + 1; i++) {
-		int totalNParameters = 0;
-		for (int j = 0; j < n->children.size(); j++) {
-			totalNParameters += 
-		}
-	}*/
+
+	/*
+	* 
+	Each kind of mutations has the critical responsability of making sure that, once it is done, the following 
+	rules are verified: 
+
+	- The topNode and every node in the genome have up-to-date ->depth.
+	- The topNode and every node in the genome have up-to-date ->position.
+	- The topNode and every node in the genome have up-to-date ->phenotypicMultiplicity.
+	- The genome is sorted by ascending depths.
+	
+	So that were the different types of mutations to be rearranged, deleted, or if other were added, the function 
+	would still work properly. Mutations are computationnaly insignificant when compared to inferences.
+	
+	*/
+
 
 	// Floating point mutations.
 	{
@@ -286,7 +294,7 @@ void Network::mutate() {
 		}
 		topNodeG->mutateFloats();
 	}
-	
+
 
 	// Add or remove connection.
 	{
@@ -307,92 +315,151 @@ void Network::mutate() {
 	{
 		for (int i = nSimpleNeurons; i < genome.size(); i++) {
 			r = UNIFORM_01;
-			if (r < incrementInputSizeProbability) {
-				bool success = genome[i]->incrementInputSize();
-				if (success) {
-					for (int j = 0; j < genome.size(); j++) {
-						genome[j]->onChildInputSizeIncremented(genome[i].get());
-					}
-					topNodeG->onChildInputSizeIncremented(genome[i].get());
-				}
-			}
+if (r < incrementInputSizeProbability) {
+	bool success = genome[i]->incrementInputSize();
+	if (success) {
+		for (int j = 0; j < genome.size(); j++) {
+			genome[j]->onChildInputSizeIncremented(genome[i].get());
+		}
+		topNodeG->onChildInputSizeIncremented(genome[i].get());
+	}
+}
 
-			r = UNIFORM_01;
-			if (r < incrementOutputSizeProbability) {
-				bool success = genome[i]->incrementOutputSize();
-				if (success) {
-					for (int j = 0; j < genome.size(); j++) {
-						genome[j]->onChildOutputSizeIncremented(genome[i].get());
-					}
-					topNodeG->onChildOutputSizeIncremented(genome[i].get());
-				}
-			}
+r = UNIFORM_01;
+if (r < incrementOutputSizeProbability) {
+	bool success = genome[i]->incrementOutputSize();
+	if (success) {
+		for (int j = 0; j < genome.size(); j++) {
+			genome[j]->onChildOutputSizeIncremented(genome[i].get());
+		}
+		topNodeG->onChildOutputSizeIncremented(genome[i].get());
+	}
+}
 
-			int rID;
-			r = UNIFORM_01;
-			if (r < decrementInputSizeProbability) {
-				rID = INT_0X(genome[i]->inputSize);
-				bool success = genome[i]->decrementInputSize(rID);
-				if (success) {
-					for (int j = 0; j < genome.size(); j++) {
-						genome[j]->onChildInputSizeDecremented(genome[i].get(), rID);
-					}
-					topNodeG->onChildInputSizeDecremented(genome[i].get(), rID);
-				}
-			}
+int rID;
+r = UNIFORM_01;
+if (r < decrementInputSizeProbability) {
+	rID = INT_0X(genome[i]->inputSize);
+	bool success = genome[i]->decrementInputSize(rID);
+	if (success) {
+		for (int j = 0; j < genome.size(); j++) {
+			genome[j]->onChildInputSizeDecremented(genome[i].get(), rID);
+		}
+		topNodeG->onChildInputSizeDecremented(genome[i].get(), rID);
+	}
+}
 
-			r = UNIFORM_01;
-			if (r < decrementOutputSizeProbability) {
-				rID = INT_0X(genome[i]->outputSize);
-				bool success = genome[i]->decrementOutputSize(rID);
-				if (success) {
-					for (int j = 0; j < genome.size(); j++) {
-						genome[j]->onChildOutputSizeDecremented(genome[i].get(), rID);
-					}
-					topNodeG->onChildOutputSizeDecremented(genome[i].get(), rID);
-				}
-			}
+r = UNIFORM_01;
+if (r < decrementOutputSizeProbability) {
+	rID = INT_0X(genome[i]->outputSize);
+	bool success = genome[i]->decrementOutputSize(rID);
+	if (success) {
+		for (int j = 0; j < genome.size(); j++) {
+			genome[j]->onChildOutputSizeDecremented(genome[i].get(), rID);
+		}
+		topNodeG->onChildOutputSizeDecremented(genome[i].get(), rID);
+	}
+}
 		}
 	}
 
 
-	// The following order must be respected in the function !   LEGACY ? TODO check.   
-	// adding a child --> replacing a child --> removing a child --> duplicating a child --> removing unused nodes
-	
-	
-	// Adding a child node. TODO modify active alternative to lower probability as depth increases.
-	{
-		for (int i = nSimpleNeurons; i < genome.size(); i++) {
-			if (UNIFORM_01 < addChildProbability && genome[i]->children.size() < MAX_CHILDREN_PER_BLOCK) {
 
-				//////
-				//Alternative. 
-				//Either this, which requires the genome to be sorted by ascending depths:
-				
-				int childID = i;
-				while (childID < genome.size() && genome[childID]->depth <= genome[i]->depth) childID++;
-				childID = INT_0X(childID-1);
-				if (childID >= i) childID++;
+	// Adding a child node. 
+	if (UNIFORM_01 < addChildProbability) {
+		// The fewer children a node already has, and higher its depth, the more likely it is to gain one.
+		// "higher its depth" and not "deeper", as nodes closer to the top node are more likely to gain children.
+		// (for parallelization bias)
 
-				// Or this: 
-				/*int childID = INT_0X(genome.size());
-				if (hasChild(genome[childID].get(), genome[i].get())) continue;*/ // make sure we do not create a loop:
-				///////
+		GenotypeNode* parent = nullptr;
+		bool aborted = false;
 
-				genome[i]->addChild(genome[childID].get());
-				updateDepths();
-				sortGenome();
+		// Look for a node in which to insert a child
+		{
+			std::vector<float> probabilities(genome.size() + 1);
+			float sum = 0.0f;
+			for (int i = nSimpleNeurons; i < genome.size() + 1; i++) {
+				GenotypeNode* n = i != genome.size() ? genome[i].get() : topNodeG.get();
+				if (n->phenotypicMultiplicity != 0 && n->children.size() < MAX_CHILDREN_PER_BLOCK) {
+
+					// twice more likely when no children that when full
+					float baseProbability = (float)(2 * MAX_CHILDREN_PER_BLOCK - n->children.size());
+
+					// the shallower, the least likely it is to gain children.
+					float depthFactor = powf(.9f, (float)(topNodeG->depth - n->depth));
+
+					probabilities[i] = baseProbability * depthFactor;
+					sum += probabilities[i];
+				}
+				else {
+					probabilities[i] = 0.0f;
+				}
 			}
+			if (sum != 0.0f)
+			{
+				probabilities[0] = probabilities[0] / sum;
+				for (int i = 1; i < genome.size(); i++) {
+					probabilities[i] = probabilities[i - 1] + probabilities[i] / sum;
+				}
+				float r = UNIFORM_01;
+				int parentID = binarySearch(probabilities, r);
+				parent = parentID != genome.size() ? genome[parentID].get() : topNodeG.get();
+			}
+			else { aborted = true; }
 		}
-		r = UNIFORM_01;
-		if (r < addChildProbability && topNodeG->children.size() < MAX_CHILDREN_PER_BLOCK) {
-			int childID = INT_0X(genome.size());
-			topNodeG->addChild(genome[childID].get());
+
+		// Chooses a new child for the parent, among all nodes that dont have the parent as direct
+		// or indirect child, so as to avoid loops.
+		if (!aborted) {
+
+			std::vector<int> hasParentAsChild(genome.size()); // -1 if is potential child, 1 if is not, 0 if not known yet.
+			for (int i = 0; i < nSimpleNeurons; i++) {
+				hasParentAsChild[i] = -1;
+			}
+			for (int i = nSimpleNeurons; i < genome.size(); i++) {
+				hasParentAsChild[i] = -1;
+				for (int j = 0; j < genome[i]->children.size(); j++) {
+					if (genome[i]->children[j] == parent) {
+						hasParentAsChild[i] = 1;
+						break;
+					}
+					if (hasParentAsChild[genome[i]->children[j]->position]==1) {
+						hasParentAsChild[i] = 1;
+						break;
+					}
+				}
+			}
+			if (parent->position != genome.size()) { hasParentAsChild[parent->position] = 1; }
+
+			int nPotentialChildren = 0;
+			for (int i = 0; i < genome.size(); i++) {
+				if (hasParentAsChild[i] == -1) {
+					nPotentialChildren++;
+				}
+			}
+
+			GenotypeNode* child = nullptr;
+			int childID = INT_0X(nPotentialChildren);
+			int id = -1;
+			for (int i = 0; i < genome.size(); i++) {
+				if (hasParentAsChild[i] == -1) {
+					id++;
+					if (id == childID) {
+						child = genome[i].get();
+						break;
+					}
+				}
+			}
+
+			parent->addChild(child);
+			child->phenotypicMultiplicity += parent->phenotypicMultiplicity;
+			updateDepths();
+			sortGenome();
 		}
 	}
 
 
-	// Child replacement
+	// Replaces a child node.
 	if (UNIFORM_01 < childReplacementProbability) {
 
 		GenotypeNode* replacedNode = nullptr;
@@ -495,31 +562,76 @@ void Network::mutate() {
 	}
 
 
-	// Removing a node. 
-	{
-		for (int i = nSimpleNeurons; i < genome.size(); i++) { // proceeding by ascending depth changes removal probabilities.
-			r = UNIFORM_01;
-			if (r < removeChildProbability && genome[i]->children.size() > 0) {
-				int rID = INT_0X(genome[i]->children.size());
-				genome[i]->removeChild(rID);
+	// Removes a child node. 
+	if (UNIFORM_01 < removeChildProbability) {
+		GenotypeNode* removedNode = nullptr;
+		GenotypeNode* parent = nullptr;
+		int inParentID;
+		bool aborted = false;
 
-				updateDepths();
-				sortGenome();
+		// Establish which node is to be removed.
+		{
+			std::vector<int> nDifferentUses(genome.size());
+			for (int i = nSimpleNeurons; i < genome.size() + 1; i++) {
+				GenotypeNode* n = i != genome.size() ? genome[i].get() : topNodeG.get();
+				for (int j = 0; j < n->children.size(); j++) {
+					nDifferentUses[n->children[j]->position]++;
+				}
 			}
+			std::vector<float> probabilities(genome.size());
+			float sum = 0.0f;
+			for (int i = nSimpleNeurons; i < genome.size(); i++) {
+				probabilities[i] = (float)nDifferentUses[i]; // *powf(X, (float)genome[i]->depth);
+				sum += probabilities[i];
+			}
+			if (sum != 0.0f)
+			{
+				probabilities[0] = probabilities[0] / sum;
+				for (int i = 1; i < genome.size(); i++) {
+					probabilities[i] = probabilities[i - 1] + probabilities[i] / sum;
+				}
+				float r = UNIFORM_01;
+				int replacedNodeID = binarySearch(probabilities, r);
+				removedNode = genome[replacedNodeID].get();
+
+				int replacedApparition = INT_0X(nDifferentUses[replacedNodeID]);
+				int currentApparition = -1;
+				for (int i = nSimpleNeurons; i < genome.size() + 1; i++) {
+					GenotypeNode* n = i != genome.size() ? genome[i].get() : topNodeG.get();
+					if (replacedApparition == currentApparition) {
+						break;
+					}
+					for (int j = 0; j < n->children.size(); j++) {
+						if (n->children[j] == removedNode) {
+							currentApparition++;
+							if (currentApparition == replacedApparition) {
+								parent = n;
+								inParentID = j;
+								break;
+							}
+						}
+					}
+				}
+			}
+			else { aborted = true; }
 		}
-		if (UNIFORM_01 < removeChildProbability && topNodeG->children.size() > 0) {
-			int rID = INT_0X(topNodeG->children.size());
-			topNodeG->removeChild(rID);
+
+		// Removal.
+		if (!aborted) {
+			parent->removeChild(inParentID);
+
 			updateDepths();
+			sortGenome();
 		}
 	}
 	
 
-
-	// Duplicate a node : chooses a node in the genotype, clones it, and replaces it with the clone in one 
-	// of the nodes that has it as a child. The shallower and the more common the node, the more likely it is
-	// to be selected.
+	// Duplicate a child node.
 	if (UNIFORM_01 < nodeDuplicationProbability){
+		// Chooses a node in the genotype, clones it, and replaces it with the clone in one of the nodes
+		// that has it as a child. The shallower and the more common the node, the more likely it is
+		// to be selected.
+
 		GenotypeNode* clonedNode = nullptr;
 		GenotypeNode* parent = nullptr;
 		int inParentID;
@@ -573,6 +685,7 @@ void Network::mutate() {
 		}
 
 		// Create the clone, and replace the original node with it at the chosen spot.
+		// No need to sort the genome nor update depths.
 		if (!aborted) {
 			GenotypeNode* n = new GenotypeNode();
 			
@@ -589,16 +702,18 @@ void Network::mutate() {
 			for (int j = 0; j < genome.size(); j++) {
 				genome[j]->position = j;
 			}
+			topNodeG->position = (int)genome.size();
 		}
 
-		// No need to sort the genome nor update depths.
 	}
 
 
-	// Node Boxing : chooses a node in the genotype, creates a node that boxes it, and replaces the original node 
-	// with the box in one of the nodes that has it as a child. The shallower and the more common the node,
-	// the more likely it is to be selected.
+	// Boxes a child node.
 	if (UNIFORM_01 < nodeBoxingProbability) {
+		// Chooses a node in the genotype, creates a node that boxes it, and replaces the original node
+		// with the box in one of the nodes that has it as a child. The shallower and the more common the node,
+		// the more likely it is to be selected.
+
 		GenotypeNode* boxedNode = nullptr;
 		GenotypeNode* parent = nullptr;
 		int inParentID;
@@ -633,9 +748,6 @@ void Network::mutate() {
 				int currentApparition = -1;
 				for (int i = nSimpleNeurons; i < genome.size()+1; i++) {
 					GenotypeNode* n = i != genome.size() ? genome[i].get() : topNodeG.get();
-					if (replacedApparition == currentApparition) {
-						break;
-					}
 					for (int j = 0; j < n->children.size(); j++) {
 						if (n->children[j] == boxedNode) {
 							currentApparition++;
@@ -693,13 +805,14 @@ void Network::mutate() {
 	
 	
 
+
 	// THE FOLLOWING CALL ORDER MUST BE RESPECTED: 
 	//  removeUnusedNodes -> computePhenotypicMultiplicities -> Update mutational distances
 	
 
-	// Removing unused nodes. Find a better solution. TODO 
+	// Removing unused nodes. Find a better solution, TODO 
 	if (UNIFORM_01 < .03f) {
-		removeUnusedNodes(); // already computes phenotypic multiplicities by itself.
+		removeUnusedNodes(); // already computes phenotypic multiplicities for itself.
 	}
 
 	computePhenotypicMultiplicities();
@@ -757,6 +870,7 @@ void Network::sortGenome() {
 	for (int i = 0; i < genome.size(); i++) {
 		genome[i]->position = i;
 	}
+	topNodeG->position = (int)genome.size();
 	return;
 }
 
@@ -841,10 +955,10 @@ float Network::getSaturationPenalization()
 
 	float p2 = 0.0f;
 	float invNInferencesN = 1.0f / nInferencesN;
-	for (int i = inputSize + outputSize; i < phenotypeSaturationArraySize; i++) {
+	for (int i = inputSize; i < phenotypeSaturationArraySize; i++) {
 		p2 += powf(averageActivation[i] * invNInferencesN, 6.0f);
 	}
-	p2 /= (float) (phenotypeSaturationArraySize - inputSize - outputSize);
+	p2 /= (float) (phenotypeSaturationArraySize - inputSize);
 	
 
 
