@@ -50,13 +50,8 @@ Population::Population(int IN_SIZE, int OUT_SIZE, int nSpecimens) :
 		networks[i] = new Network(IN_SIZE, OUT_SIZE);
 	}
 	
-	regularizationFactor = .1f;
-	selectionPressure = .0f;
-	nichingNorm = 1.0f;
-	useSameTrialInit = false;
-	normalizedScoreGradients = false;
-	saturationFactor = 0.0f;
-	targetNSpecimens = 0;
+	PopulationEvolutionParameters defaultParams;
+	setEvolutionParameters(defaultParams);
 
 	fittestSpecimen = 0;
 	evolutionStep = 0;

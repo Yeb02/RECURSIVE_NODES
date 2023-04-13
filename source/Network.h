@@ -5,8 +5,8 @@
 #include <cmath>
 
 #include "Random.h"
-#include "Phenotype.h"
-#include "Genotype.h"
+#include "ComplexNode_P.h"
+#include "ComplexNode_G.h"
 
 //#include <boost/archive/text_iarchive.hpp>
 
@@ -16,7 +16,6 @@ class Network {
 public:
 	Network(int inputSize, int outputSize);
 
-	// Does NOT create the phenotype tree ! No "topNodeP = new PhenotypeNode(&genome[genome.size()-1]);"
 	Network(Network* n);
 	~Network() {};
 
@@ -30,6 +29,17 @@ public:
 	
 	void createPhenotype();
 	void destroyPhenotype();
+
+	// To be called before running inferences if the memory nodes have changed/have just been created.
+	void computeMemoryUtils() {
+		for (int i = 0; i < memoryGenome.size(); i++) {
+			memoryGenome[i]->precomputeUtils();
+		}
+	}
+#ifdef GUIDED_MUTATIONS
+	// Sets at 0 the accumulators of both internal connexions for complex nodes and key+query for memory nodes.
+	void zeroAccumulators();
+#endif
 
 	// Sets to 0 the dynamic elements of the phenotype. 
 	void preTrialReset();
@@ -48,15 +58,27 @@ public:
 	int inputSize, outputSize;
 
 private:
-	int nSimpleNeurons;
-	std::unique_ptr<GenotypeNode> topNodeG;
-	std::vector<std::unique_ptr<GenotypeNode>> genome;
-	std::unique_ptr<PhenotypeNode> topNodeP;
+	std::unique_ptr<ComplexNode_G> topNodeG;
 
-	// Arrays for plasticity based updates. Contain ALL values from the phenotype.
-	// Must be : reset to all 0s at the start of each trial;
-	// created alongside PhenotypeNode creation; freed alongside PhenotypeNode deletion.
-	std::unique_ptr<float[]> previousOutputs, currentOutputs, previousInputs, currentInputs;
+	std::vector<std::unique_ptr<ComplexNode_G>> complexGenome;
+	std::vector<std::unique_ptr<SimpleNode_G>> simpleGenome;
+	std::vector<std::unique_ptr<MemoryNode_G>> memoryGenome;
+
+	std::unique_ptr<ComplexNode_P> topNodeP;
+
+
+
+	// Arrays for plasticity based updates. Contain all presynaptic and postSynaptic activities.
+	// Must be : - reset to all 0s at the start of each trial;
+	//			 - created alongside ComplexNode_P creation; 
+	//           - freed alongside ComplexNode_P deletion.
+
+	std::unique_ptr<float[]> previousPostSynActs;
+	std::unique_ptr<float[]> currentPostSynActs;
+	std::unique_ptr<float[]> preSynActs;
+
+	int activationArraySize;
+
 
 #ifdef SATURATION_PENALIZING
 	// Sum over all the phenotype's activations, over the lifetime, of activation^10.
@@ -74,8 +96,6 @@ private:
 	int phenotypeSaturationArraySize;
 #endif
 
-	int phenotypeInArraySize, phenotypeOutArraySize;
-
 	// Sets phenotypicMultiplicity for each node of the genome, and the topNode. Must be called after each
 	// structural modification of the genotype, i.e. after Network creation or mutations. Not necessary at copy 
 	// construction. The genomes does not need to be sorted nor the depths up to date.
@@ -86,7 +106,7 @@ private:
 	void removeUnusedNodes();
 
 	// Requires depths to be up to date
-	bool hasChild(GenotypeNode* parent, GenotypeNode* potentialChild);
+	bool hasChild(ComplexNode_G* parent, ComplexNode_G* potentialChild);
 
 	// Update the depths of the genome and the top node. Requires every node to have a valid position !
 	// i.e. in [0, genome.size() - 1], and no two nodes share the same.

@@ -54,7 +54,7 @@ what is to be "remembered" was not learned during the lifetime, but a genetic tr
 class XorTrial : public Trial {
 
 public:
-	// Required network sizes: input = vectorSize, output = vectorSize.
+	// Required network sizes: INPUT_NODE = vectorSize, output = vectorSize.
 	XorTrial(int vectorSize, int delay);
 	void step(const float* actions) override;
 	void reset(bool sameSeed = false) override;
@@ -124,8 +124,7 @@ private:
 
 // Observation are: [cartX, cosTheta1 ,sinTheta1, cosTheta2, ... sinThetaNLinks)], where cosines and sines  
 // are with respect to the global axis. The zero radians is the trigonometric standard, horizontal right.
-// The network is not fed the speed of the arms. It model will have to infer it by itself. For this purpose,
-// the "DERIVATOR" simple neuron was added. 
+// The network is not fed the speed of the arms. It model will have to infer it by itself. 
 class NLinksPendulumTrial : public Trial {
 
 public:

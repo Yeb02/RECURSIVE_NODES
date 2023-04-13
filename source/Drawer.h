@@ -37,8 +37,12 @@ public:
         };
         static sf::Text text;
 
-        static std::vector<float> Xs(MAX_CHILDREN_PER_BLOCK + 3);
-        static std::vector<float> Ys(MAX_CHILDREN_PER_BLOCK + 3);
+        static std::vector<float> Xs(
+            MAX_COMPLEX_CHILDREN_PER_COMPLEX + MAX_MEMORY_CHILDREN_PER_COMPLEX + MAX_SIMPLE_CHILDREN_PER_COMPLEX + 3
+        );
+        static std::vector<float> Ys(
+            MAX_COMPLEX_CHILDREN_PER_COMPLEX + MAX_MEMORY_CHILDREN_PER_COMPLEX + MAX_SIMPLE_CHILDREN_PER_COMPLEX + 3
+        );
 
         w.clear();
         sf::Event event;
@@ -55,7 +59,7 @@ public:
         text.setFont(font);
         text.setCharacterSize(15);
         text.setFillColor(sf::Color::White);
-        text.setString("NODE COLOR LEGEND:   Red = output   Green = input   Yellow = modulation    Blue = complex node    White = simple neuron");
+        text.setString("NODE COLOR LEGEND:   Red = output   Green = input   Yellow = modulation    Blue = complex    White = simple     Pink = memory");
         text.setPosition(10.0f, w.getSize().y - 30.0f);
         w.draw(text);
         text.setString("Generation " + std::to_string(step));
@@ -74,8 +78,8 @@ public:
 
 
         float x0 = offset/2.0f, y0 = offset/1.5f;
-        for (int i = (int)n->genome.size(); i >= n->nSimpleNeurons; i--) {
-            GenotypeNode* gNode = i == n->genome.size() ? n->topNodeG.get() : n->genome[i].get();
+        for (int i = (int)n->complexGenome.size(); i >= 0; i--) {
+            ComplexNode_G* gNode = i == n->complexGenome.size() ? n->topNodeG.get() : n->complexGenome[i].get();
             if (gNode->phenotypicMultiplicity == 0) {continue;}
             if (x0 + offset > w.getSize().x) {
                 x0 = offset; 
@@ -83,7 +87,7 @@ public:
             }
             
             text.setFillColor(sf::Color::White);
-            if (i == n->genome.size()) {
+            if (i == n->complexGenome.size()) {
                 text.setString("Top node, depth " + std::to_string(gNode->depth));
             }
             else {
@@ -96,64 +100,125 @@ public:
             w.draw(text);
             text.setFillColor(sf::Color::Black);
 
-
-            float factor = 6.28f / ((float)gNode->children.size() + 3.0f);
-            for (int j = 0; j < gNode->children.size() + 3; j++) {
+            int _nNodes = gNode->complexChildren.size() + gNode->memoryChildren.size() + gNode->simpleChildren.size() + 3;
+            float factor = 6.28f / (float) _nNodes;
+            for (int j = 0; j < _nNodes; j++) {
                 Xs[j] = x0 + wheelRadius * cosf(factor * (float)j);
                 Ys[j] = y0 + wheelRadius * sinf(factor * (float)j);
             }
 
-            int oID, dID;
-            for (int j = 0; j < gNode->childrenConnexions.size(); j++) {
-                oID = gNode->childrenConnexions[j].originID;
-                if (oID == INPUT_ID) oID = (int)gNode->children.size() + 1;
-                else if (oID == MODULATION_ID) oID = (int)gNode->children.size() + 2;
-                
-                dID = gNode->childrenConnexions[j].destinationID;
-                dID = dID == MODULATION_ID ? (int)gNode->children.size() + 2 : dID;
+            // Indices in X and Y of the origin and destination nodes
+            int _oID, _dID;
+            NODE_TYPE oType, dType;
+            for (int j = 0; j < gNode->internalConnexions.size(); j++) {
+                oType = gNode->internalConnexions[j].originType;
+                switch (oType) {
+                case INPUT_NODE:
+                    _oID = 0;
+                    break;
+                case OUTPUT:
+                    _oID = 1;
+                    break;
+                case MODULATION:
+                    _oID = 2;
+                    break;
+                case SIMPLE:
+                    _oID = 3 + gNode->internalConnexions[j].originID;
+                    break;
+                case COMPLEX:
+                    _oID = 3 + gNode->simpleChildren.size() + gNode->internalConnexions[j].originID;
+                    break;
+                case MEMORY:
+                    _oID = 3 + gNode->simpleChildren.size() + gNode->complexChildren.size() + gNode->internalConnexions[j].originID;
+                    break;
+                }
 
-                if (oID != dID) {
-                    line[0].position.x = Xs[oID] + nodeRadius; // + node radius to be at the node's center.
-                    line[0].position.y = Ys[oID] + nodeRadius;
-                    line[1].position.x = Xs[dID] + nodeRadius;
-                    line[1].position.y = Ys[dID] + nodeRadius;
+                dType = gNode->internalConnexions[j].destinationType;
+                switch (dType) {
+                case INPUT_NODE:
+                    _dID = 0;
+                    break;
+                case OUTPUT:
+                    _dID = 1;
+                    break;
+                case MODULATION:
+                    _dID = 2;
+                    break;
+                case SIMPLE:
+                    _dID = 3 + gNode->internalConnexions[j].destinationID;
+                    break;
+                case COMPLEX:
+                    _dID = 3 + gNode->simpleChildren.size() + gNode->internalConnexions[j].destinationID;
+                    break;
+                case MEMORY:
+                    _dID = 3 + gNode->simpleChildren.size() + gNode->complexChildren.size() + gNode->internalConnexions[j].destinationID;
+                    break;
+                }
+
+                if (_oID != _dID) {
+                    line[0].position.x = Xs[_oID] + nodeRadius; // + node radius to be at the node's center.
+                    line[0].position.y = Ys[_oID] + nodeRadius;
+                    line[1].position.x = Xs[_dID] + nodeRadius;
+                    line[1].position.y = Ys[_dID] + nodeRadius;
 
                     w.draw(line, 2, sf::Lines);
                 }
                 else {
-                    float x = Xs[oID] + nodeRadius * (Xs[oID] - x0) / wheelRadius;
-                    float y = Ys[oID] + nodeRadius * (Ys[oID] - y0) / wheelRadius;
+                    float x = Xs[_oID] + nodeRadius * (Xs[_oID] - x0) / wheelRadius;
+                    float y = Ys[_oID] + nodeRadius * (Ys[_oID] - y0) / wheelRadius;
                     selfConnexion.setPosition(x,y);
                     w.draw(selfConnexion);
                 }
             }
 
-            for (int j = 0; j < gNode->children.size(); j++) {
-                node.setPosition(Xs[j], Ys[j]);
-                if (gNode->children[j]->nodeType != GenotypeNode::COMPLEX) {
-                    node.setFillColor(sf::Color::White);
-                }
-                else {
-                    node.setFillColor(sf::Color::Cyan);
-                }
-                w.draw(node);
-
-                text.setString(std::to_string(gNode->children[j]->position));
-                text.setPosition(Xs[j] + nodeRadius / 4.0f, Ys[j] + nodeRadius / 4.0f);
-                w.draw(text);
-            }
 
             node.setFillColor(sf::Color::Red); //output
-            node.setPosition(Xs[gNode->children.size()], Ys[gNode->children.size()]);
+            node.setPosition(Xs[1], Ys[1]);
             w.draw(node);
 
             node.setFillColor(sf::Color::Green); //input
-            node.setPosition(Xs[gNode->children.size() + 1], Ys[gNode->children.size() + 1]);
+            node.setPosition(Xs[0], Ys[0]);
             w.draw(node);
 
             node.setFillColor(sf::Color::Yellow); //modulation
-            node.setPosition(Xs[gNode->children.size() + 2], Ys[gNode->children.size() + 2]);
+            node.setPosition(Xs[2], Ys[2]);
             w.draw(node);
+
+            node.setFillColor(sf::Color::White);
+            for (int j = 0; j < gNode->simpleChildren.size(); j++) {
+                int id = 3 + j;
+                node.setPosition(Xs[id], Ys[id]);
+    
+                w.draw(node);
+
+                text.setString(std::to_string(gNode->simpleChildren[j]->position));
+                text.setPosition(Xs[id] + nodeRadius / 4.0f, Ys[id] + nodeRadius / 4.0f);
+                w.draw(text);
+            }
+
+            node.setFillColor(sf::Color::Cyan);
+            for (int j = 0; j < gNode->complexChildren.size(); j++) {
+                int id = 3 + gNode->simpleChildren.size() + j;
+                node.setPosition(Xs[id], Ys[id]);
+
+                w.draw(node);
+
+                text.setString(std::to_string(gNode->complexChildren[j]->position));
+                text.setPosition(Xs[id] + nodeRadius / 4.0f, Ys[id] + nodeRadius / 4.0f);
+                w.draw(text);
+            }
+
+            node.setFillColor(sf::Color::Magenta);
+            for (int j = 0; j < gNode->memoryChildren.size(); j++) {
+                int id = 3 + gNode->simpleChildren.size() + gNode->complexChildren.size() + j;
+                node.setPosition(Xs[id], Ys[id]);
+
+                w.draw(node);
+
+                text.setString(std::to_string(gNode->memoryChildren[j]->position));
+                text.setPosition(Xs[id] + nodeRadius / 4.0f, Ys[id] + nodeRadius / 4.0f);
+                w.draw(text);
+            }
 
             x0 += offset*1.25f;
         }

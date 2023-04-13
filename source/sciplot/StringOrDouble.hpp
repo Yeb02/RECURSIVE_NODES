@@ -30,7 +30,7 @@
 
 namespace sciplot {
 
-/// An auxiliary type used to store a string value, while the input can also be a double.
+/// An auxiliary type used to store a string value, while the INPUT_NODE can also be a double.
 struct StringOrDouble
 {
     /// Construct a default StringOrDouble object.

@@ -33,10 +33,10 @@
     <ClCompile Include="source\Random.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\Genotype.cpp">
+    <ClCompile Include="source\ComplexNode_G.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\Phenotype.cpp">
+    <ClCompile Include="source\ComplexNode_P.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\Trial.cpp">
@@ -46,6 +46,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\Environment.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\MemoryNode_G.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\GenotypeConnexion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PhenotypeConnexion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="source\MemoryNode_P.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -62,10 +74,10 @@
     <ClInclude Include="source\Random.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\Genotype.h">
+    <ClInclude Include="source\ComplexNode_G.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\Phenotype.h">
+    <ClInclude Include="source\ComplexNode_P.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\sciplot\Canvas.hpp">
@@ -195,6 +207,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SimpleNode_G.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MemoryNode_G.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\GenotypeConnexion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PhenotypeConnexion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MemoryNode_P.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
