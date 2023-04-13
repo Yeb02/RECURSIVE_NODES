@@ -345,10 +345,6 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		}
 	}
 
-	if (!rankingFitness) {
-		normalizeArray(avgScorePerSpecimen.data(), nSpecimens);
-	}
-
 	computeFitnesses(avgScorePerSpecimen);
 
 	createOffsprings();

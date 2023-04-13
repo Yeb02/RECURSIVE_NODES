@@ -68,7 +68,7 @@ struct GenotypeConnexion {
 	// This means that on vector reallocation the move constructor is called. But if it is not specified, it does not 
 	// exist because there is a specified destructor. Therefore the constructor and the destructor are called
 	// instead, which causes unwanted freeing of memory.
-	// Moreover, if it is not marked noexcept std::vector will still use copy+destructor instead in some cases, WTF ????
+	// Moreover, if it is not marked noexcept std::vector will still use copy+destructor instead in some cases
 	// https://stackoverflow.com/questions/9249781/are-move-constructors-required-to-be-noexcept
 	GenotypeConnexion(GenotypeConnexion&& gc) noexcept;
 

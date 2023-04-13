@@ -146,17 +146,20 @@ struct ComplexNode_G {
 
 	bool hasChild(std::vector<int>& checked, ComplexNode_G* potentialChild);
 
+	// must be called when a child is deleted. Handles re-indicing. 
+	void updateConnexionsOnChildDeleted(NODE_TYPE childType, int childID);
+
 	// Mutate real-valued floating point parameters
 	void mutateFloats();
 
 	// Util that returns a randomly picked node that can serve as a connexion's origin. There is 
-	// a configurable bias towards linking to INPUT_NODE, and modulation. More generally, the probability of
+	// a configurable bias towards linking to input, and modulation. More generally, the probability of
 	// linking to a node is proportional to its output's size.
 	std::tuple<NODE_TYPE, int, int> pickRandomOriginNode();
 
 	// Util that returns a randomly picked node that can serve as a connexion's destination. There is 
 	// a configurable bias towards linking to output, and modulation. More generally, the probability of
-	// linking to a node is proportional to its INPUT_NODE's size.
+	// linking to a node is proportional to its input's size.
 	std::tuple<NODE_TYPE, int, int> pickRandomDestinationNode();
 
 	// Try to connect two random children nodes. Is less likely to succed as the connexion density rises.

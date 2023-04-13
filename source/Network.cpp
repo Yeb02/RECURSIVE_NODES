@@ -13,19 +13,19 @@ Network::Network(Network* n) {
 	// Simple genome
 	simpleGenome.resize(n->simpleGenome.size());
 	for (int i = 0; i < n->simpleGenome.size(); i++) {
-		simpleGenome[i] = std::make_unique<SimpleNode_G>(new SimpleNode_G(n->simpleGenome[i].get()));
+		simpleGenome[i] = std::make_unique<SimpleNode_G>(n->simpleGenome[i].get());
 	}
 
 	// Memory genome
 	memoryGenome.resize(n->memoryGenome.size());
 	for (int i = 0; i < n->memoryGenome.size(); i++) {
-		memoryGenome[i] = std::make_unique<MemoryNode_G>(new MemoryNode_G(n->memoryGenome[i].get()));
+		memoryGenome[i] = std::make_unique<MemoryNode_G>(n->memoryGenome[i].get());
 	}
 
 	// Complex genome
 	complexGenome.resize(n->complexGenome.size());
 	for (int i = 0; i < n->complexGenome.size(); i++) {
-		complexGenome[i] = std::make_unique<ComplexNode_G>(new ComplexNode_G(n->complexGenome[i].get()));
+		complexGenome[i] = std::make_unique<ComplexNode_G>(n->complexGenome[i].get());
 	}
 
 	for (int i = 0; i < n->complexGenome.size(); i++) {
@@ -41,7 +41,7 @@ Network::Network(Network* n) {
 			complexGenome[i]->simpleChildren[j] = simpleGenome[n->complexGenome[i]->simpleChildren[j]->position].get();
 		}
 		complexGenome[i]->memoryChildren.resize(n->complexGenome[i]->memoryChildren.size());
-		for (int j = 0; j < n->complexGenome[i]->complexChildren.size(); j++) {
+		for (int j = 0; j < n->complexGenome[i]->memoryChildren.size(); j++) {
 			complexGenome[i]->memoryChildren[j] = memoryGenome[n->complexGenome[i]->memoryChildren[j]->position].get();
 		}
 
@@ -685,7 +685,7 @@ void Network::mutate() {
 		// Memory
 		SET_BINOMIAL((int)complexGenome.size(), addMemoryChildProbability);
 		nMutations = BINOMIAL;
-		if (nMutations > 0) {
+		if (nMutations > 0 && memoryGenome.size() > 0) {
 			auto criterion = [](ComplexNode_G* n) {
 				float p = (float)n->phenotypicMultiplicity * (n->memoryChildren.size() < MAX_MEMORY_CHILDREN_PER_COMPLEX);
 
@@ -1007,7 +1007,7 @@ void Network::mutate() {
 
 				// pick a child:
 				int inParentID = INT_0X((int)parent->complexChildren.size());
-				parent->complexChildren.erase(parent->complexChildren.begin() + inParentID);
+				parent->removeComplexChild(inParentID);
 
 				updateDepths();
 				sortGenome();
@@ -1038,14 +1038,14 @@ void Network::mutate() {
 
 				// pick a child:
 				int inParentID = INT_0X((int)parent->simpleChildren.size());
-				parent->simpleChildren.erase(parent->simpleChildren.begin() + inParentID);
+				parent->removeSimpleChild(inParentID);
 			}
 
 		}
 
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size(), removeComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size(), removeMemoryChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -1066,7 +1066,7 @@ void Network::mutate() {
 
 				// pick a child:
 				int inParentID = INT_0X((int)parent->memoryChildren.size());
-				parent->memoryChildren.erase(parent->memoryChildren.begin() + inParentID);
+				parent->removeMemoryChild(inParentID);
 			}
 
 		}
@@ -1121,6 +1121,7 @@ void Network::mutate() {
 				}
 				topNodeG->position = (int)complexGenome.size();
 
+				probabilities.resize(complexGenome.size()+1);
 				// Not needed:
 				//updateDepths();
 				//sortGenome();
@@ -1193,7 +1194,7 @@ void Network::mutate() {
 	zeroAccumulators(); // a precaution. Accumulators should already be set at 0.
 #endif
 
-	computeMemoryUtils();
+	computeMemoryUtils(); // ready memory nodes for inference
 
 	// Phenotype is destroyed, as it may have become outdated. It will have to be recreated
 	// before next inference.

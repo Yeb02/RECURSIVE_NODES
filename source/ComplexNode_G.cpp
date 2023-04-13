@@ -277,21 +277,17 @@ void ComplexNode_G::addMemoryChild(MemoryNode_G* child) {
 
 void ComplexNode_G::removeComplexChild(int rID) {
 
-	// Erase connexions that lead to the removed child. Extremely slow algorithm, but does not matter here.
-	// Should instead copy connexions to keep, and redirect the vector there.
-	int initialSize = (int)internalConnexions.size();
-	int nRemovals = 0;
-	int i = 0;
-	while (i < initialSize - nRemovals) {
-		if ((internalConnexions[i].destinationType == COMPLEX && internalConnexions[i].destinationID == rID) ||
-			(internalConnexions[i].originType == COMPLEX      && internalConnexions[i].originID == rID))
+	// Erase connexions that lead to the removed child. 
+	std::vector<GenotypeConnexion> keptConnexions;
+	keptConnexions.reserve(internalConnexions.size());
+	for (int i = 0; i < internalConnexions.size(); i++){
+		if ((internalConnexions[i].destinationType != COMPLEX || internalConnexions[i].destinationID != rID) &&
+			(internalConnexions[i].originType != COMPLEX      || internalConnexions[i].originID != rID))
 		{
-			internalConnexions.erase(internalConnexions.begin() + i);
-			i--;
-			nRemovals++;
+			keptConnexions.emplace_back(internalConnexions[i]);
 		}
-		i++;
 	}
+	internalConnexions = std::move(keptConnexions);
 
 	// Update the IDs in the connexions that are kept
 	for (int i = 0; i < internalConnexions.size(); i++) {
@@ -316,21 +312,17 @@ void ComplexNode_G::removeComplexChild(int rID) {
 }
 void ComplexNode_G::removeSimpleChild(int rID) {
 
-	// Erase connexions that lead to the removed child. Extremely slow algorithm, but does not matter here.
-	// Should instead copy connexions to keep, and redirect the vector there.
-	int initialSize = (int)internalConnexions.size();
-	int nRemovals = 0;
-	int i = 0;
-	while (i < initialSize - nRemovals) {
-		if ((internalConnexions[i].destinationType == SIMPLE && internalConnexions[i].destinationID == rID) ||
-			(internalConnexions[i].originType == SIMPLE && internalConnexions[i].originID == rID))
+	// Erase connexions that lead to the removed child. 
+	std::vector<GenotypeConnexion> keptConnexions;
+	keptConnexions.reserve(internalConnexions.size());
+	for (int i = 0; i < internalConnexions.size(); i++) {
+		if ((internalConnexions[i].destinationType != SIMPLE || internalConnexions[i].destinationID != rID) &&
+			(internalConnexions[i].originType != SIMPLE || internalConnexions[i].originID != rID))
 		{
-			internalConnexions.erase(internalConnexions.begin() + i);
-			i--;
-			nRemovals++;
+			keptConnexions.emplace_back(internalConnexions[i]);
 		}
-		i++;
 	}
+	internalConnexions = std::move(keptConnexions);
 
 	// Update the IDs in the connexions that are kept
 	for (int i = 0; i < internalConnexions.size(); i++) {
@@ -351,21 +343,17 @@ void ComplexNode_G::removeSimpleChild(int rID) {
 }
 void ComplexNode_G::removeMemoryChild(int rID) {
 
-	// Erase connexions that lead to the removed child. Extremely slow algorithm, but does not matter here.
-	// Should instead copy connexions to keep, and redirect the vector there.
-	int initialSize = (int)internalConnexions.size();
-	int nRemovals = 0;
-	int i = 0;
-	while (i < initialSize - nRemovals) {
-		if ((internalConnexions[i].destinationType == MEMORY && internalConnexions[i].destinationID == rID) ||
-			(internalConnexions[i].originType == MEMORY && internalConnexions[i].originID == rID))
+	// Erase connexions that lead to the removed child. 
+	std::vector<GenotypeConnexion> keptConnexions;
+	keptConnexions.reserve(internalConnexions.size());
+	for (int i = 0; i < internalConnexions.size(); i++) {
+		if ((internalConnexions[i].destinationType != MEMORY || internalConnexions[i].destinationID != rID) &&
+			(internalConnexions[i].originType != MEMORY || internalConnexions[i].originID != rID))
 		{
-			internalConnexions.erase(internalConnexions.begin() + i);
-			i--;
-			nRemovals++;
+			keptConnexions.emplace_back(internalConnexions[i]);
 		}
-		i++;
 	}
+	internalConnexions = std::move(keptConnexions);
 
 	// Update the IDs in the connexions that are kept
 	for (int i = 0; i < internalConnexions.size(); i++) {
@@ -395,12 +383,13 @@ void ComplexNode_G::removeMemoryChild(int rID) {
 
 bool ComplexNode_G::incrementInputSize() {
 	if (inputSize >= MAX_COMPLEX_INPUT_NODE_SIZE) return false;
-	inputSize++;
+
 	for (int i = 0; i < internalConnexions.size(); i++) {
 		if (internalConnexions[i].originType == INPUT_NODE) {
 			internalConnexions[i].incrementOriginOutputSize();
 		}
 	}
+	inputSize++;
 	return true;
 }
 void ComplexNode_G::onChildInputSizeIncremented(int modifiedPosition, NODE_TYPE modifiedType) {
@@ -446,14 +435,19 @@ void ComplexNode_G::onChildInputSizeIncremented(int modifiedPosition, NODE_TYPE 
 }
 
 bool ComplexNode_G::incrementOutputSize() {
-	if (outputSize >= MAX_COMPLEX_OUTPUT_SIZE) return false;
-	outputSize++;
+	
+	if (outputSize >= MAX_COMPLEX_OUTPUT_SIZE)
+	{ 
+		return false;
+	}
+	
 	for (int i = 0; i < internalConnexions.size(); i++) {
 		if (internalConnexions[i].destinationType == OUTPUT) {
 			internalConnexions[i].incrementDestinationInputSize();
 		}
 	}
 	internalBias.insert(internalBias.begin() + outputSize, NORMAL_01*.2f);
+	outputSize++;
 	return true;
 }
 void ComplexNode_G::onChildOutputSizeIncremented(int modifiedPosition, NODE_TYPE modifiedType) {
@@ -474,14 +468,16 @@ void ComplexNode_G::onChildOutputSizeIncremented(int modifiedPosition, NODE_TYPE
 }
 
 bool ComplexNode_G::decrementInputSize(int id) {
-	if (inputSize <= 1) return false;
-	inputSize--;
+	if (inputSize <= 1) {
+		return false;
+	}
 
 	for (int i = 0; i < internalConnexions.size(); i++) {
 		if (internalConnexions[i].originType == INPUT_NODE) {
 			internalConnexions[i].decrementOriginOutputSize(id);
 		}
 	}
+	inputSize--;
 	return true;
 }
 void ComplexNode_G::onChildInputSizeDecremented(int modifiedPosition, NODE_TYPE modifiedType, int id) {
@@ -531,7 +527,6 @@ void ComplexNode_G::onChildInputSizeDecremented(int modifiedPosition, NODE_TYPE 
 
 bool ComplexNode_G::decrementOutputSize(int id) {
 	if (outputSize <= 1) return false;
-	outputSize--;
 
 	for (int i = 0; i < internalConnexions.size(); i++) {
 		if (internalConnexions[i].destinationID == OUTPUT) {
@@ -539,6 +534,7 @@ bool ComplexNode_G::decrementOutputSize(int id) {
 		}
 	}
 	internalBias.erase(internalBias.begin() + id);
+	outputSize--;
 	return true;
 }
 void ComplexNode_G::onChildOutputSizeDecremented(int modifiedPosition, NODE_TYPE modifiedType, int id) {

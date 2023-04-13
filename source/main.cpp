@@ -49,13 +49,13 @@ int main()
     // In visual studio, hover your cursor on the parameters name to see their description ! They are initialized 
     // by default to safe values, the initilaization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = -0.0f;
+    params.selectionPressure = -2.0f;
     params.nichingNorm = 0.0f;
     params.useSameTrialInit = true;
     params.normalizedScoreGradients = false;
     params.rankingFitness = true;
     params.saturationFactor = 0.05f;
-    params.regularizationFactor = 0.05f; // +2.0f * params.saturationFactor;
+    params.regularizationFactor = 0.0f; // .05f
     params.targetNSpecimens = 0;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
