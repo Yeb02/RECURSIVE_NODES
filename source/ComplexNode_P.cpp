@@ -65,21 +65,21 @@ void ComplexNode_P::updateWatTrialEnd(float invnInferencesP) {
 }
 #endif
 
-void ComplexNode_P::setArrayPointers(float* ppsa, float* cpsa, float* psa, float* aa) {
+void ComplexNode_P::setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa) {
 
-	previousPostSynAct = ppsa;
-	currentPostSynAct = cpsa;
-	preSynAct = psa;
+	previousPostSynAct = *ppsa;
+	currentPostSynAct = *cpsa;
+	preSynAct = *psa;
 #ifdef SATURATION_PENALIZING
-	averageActivation = aa;
+	averageActivation = *aa;
 #endif
 
 	int s = type->inputSize + type->outputSize + (int) type->simpleChildren.size();
-	ppsa += s;
-	cpsa += s;
-	psa += s;
+	*ppsa += s;
+	*cpsa += s;
+	*psa += s;
 #ifdef SATURATION_PENALIZING
-	aa += ...;
+	*aa += ...;
 #endif
 
 
@@ -241,7 +241,7 @@ void ComplexNode_P::forward() {
 			for (int i = 0; i < nl; i++) {
 				for (int j = 0; j < nc; j++) {
 					// += (H * alpha + w) * prevAct
-					*(destinationArray + i) += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * originArray[j];
+					destinationArray[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * originArray[j];
 					matID++;
 				}
 			}
@@ -250,7 +250,7 @@ void ComplexNode_P::forward() {
 	};
 
 	// For each node type, to be called after applying the activation function on the presynatic inputs, but before forward.
-	//  Since for simple neurons and modulation, these are merged, call this function after forward().
+	//  Since for simple neurons and modulation, these are merged,  this lambda is called after forward().
 	auto hebbianUpdate = [this, &previousLocalM](NODE_TYPE targetType, float* iArray) {
 		int nc, nl, destinationID, originID, matID;
 		for (int id = 0; id < internalConnexions.size(); id++) {
@@ -281,7 +281,7 @@ void ComplexNode_P::forward() {
 
 			switch (type->internalConnexions[id].originType) {
 			case INPUT_NODE:
-				jArray = currentPostSynAct + type->inputSize;
+				jArray = currentPostSynAct;
 				break;
 			case MODULATION:
 				if (targetType == MODULATION) {

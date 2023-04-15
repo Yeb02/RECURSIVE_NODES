@@ -20,12 +20,9 @@ MemoryNode_P::MemoryNode_P(MemoryNode_G* _type) :
 	}
 }
 
-void MemoryNode_P::memorize() {
-
-}
 
 void MemoryNode_P::forward() {
-
+	
 	// vars defined for readability:
 	float ksi1 = (localM[2] + 1.0f) * .5f;
 	float ksi2 = localM[3];
@@ -34,7 +31,7 @@ void MemoryNode_P::forward() {
 	float* postSynOutput = currentPostSynAct + type->inputSize;
 
 
-	int nl = type->kernelDimension;
+	int nl = type->outputSize;
 	int nc = type->inputSize;
 	int matID = 0;
 
@@ -42,14 +39,15 @@ void MemoryNode_P::forward() {
 	float* wLifetime = pLink.wLifetime.get();
 	float* alpha = type->link.alpha.get();
 	float* w = type->link.w.get();
-
+	
 	for (int i = 0; i < nl; i++) {
 		for (int j = 0; j < nc; j++) {
 			// += (H * alpha + w) * prevAct
-			*(preSynOutput + i) += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * currentPostSynAct[j];
+			preSynOutput[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * currentPostSynAct[j];
 			matID++;
 		}
 	}
+	return;
 	// apply tanh ??
 	float maxSigma = -1.0f;
 	if (nMemorizedVectors>0){
@@ -142,20 +140,20 @@ void MemoryNode_P::forward() {
 
 }
 
-void MemoryNode_P::setArrayPointers(float* ppsa, float* cpsa, float* psa, float* aa) {
-	previousPostSynAct = ppsa;
-	currentPostSynAct = cpsa;
-	preSynAct = psa;
+void MemoryNode_P::setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa) {
+	previousPostSynAct = *ppsa;
+	currentPostSynAct = *cpsa;
+	preSynAct = *psa;
 #ifdef SATURATION_PENALIZING
-	averageActivation = aa;
+	averageActivation = *aa;
 #endif
 
 	int s = type->inputSize + type->outputSize;
-	ppsa += s;
-	cpsa += s;
-	psa += s;
+	*ppsa += s;
+	*cpsa += s;
+	*psa += s;
 #ifdef SATURATION_PENALIZING
-	aa += ...;
+	*aa += ...;
 #endif
 }
 

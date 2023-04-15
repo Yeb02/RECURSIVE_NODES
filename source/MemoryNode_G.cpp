@@ -12,20 +12,21 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	kernelDimension = n->kernelDimension;
 	phenotypicMultiplicity = n->phenotypicMultiplicity;
 	K = n->K;
+	beta = n->beta;
 
 	link = n->link; // deep copy assignement
 
 	int s = outputSize * kernelDimension;
 	keyM = std::make_unique<float[]>(s);
-	std::copy(keyM.get(), keyM.get() + s, n->keyM.get());
+	std::copy(n->keyM.get(), n->keyM.get() + s, keyM.get());
 
 	s = inputSize * kernelDimension;
 	queryM = std::make_unique<float[]>(s);
-	std::copy(queryM.get(), queryM.get() + s, n->queryM.get());
+	std::copy(n->queryM.get(), n->queryM.get() + s, queryM.get());
 
 	s = outputSize * inputSize;
 	tQxK = std::make_unique<float[]>(s);
-	std::copy(tQxK.get(), tQxK.get() + s, n->tQxK.get());
+	std::copy(n->tQxK.get(), n->tQxK.get() + s, tQxK.get());
 
 #ifdef GUIDED_MUTATIONS
 	nAccumulations = n->nAccumulations;
@@ -71,6 +72,7 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 	closestNode = n.closestNode;
 	kernelDimension = n.kernelDimension;
 	K = n.K;
+	beta = n.beta;
 	phenotypicMultiplicity = n.phenotypicMultiplicity;
 	
 	link = std::move(n.link);
@@ -85,6 +87,9 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 
 void MemoryNode_G::compute_tQxK() {
 	// It would be better to store tK and tQ...
+	// Also more efficient to only reallocate tQxK when sizes change, but thats tedious and im lazy.
+	tQxK.release();
+	tQxK = std::make_unique<float[]>(inputSize * outputSize);
 	for (int i = 0; i < inputSize; i++) {
 		for (int j = 0; j < outputSize; j++) {
 			tQxK[i * outputSize + j] = 0.0f;
@@ -186,6 +191,7 @@ bool MemoryNode_G::decrementInputSize(int id){
 		for (int k = 0; k < inputSize; k++) {
 			if (k == id) {
 				idOld++;
+				continue;
 			}
 			newQueryM[idNew] = queryM[idOld];
 
@@ -213,6 +219,7 @@ bool MemoryNode_G::decrementOutputSize(int id){
 		for (int k = 0; k < outputSize; k++) {
 			if (k == id) {
 				idOld++;
+				continue;
 			}
 			newKeyM[idNew] = keyM[idOld];
 
@@ -247,7 +254,7 @@ bool MemoryNode_G::incrementKernelDimension() {
 			idOld++;
 		}
 	}
-	for (int j = 0; j < kernelDimension; j++) {
+	for (int j = 0; j < inputSize; j++) {
 		newQueryM[idNew] = NORMAL_01 * .2f;
 		idNew++;
 	}
@@ -267,7 +274,7 @@ bool MemoryNode_G::incrementKernelDimension() {
 			idOld++;
 		}
 	}
-	for (int j = 0; j < kernelDimension; j++) {
+	for (int j = 0; j < outputSize; j++) {
 		newKeyM[idNew] = NORMAL_01 * .2f;
 		idNew++;
 	}

@@ -57,13 +57,9 @@ struct MemoryNode_P {
 		__debugbreak();
 	}
 
-	// Add candidateMemory to memory, and transform it to add to transformedMemory. 
-	// Zero candidateMemory afterwards.
-	void memorize();
-
 	void forward();
 
-	void setArrayPointers(float* ppsa, float* cpsa, float* psa, float* aa);
+	void setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa);
 
 	void preTrialReset();
 };

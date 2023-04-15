@@ -142,18 +142,18 @@ std::tuple<NODE_TYPE, int, int> ComplexNode_G::pickRandomDestinationNode() {
 	}
 	else {
 		for (int i = 0; i < complexChildren.size(); i++) {
-			if ((destination_n -= complexChildren[i]->outputSize) < 0) {
+			if ((destination_n -= complexChildren[i]->inputSize) < 0) {
 				dType = COMPLEX;
-				dInSize = complexChildren[i]->outputSize;
+				dInSize = complexChildren[i]->inputSize;
 				dID = i;
 				break;
 			}
 		}
 		if (destination_n >= 0) {
 			for (int i = 0; i < memoryChildren.size(); i++) {
-				if ((destination_n -= memoryChildren[i]->outputSize) < 0) {
+				if ((destination_n -= memoryChildren[i]->inputSize) < 0) {
 					dType = MEMORY;
-					dInSize = memoryChildren[i]->outputSize;
+					dInSize = memoryChildren[i]->inputSize;
 					dID = i;
 					break;
 				}
@@ -392,7 +392,7 @@ bool ComplexNode_G::incrementInputSize() {
 	inputSize++;
 	return true;
 }
-void ComplexNode_G::onChildInputSizeIncremented(int modifiedPosition, NODE_TYPE modifiedType) {
+void ComplexNode_G::onChildInputSizeIncremented(int modifiedGenomePosition, NODE_TYPE modifiedType) {
 
 	// check if the modified node is among the children
 
@@ -402,20 +402,18 @@ void ComplexNode_G::onChildInputSizeIncremented(int modifiedPosition, NODE_TYPE 
 			int destinationPosition = modifiedType == COMPLEX ?
 				complexChildren[internalConnexions[i].destinationID]->position :
 				memoryChildren[internalConnexions[i].destinationID]->position;
-			if (destinationPosition == modifiedPosition) {
+			if (destinationPosition == modifiedGenomePosition) {
 				internalConnexions[i].incrementDestinationInputSize();
 			}
 		}
 	}
 
 	// insert a random bias where need be.
-	int nInsertions = 0;
 	int biasID = outputSize + (int)simpleChildren.size();
 	if (modifiedType == COMPLEX) {
 		for (int i = 0; i < complexChildren.size(); i++) {
-			if (modifiedType == COMPLEX && complexChildren[i]->position == modifiedPosition) {
-				internalBias.insert(internalBias.begin() + biasID + nInsertions, NORMAL_01 * .2f);
-				nInsertions++;
+			if (modifiedType == COMPLEX && complexChildren[i]->position == modifiedGenomePosition) {
+				internalBias.insert(internalBias.begin() + biasID, NORMAL_01 * .2f);
 			}
 			biasID += complexChildren[i]->inputSize;
 		}
@@ -425,9 +423,8 @@ void ComplexNode_G::onChildInputSizeIncremented(int modifiedPosition, NODE_TYPE 
 			biasID += complexChildren[i]->inputSize;
 		}
 		for (int i = 0; i < memoryChildren.size(); i++) {
-			if (memoryChildren[i]->position == modifiedPosition) {
-				internalBias.insert(internalBias.begin() + biasID + nInsertions, NORMAL_01 * .2f);
-				nInsertions++;
+			if (memoryChildren[i]->position == modifiedGenomePosition) {
+				internalBias.insert(internalBias.begin() + biasID, NORMAL_01 * .2f);
 			}
 			biasID += memoryChildren[i]->inputSize;
 		}
@@ -500,13 +497,11 @@ void ComplexNode_G::onChildInputSizeDecremented(int modifiedPosition, NODE_TYPE 
 	}
 
 	// insert a random bias where need be.
-	int nErasures = 0;
 	int biasID = outputSize + (int)simpleChildren.size();
 	if (modifiedType == COMPLEX) {
 		for (int i = 0; i < complexChildren.size(); i++) {
 			if (modifiedType == COMPLEX && complexChildren[i]->position == modifiedPosition) {
-				internalBias.erase(internalBias.begin() + biasID + id - nErasures);
-				nErasures++;
+				internalBias.erase(internalBias.begin() + biasID + id);
 			}
 			biasID += complexChildren[i]->inputSize;
 		}
@@ -517,8 +512,7 @@ void ComplexNode_G::onChildInputSizeDecremented(int modifiedPosition, NODE_TYPE 
 		}
 		for (int i = 0; i < memoryChildren.size(); i++) {
 			if (memoryChildren[i]->position == modifiedPosition) {
-				internalBias.erase(internalBias.begin() + biasID + id - nErasures);
-				nErasures++;
+				internalBias.erase(internalBias.begin() + biasID + id);
 			}
 			biasID += memoryChildren[i]->inputSize;
 		}

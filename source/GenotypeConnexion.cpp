@@ -298,7 +298,7 @@ void GenotypeConnexion::incrementDestinationInputSize() {
 	D.reset(new_D);
 	eta.reset(new_eta);
 	w.reset(new_w);
-	alpha.reset(new_A);
+	alpha.reset(new_alpha);
 #ifdef CONTINUOUS_LEARNING
 	gamma.reset(new_gamma);
 #endif
@@ -370,7 +370,7 @@ void GenotypeConnexion::incrementOriginOutputSize(){
 	D.reset(new_D);
 	eta.reset(new_eta);
 	w.reset(new_w);
-	alpha.reset(new_A);
+	alpha.reset(new_alpha);
 #ifdef CONTINUOUS_LEARNING
 	gamma.reset(new_gamma);
 #endif
@@ -431,7 +431,7 @@ void GenotypeConnexion::decrementDestinationInputSize(int id){
 	D.reset(new_D);
 	eta.reset(new_eta);
 	w.reset(new_w);
-	alpha.reset(new_A);
+	alpha.reset(new_alpha);
 #ifdef CONTINUOUS_LEARNING
 	gamma.reset(new_gamma);
 #endif
@@ -492,7 +492,7 @@ void GenotypeConnexion::decrementOriginOutputSize(int id){
 	D.reset(new_D);
 	eta.reset(new_eta);
 	w.reset(new_w);
-	alpha.reset(new_A);
+	alpha.reset(new_alpha);
 #ifdef CONTINUOUS_LEARNING
 	gamma.reset(new_gamma);
 #endif

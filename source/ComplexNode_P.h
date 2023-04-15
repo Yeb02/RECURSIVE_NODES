@@ -57,7 +57,7 @@ struct ComplexNode_P {
 #endif
 
 	// The last parameters is optional and only used when SATURATION_PENALIZING is defined.
-	void setArrayPointers(float* ppsa, float* cpsa, float* psa, float* aa = nullptr);
+	void setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa = nullptr);
 
 #ifdef SATURATION_PENALIZING
 	void setSaturationPenalizationPtr(float* saturationPenalizationPtr);

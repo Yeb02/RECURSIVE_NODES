@@ -251,15 +251,19 @@ void Network::createPhenotype() {
 		topNodeG->computeSaturationArraySize(genomeState);
 		phenotypeSaturationArraySize = genomeState[(int)complexGenome.size()];
 		averageActivation = std::make_unique<float[]>(phenotypeSaturationArraySize);
+		float* temp_averageActivation = averageActivation.get();
 #endif
 		
-
+		// The following values will be modified by each node of the phenotype as the pointers are set.
+		float* temp_previousPostSynActs = previousPostSynActs.get();
+		float* temp_currentPostSynActs = currentPostSynActs.get();
+		float* temp_preSynActs = preSynActs.get();
 		topNodeP->setArrayPointers(
-			previousPostSynActs.get(),
-			currentPostSynActs.get(),
-			preSynActs.get()
+			&temp_previousPostSynActs,
+			&temp_currentPostSynActs,
+			&temp_preSynActs
 #ifdef SATURATION_PENALIZING
-			, averageActivation.get()
+			, &temp_averageActivation
 #endif
 		);
 
@@ -287,16 +291,16 @@ void Network::step(const std::vector<float>& obs) {
 #ifdef SATURATION_PENALIZING
 	nInferencesN++;
 #endif
-	//std::copy(currentPostSynActs.get(), currentPostSynActs.get() + activationArraySize, previousPostSynActs.get());
+	
 	std::copy(obs.begin(), obs.end(), topNodeP->currentPostSynAct);
 	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
 		topNodeP->totalM[i] = 0.0f;
 	}
 	topNodeP->forward();
+	std::copy(currentPostSynActs.get(), currentPostSynActs.get() + activationArraySize, previousPostSynActs.get());
 }
 
 
-// TODO mutation rates should be functions of the network size. (Higher Prob when smaller Net)
 void Network::mutate() {
 
 	// The first constexpr value in each pair should be greater than the second, 
@@ -718,8 +722,6 @@ void Network::mutate() {
 
 				parent->addMemoryChild(child);
 				child->phenotypicMultiplicity += parent->phenotypicMultiplicity;
-				updateDepths();
-				sortGenome();
 
 			}
 		}
@@ -756,11 +758,32 @@ void Network::mutate() {
 				int inParentID = INT_0X((int)parent->complexChildren.size());
 				ComplexNode_G* toBeReplacedChild = parent->complexChildren[inParentID];
 
-				// determine candidates to replacement
+				// Determine candidates to replacement. A valid candidate is a node that:
+				//		- either has toBeReplacedChild as its closestNode or, which is toBeReplacedChild's closestNode.
+				//      - does not have toBeReplacedChild among its direct or indirect children
+
+				// isPotentialReplacement: 1 if the node at position i in the complex genome does not have toBeReplacedChild 
+				// among its direct or indirect children, -1 if it has, 0 if not known yet.
+				std::vector<int> isPotentialReplacement(complexGenome.size());
+				for (int i = 0; i < complexGenome.size(); i++) {
+					isPotentialReplacement[i] = 1;
+					for (int j = 0; j < complexGenome[i]->complexChildren.size(); j++) {
+						if (complexGenome[i]->complexChildren[j] == toBeReplacedChild) {
+							isPotentialReplacement[i] = -1;
+							break;
+						}
+						if (isPotentialReplacement[complexGenome[i]->complexChildren[j]->position] == -1) {
+							isPotentialReplacement[i] = -1;
+							break;
+						}
+					}
+				}
+					
 				float sumInvDistances = 0.0f;
 				std::vector<ComplexNode_G*> candidates;
 				std::vector<float> invDistances;
-				if (toBeReplacedChild->closestNode != NULL && !hasChild(toBeReplacedChild->closestNode, parent)) {
+				if (toBeReplacedChild->closestNode != NULL && 
+					isPotentialReplacement[toBeReplacedChild->closestNode->position] == 1) {
 
 					candidates.push_back(toBeReplacedChild->closestNode);
 					float invDistance = 1.0f / (10.0f + (float)toBeReplacedChild->mutationalDistance);
@@ -768,7 +791,8 @@ void Network::mutate() {
 					sumInvDistances += invDistance;
 				}
 				for (int j = 0; j < complexGenome.size(); j++) {
-					if (complexGenome[j]->closestNode == toBeReplacedChild && !hasChild(complexGenome[j].get(), parent)) {
+					if (complexGenome[j]->closestNode == toBeReplacedChild && 
+						isPotentialReplacement[j] == 1) {
 
 						candidates.push_back(complexGenome[j].get());
 						float invDistance = 1.0f / (10.0f + (float)complexGenome[j]->mutationalDistance);
@@ -875,7 +899,7 @@ void Network::mutate() {
 
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size(), replaceComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size(), replaceMemoryChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -1101,7 +1125,9 @@ void Network::mutate() {
 				float r = UNIFORM_01;
 				int parentID = binarySearch(probabilities, r);
 				parent = parentID != complexGenome.size() ? complexGenome[parentID].get() : topNodeG.get();
-
+				if (parent->complexChildren.size() == 0) {
+					break;
+				}
 				// pick a child
 				int inParentID = INT_0X((int)parent->complexChildren.size());
 				ComplexNode_G* clonedNode = parent->complexChildren[inParentID];
@@ -1149,7 +1175,9 @@ void Network::mutate() {
 				float r = UNIFORM_01;
 				int parentID = binarySearch(probabilities, r);
 				parent = parentID != complexGenome.size() ? complexGenome[parentID].get() : topNodeG.get();
-
+				if (parent->memoryChildren.size() == 0) {
+					break;
+				}
 				// pick a child
 				int inParentID = INT_0X((int)parent->memoryChildren.size());
 				MemoryNode_G* clonedNode = parent->memoryChildren[inParentID];
@@ -1175,7 +1203,7 @@ void Network::mutate() {
 
 	// Removing unused nodes. Find a better solution, TODO 
 	if (UNIFORM_01 < .03f) {
-		removeUnusedNodes(); // already computes phenotypic multiplicities for itself.
+		removeUnusedNodes(); 
 	}
 
 	// Update mutational distances.
@@ -1293,7 +1321,6 @@ void Network::removeUnusedNodes() {
 			}
 
 			// erase it from the genome list.
-			//complexGenome[i].reset(NULL); // next line does it already, i think.
 			complexGenome.erase(complexGenome.begin() + i);
 			for (int j = i; j < complexGenome.size(); j++) complexGenome[j]->position = j;
 
@@ -1314,9 +1341,8 @@ void Network::removeUnusedNodes() {
 			}
 
 			// erase it from the genome list.
-			//complexGenome[i].reset(NULL); // next line does it already, i think.
 			memoryGenome.erase(memoryGenome.begin() + i);
-			for (int j = i; j < memoryGenome.size(); j++) complexGenome[j]->position = j;
+			for (int j = i; j < memoryGenome.size(); j++) memoryGenome[j]->position = j;
 
 			continue;
 		}

@@ -60,9 +60,12 @@ struct MemoryNode_G {
 	// keyM or queryM ] and [forward()].
 	void precomputeUtils() {
 		compute_tQxK();
-		beta = 1.0f / sqrtf((float) (inputSize * outputSize * kernelDimension));
+		compute_beta();  
 	}
 
+	void compute_beta() {
+		beta = 1.0f / sqrtf((float)(inputSize * outputSize * kernelDimension));
+	}
 	void compute_tQxK();
 
 	void mutateFloats();

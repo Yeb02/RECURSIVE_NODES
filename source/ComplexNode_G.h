@@ -105,7 +105,7 @@ struct ComplexNode_G {
 		closestNode = NULL;
 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			modulationBias[i] = 0.0f;
+			modulationBias[i] = NORMAL_01 * .2f;
 		}
 
 		// The following initializations must be done outside.
