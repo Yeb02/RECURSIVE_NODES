@@ -12,13 +12,12 @@
 struct ComplexNode_P {
 	ComplexNode_G* type;
 
-	int nInferencesP; // store how many inferences this node has performed since last preTrialReset.
-	float localM[MODULATION_VECTOR_SIZE]; // computed in this node. Wasted space for simple neurons. TODO
-	float totalM[MODULATION_VECTOR_SIZE]; // parent's + local M.    Wasted space for simple neurons. TODO
+	float localM[MODULATION_VECTOR_SIZE]; // computed in this node. 
+	float totalM[MODULATION_VECTOR_SIZE]; // parent's + local M.    
 
 #ifdef SATURATION_PENALIZING
 	// A parent updates it for its children (in and out), not for itself.
-	float* saturationPenalizationPtr;		 //Wasted space for simple neurons. TODO
+	float* globalSaturationAccumulator;		 
 #endif
 	 
 
@@ -51,8 +50,10 @@ struct ComplexNode_P {
 #endif
 
 #ifdef GUIDED_MUTATIONS 
-	// Accumulates wLifetime of the phenotype connexion in the accumulate[] array of their 
-	// corresponding genotype connexion template, then zeros wLifetime. Weighted by "factor".
+	// Accumulates wLifetime of the phenotype connexion in the accumulate[] array of their corresponding
+	// genotype connexion template, then OPTIONNALY zeroes wLifetime. Weighted by "factor", a decreasing 
+	// function of the number of inferences. If CONTINUOUS_LEARNING is not defined
+	// 
 	void accumulateW(float factor);
 #endif
 
@@ -60,6 +61,6 @@ struct ComplexNode_P {
 	void setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa = nullptr);
 
 #ifdef SATURATION_PENALIZING
-	void setSaturationPenalizationPtr(float* saturationPenalizationPtr);
+	void setglobalSaturationAccumulator(float* globalSaturationAccumulator);
 #endif
 };

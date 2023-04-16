@@ -98,7 +98,6 @@ public:
             text.setString("In size " + std::to_string(gNode->inputSize) + ", out size " + std::to_string(gNode->outputSize));
             text.setPosition(x0- 1.25f * wheelRadius, y0 + 2.25f * wheelRadius);
             w.draw(text);
-            text.setFillColor(sf::Color::Black);
 
             int _nNodes = gNode->complexChildren.size() + gNode->memoryChildren.size() + gNode->simpleChildren.size() + 3;
             float factor = 6.28f / (float) _nNodes;
@@ -185,6 +184,7 @@ public:
             w.draw(node);
 
             node.setFillColor(sf::Color::White);
+            text.setFillColor(sf::Color::Black);
             for (int j = 0; j < gNode->simpleChildren.size(); j++) {
                 int id = 3 + j;
                 node.setPosition(Xs[id], Ys[id]);

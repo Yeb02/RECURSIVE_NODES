@@ -89,18 +89,10 @@ struct ComplexNode_G {
 	// size internalBiasSize. In the following order: output -> simple -> complex -> memory
 	std::vector<float> internalBias;
 
-#ifdef GUIDED_MUTATIONS
-	//  = [How many instances of this node the network has] * [how many times wLifetime was accumulated].
-	int nAccumulations;
-#endif
-
 	// Does not do much, because most attributes are set by the network owning this.
 	ComplexNode_G() 
 	{
 		phenotypicMultiplicity = 0;
-#ifdef GUIDED_MUTATIONS
-		nAccumulations = 0;
-#endif
 		mutationalDistance = 0;
 		closestNode = NULL;
 
@@ -141,15 +133,7 @@ struct ComplexNode_G {
 	void computeSaturationArraySize(std::vector<int>& genomeState);
 #endif 
 
-	// Compute how many non linearities (tanh, relu, ..) the phenotype (yes, phenotype) has.
-	void getNnonLinearities(std::vector<int>& genomeState);
-
-	bool hasChild(std::vector<int>& checked, ComplexNode_G* potentialChild);
-
-	// must be called when a child is deleted. Handles re-indicing. 
-	void updateConnexionsOnChildDeleted(NODE_TYPE childType, int childID);
-
-	// Mutate real-valued floating point parameters
+	// Mutate real-valued floating point parameters.
 	void mutateFloats();
 
 	// Util that returns a randomly picked node that can serve as a connexion's origin. There is 

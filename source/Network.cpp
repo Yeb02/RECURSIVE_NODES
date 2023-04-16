@@ -8,7 +8,7 @@ Network::Network(Network* n) {
 	outputSize = n->outputSize;
 
 
-	// The complex genome must be copied after the simple and the memory ones.
+	// The complex genome must be copied after the simple and the memory ones, for its pointers to be valid..
 	
 	// Simple genome
 	simpleGenome.resize(n->simpleGenome.size());
@@ -21,13 +21,17 @@ Network::Network(Network* n) {
 	for (int i = 0; i < n->memoryGenome.size(); i++) {
 		memoryGenome[i] = std::make_unique<MemoryNode_G>(n->memoryGenome[i].get());
 	}
+	for (int i = 0; i < n->memoryGenome.size(); i++) {
+		memoryGenome[i]->closestNode = n->memoryGenome[i]->closestNode == NULL ?
+			NULL :
+			memoryGenome[n->memoryGenome[i]->closestNode->position].get();
+	}
 
 	// Complex genome
 	complexGenome.resize(n->complexGenome.size());
 	for (int i = 0; i < n->complexGenome.size(); i++) {
 		complexGenome[i] = std::make_unique<ComplexNode_G>(n->complexGenome[i].get());
 	}
-
 	for (int i = 0; i < n->complexGenome.size(); i++) {
 		// Setting pointers to children.
 		// It can only be done once the genome has been constructed:
@@ -68,30 +72,27 @@ Network::Network(Network* n) {
 	}
 	topNodeG->closestNode = NULL;
 	
-
+	// The problem this solves is that we call mutate() on a newborn child and not on the parent that has finished
+	// its lifetime (it would not make sense otherwise). Thats why some data on the parent's lifetime has to be passed 
+	// to its children, when GUIDED_MUTATIONS is defined.
+	nInferencesOverLifetime = n->nInferencesOverLifetime;
+	nExperiencedTrials = n->nExperiencedTrials;
 
 	topNodeP.reset(NULL);
-
-
-#ifdef SATURATION_PENALIZING
-	saturationPenalization = 0.0f;
-	nInferencesN = 0;
-#endif
 }
 
 
 Network::Network(int inputSize, int outputSize) :
 	inputSize(inputSize), outputSize(outputSize)
 {
-	int _position = 0;
+	// positions are set at the end.
+
 	simpleGenome.reserve(2);
 	simpleGenome.emplace_back(new SimpleNode_G(TANH));
 	simpleGenome.emplace_back(new SimpleNode_G(GAUSSIAN));
 
-
 	complexGenome.resize(0);
 	ComplexNode_G* baseComplexNode = new ComplexNode_G();
-	baseComplexNode->position = 0;
 	baseComplexNode->inputSize = 1;
 	baseComplexNode->outputSize = 1;
 	baseComplexNode->computeInternalBiasSize();
@@ -137,12 +138,6 @@ Network::Network(int inputSize, int outputSize) :
 
 
 
-
-#ifdef SATURATION_PENALIZING
-	saturationPenalization = 0.0f;
-	nInferencesN = 0;
-#endif
-
 	for (int i = 0; i < simpleGenome.size(); i++) {
 		simpleGenome[i]->position = i;
 	}
@@ -157,7 +152,7 @@ Network::Network(int inputSize, int outputSize) :
 
 	computeMemoryUtils();
 	updateDepths();
-	computePhenotypicMultiplicities();
+	updatePhenotypicMultiplicities();
 }
 
 
@@ -167,38 +162,48 @@ float* Network::getOutput() {
 
 
 void Network::postTrialUpdate(float score) {
-#ifndef CONTINUOUS_LEARNING
-	if (topNodeP->nInferencesP != 0) {
-		float invNInferencesP = 1.0f / (float)topNodeP->nInferencesP;
-		topNodeP->updateWatTrialEnd(invNInferencesP);
-	}
-	else {
-		std::cerr << "ERROR : postTrialUpdate WAS CALLED BEFORE EVALUATION ON A TRIAL !!" << std::endl;
-	}
-	
-#endif
 
-#if defined GUIDED_MUTATIONS && defined CONTINUOUS_LEARNING
-	if (topNodeP->nInferencesP != 0) {
-		//float trialLengthFactor = 1.0f / logf((float)topNodeP->nInferencesP);
-		float trialLengthFactor = 1.0f / (float)topNodeP->nInferencesP;
-
-		// One and only one of these three calls to accumulateW MUST be active:
+	if (nInferencesOverTrial != 0) {
 		
+#ifndef CONTINUOUS_LEARNING
+		topNodeP->updateWatTrialEnd(1.0f / (float)nInferencesOverTrial); // the argument averages H.
+#endif
 
-		// Requires population.normalizedScoreGradients = true. Constant factor between 5 and 50 recommended.
-		//topNodeP->accumulateW(1.0f*score*trialLengthFactor);			 
+#if defined GUIDED_MUTATIONS  	
+		//float trialLengthFactor = 1.0f / logf((float)nInferencesOverTrial);
+		//float trialLengthFactor = powf((float)nInferencesOverTrial, -.5f);
+		float trialLengthFactor = 1.0f / (float)nInferencesOverTrial;
 
+		float argument;
+
+		// One and only one of these three values of argument MUST be uncommented:
+
+		// 1-
+		// Requires population.normalizedScoreGradients = true, or rankingFitness = true. 
+		// Constant factor between 5 and 100 recommended.
+		//argument = 1.0f*score;			 
+
+		// 2-
 		// Drastically improves perfs when learning is "too simple". Constant factor between 5 and 100 recommended.
-		topNodeP->accumulateW(5.0f * trialLengthFactor);
+		argument = 5.0f;
 
+		// 3-
 		// Not implemented yet.
-		//topNodeP->accumulateW((score-parentScore) * trialLengthFactor);  
+		//  argument = score-parentScore
+
+#ifdef CONTINUOUS_LEARNING
+		argument *= trialLengthFactor;  
+#endif 
+
+
+		topNodeP->accumulateW(argument);
+
+#endif //def GUIDED_MUTATIONS
 	}
 	else {
 		std::cerr << "ERROR : postTrialUpdate WAS CALLED BEFORE EVALUATION ON A TRIAL !!" << std::endl;
 	}
-#endif
+
 }
 
 
@@ -248,10 +253,15 @@ void Network::createPhenotype() {
 		preSynActs          = std::make_unique<float[]>(activationArraySize);
 
 #ifdef SATURATION_PENALIZING
+		std::fill(genomeState.begin(), genomeState.end(), 0);
 		topNodeG->computeSaturationArraySize(genomeState);
-		phenotypeSaturationArraySize = genomeState[(int)complexGenome.size()];
-		averageActivation = std::make_unique<float[]>(phenotypeSaturationArraySize);
+		averageActivationArraySize = genomeState[(int)complexGenome.size()];
+		averageActivation = std::make_unique<float[]>(averageActivationArraySize);
 		float* temp_averageActivation = averageActivation.get();
+
+		saturationPenalization = 0.0f;
+		topNodeP->setglobalSaturationAccumulator(&saturationPenalization);
+		std::fill(averageActivation.get(), averageActivation.get() + averageActivationArraySize, 0.0f);
 #endif
 		
 		// The following values will be modified by each node of the phenotype as the pointers are set.
@@ -267,31 +277,28 @@ void Network::createPhenotype() {
 #endif
 		);
 
-#ifdef SATURATION_PENALIZING
-		topNodeP->setSaturationPenalizationPtr(&saturationPenalization);
-#endif
+		nInferencesOverTrial = 0;
+		nInferencesOverLifetime = 0;
+		nExperiencedTrials = 0;
 	}
 };
 
 
 void Network::preTrialReset() {
-
+	nInferencesOverTrial = 0;
+	nExperiencedTrials++;
 	std::fill(previousPostSynActs.get(), previousPostSynActs.get() + activationArraySize, 0.0f); 
 	std::fill(currentPostSynActs.get(), currentPostSynActs.get() + activationArraySize, 0.0f);
-	//std::fill(preSynActs.get(), preSynActs.get() + activationArraySize, 0.0f);
-#ifdef SATURATION_PENALIZING
-	std::fill(averageActivation.get(), averageActivation.get() + phenotypeSaturationArraySize, 0.0f);
-#endif
+	//std::fill(preSynActs.get(), preSynActs.get() + activationArraySize, 0.0f); // is already set to the biases.
 
 	topNodeP->preTrialReset();
 };
 
 
 void Network::step(const std::vector<float>& obs) {
-#ifdef SATURATION_PENALIZING
-	nInferencesN++;
-#endif
-	
+	nInferencesOverLifetime++;
+	nInferencesOverTrial++;
+
 	std::copy(obs.begin(), obs.end(), topNodeP->currentPostSynAct);
 	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
 		topNodeP->totalM[i] = 0.0f;
@@ -303,8 +310,8 @@ void Network::step(const std::vector<float>& obs) {
 
 void Network::mutate() {
 
-	// The first constexpr value in each pair should be greater than the second, 
-	// or at worst equal, to introduce some kind of spontaneous regularization.
+	// The second constexpr value in each pair should not be neglible when compared to
+	// the first, to introduce some kind of spontaneous regularization.
 
 	constexpr float createConnexionProbability = .01f;
 	constexpr float deleteConnexionProbability = .002f;
@@ -341,13 +348,6 @@ void Network::mutate() {
 	constexpr float duplicateMemoryChildProbability = .01f;
 
 	float r;
-
-
-#if defined GUIDED_MUTATIONS && not defined CONTINUOUS_LEARNING
-	if (topNodeP.get() != NULL && topNodeP->nInferencesP != 0) {
-		topNodeP->accumulateW(.5f);
-	}
-#endif
 
 
 	/*
@@ -546,7 +546,7 @@ void Network::mutate() {
 
 			r = UNIFORM_01;
 			if (r < decrementMemoryKernelSizeProbability) {
-				int rID = INT_0X(memoryGenome[i]->inputSize);
+				int rID = INT_0X(memoryGenome[i]->kernelDimension);
 				bool success = memoryGenome[i]->decrementKernelDimension(rID);
 			}
 		}
@@ -562,10 +562,10 @@ void Network::mutate() {
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
-				float p = (float)n->phenotypicMultiplicity * (n->complexChildren.size() < MAX_COMPLEX_CHILDREN_PER_COMPLEX);
+				float p = (float)n->phenotypicMultiplicity ;
 
-				// The more children a node has, the less likely it is to gain one.
-				p *= (float)(2 * MAX_COMPLEX_CHILDREN_PER_COMPLEX - n->complexChildren.size());
+				// The more children a node has, the less likely it is to gain one. Also zeros p when max children reached.
+				p *= (float)(MAX_COMPLEX_CHILDREN_PER_COMPLEX - n->complexChildren.size());
 
 				// The shallower a node, the less likely it is to gain a child.
 				p *= 1.0f - powf(.9f, (float)n->depth);
@@ -633,8 +633,12 @@ void Network::mutate() {
 					}
 				}
 
+				if (child == parent) {
+					break;
+				}
 				parent->addComplexChild(child);
-				child->phenotypicMultiplicity += parent->phenotypicMultiplicity;
+
+				updatePhenotypicMultiplicities(); 
 				updateDepths();
 				sortGenome();
 
@@ -814,6 +818,9 @@ void Network::mutate() {
 
 					parent->complexChildren[inParentID] = candidates[rID];
 
+					if (candidates[rID] == parent) {
+						break;
+					}
 
 					// adjust connexion sizes. TODO better.
 
@@ -855,7 +862,7 @@ void Network::mutate() {
 
 					// one could lower the mutational distance between the swapped children. But this is a recursive
 					// mutation, and I have never managed to make those improve results.
-
+					updatePhenotypicMultiplicities();
 					updateDepths();
 					sortGenome();
 				}
@@ -956,6 +963,8 @@ void Network::mutate() {
 					float r = UNIFORM_01;
 					int rID = binarySearch(probabilities, r);
 
+					parent->memoryChildren[inParentID]->phenotypicMultiplicity -= parent->phenotypicMultiplicity;
+					candidates[rID]->phenotypicMultiplicity += parent->phenotypicMultiplicity;
 					parent->memoryChildren[inParentID] = candidates[rID];
 
 
@@ -1033,6 +1042,7 @@ void Network::mutate() {
 				int inParentID = INT_0X((int)parent->complexChildren.size());
 				parent->removeComplexChild(inParentID);
 
+				updatePhenotypicMultiplicities();
 				updateDepths();
 				sortGenome();
 			}
@@ -1090,6 +1100,7 @@ void Network::mutate() {
 
 				// pick a child:
 				int inParentID = INT_0X((int)parent->memoryChildren.size());
+				parent->memoryChildren[inParentID]->phenotypicMultiplicity -= parent->phenotypicMultiplicity;
 				parent->removeMemoryChild(inParentID);
 			}
 
@@ -1126,7 +1137,7 @@ void Network::mutate() {
 				int parentID = binarySearch(probabilities, r);
 				parent = parentID != complexGenome.size() ? complexGenome[parentID].get() : topNodeG.get();
 				if (parent->complexChildren.size() == 0) {
-					break;
+					break; // can be removed, i think. problem was probabilities was not updated.
 				}
 				// pick a child
 				int inParentID = INT_0X((int)parent->complexChildren.size());
@@ -1147,7 +1158,15 @@ void Network::mutate() {
 				}
 				topNodeG->position = (int)complexGenome.size();
 
+				updatePhenotypicMultiplicities();
+
+				// probability have to be re-computed since a node was added to the complex genome.
 				probabilities.resize(complexGenome.size()+1);
+				if (!computeProbabilities(criterion))
+				{
+					break;
+				}
+
 				// Not needed:
 				//updateDepths();
 				//sortGenome();
@@ -1175,9 +1194,7 @@ void Network::mutate() {
 				float r = UNIFORM_01;
 				int parentID = binarySearch(probabilities, r);
 				parent = parentID != complexGenome.size() ? complexGenome[parentID].get() : topNodeG.get();
-				if (parent->memoryChildren.size() == 0) {
-					break;
-				}
+
 				// pick a child
 				int inParentID = INT_0X((int)parent->memoryChildren.size());
 				MemoryNode_G* clonedNode = parent->memoryChildren[inParentID];
@@ -1191,15 +1208,24 @@ void Network::mutate() {
 				n->position = (int)memoryGenome.size() - 1;
 
 				parent->memoryChildren[inParentID] = n;
+				n->phenotypicMultiplicity = parent->phenotypicMultiplicity;
+				clonedNode->phenotypicMultiplicity -= parent->phenotypicMultiplicity;
 			}
 
 		}
 	}
 	
 
-	// THE FOLLOWING CALL ORDER MUST BE RESPECTED: 
+
+	// the order of the following calls must be respected.
 	
-	computePhenotypicMultiplicities();
+	// these 3 are unnecessary:
+	/*
+	updateDepths();
+	sortGenome();
+	updatePhenotypicMultiplicities(); 
+	*/
+	
 
 	// Removing unused nodes. Find a better solution, TODO 
 	if (UNIFORM_01 < .03f) {
@@ -1217,10 +1243,6 @@ void Network::mutate() {
 			memoryGenome[i]->mutationalDistance++;
 		}
 	}
-
-#ifdef GUIDED_MUTATIONS
-	zeroAccumulators(); // a precaution. Accumulators should already be set at 0.
-#endif
 
 	computeMemoryUtils(); // ready memory nodes for inference
 
@@ -1272,11 +1294,14 @@ void Network::sortGenome() {
 }
 
 
-void Network::computePhenotypicMultiplicities() {
+void Network::updatePhenotypicMultiplicities() {
 	topNodeG->phenotypicMultiplicity = 1;
 	std::vector<int> multiplicities(complexGenome.size());
 
 	// Init
+	for (int i = 0; i < memoryGenome.size(); i++) {
+		memoryGenome[i]->phenotypicMultiplicity = 0;
+	}
 	for (int i = 0; i < topNodeG->complexChildren.size(); i++) {
 		multiplicities[topNodeG->complexChildren[i]->position]++;
 	}
@@ -1285,7 +1310,7 @@ void Network::computePhenotypicMultiplicities() {
 	}
 
 	// Main loop
-	for (int i = (int)complexGenome.size() - 1; i >= 0; i--) { // requires the genome be sorted by ascending depths.
+	for (int i = (int)complexGenome.size() - 1; i >= 0; i--) { 
 		for (int j = 0; j < complexGenome[i]->complexChildren.size(); j++) {
 			multiplicities[complexGenome[i]->complexChildren[j]->position] += multiplicities[complexGenome[i]->position];
 		}
@@ -1301,7 +1326,7 @@ void Network::computePhenotypicMultiplicities() {
 }
 
 
-// requires the genome be sorted by ascending (and up to date) depths.
+// requires the genome be sorted by ascending (and up to date) depths, positions and multiplicities be correct.
 void Network::removeUnusedNodes() {
 	std::vector<int> occurences(complexGenome.size());
 	for (int i = 0; i < (int)topNodeG->complexChildren.size(); i++) {
@@ -1322,11 +1347,12 @@ void Network::removeUnusedNodes() {
 
 			// erase it from the genome list.
 			complexGenome.erase(complexGenome.begin() + i);
-			for (int j = i; j < complexGenome.size(); j++) complexGenome[j]->position = j;
-
 			continue;
 		}
 	}
+
+	for (int j = 0; j < complexGenome.size(); j++) complexGenome[j]->position = j;
+	topNodeG->position = (int)complexGenome.size();
 
 	for (int i = (int)memoryGenome.size()-1; i >= 0; i--) {
 
@@ -1342,46 +1368,34 @@ void Network::removeUnusedNodes() {
 
 			// erase it from the genome list.
 			memoryGenome.erase(memoryGenome.begin() + i);
-			for (int j = i; j < memoryGenome.size(); j++) memoryGenome[j]->position = j;
 
 			continue;
 		}
 	}
+	for (int j = 0; j < memoryGenome.size(); j++) memoryGenome[j]->position = j;
 }
 
-
-bool Network::hasChild(ComplexNode_G* parent, ComplexNode_G* potentialChild) {
-	if (parent == potentialChild) return true;
-	std::vector<int> checked(complexGenome.size());
-	return parent->hasChild(checked, potentialChild);
-}
 
 #ifdef SATURATION_PENALIZING
 float Network::getSaturationPenalization()
 {
-	if (nInferencesN == 0) {
+	if (nInferencesOverLifetime == 0) {
 		std::cerr <<
-			"ERROR : getSaturationPenalization() WAS CALLED, BUT THE NETWORK HAS NEVER BEEN USED BEFORE !"
+			"ERROR : getSaturationPenalization() WAS CALLED, BUT THE PHENOTYPE HAS NEVER BEEN USED BEFORE !"
 			<< std::endl;
 		return 0.0f;
 	}
 
-	std::vector<int> genomeState(genome.size() + 1);
-	for (int i = 0; i < nSimpleNeurons; i++) {
-		genomeState[i] = 1; // simple neurons cost only 1 function evaluation each.
-	}
-	topNodeG->position = (int)genome.size();
-	topNodeG->getNnonLinearities(genomeState);
-	int nNonLinearities = genomeState[genome.size()] - inputSize - outputSize;
-	float p1 = nNonLinearities != 0 ? saturationPenalization / (nInferencesN * nNonLinearities) : 0.0f;
+	
+	float p1 = averageActivationArraySize != 0 ? saturationPenalization / (nInferencesOverLifetime * averageActivationArraySize) : 0.0f;
 
 
 	float p2 = 0.0f;
-	float invNInferencesN = 1.0f / nInferencesN;
-	for (int i = inputSize; i < phenotypeSaturationArraySize; i++) {
+	float invNInferencesN = 1.0f / nInferencesOverLifetime;
+	for (int i = 0; i < averageActivationArraySize; i++) {
 		p2 += powf(averageActivation[i] * invNInferencesN, 6.0f);
 	}
-	p2 /= (float) (phenotypeSaturationArraySize - inputSize);
+	p2 /= (float) averageActivationArraySize;
 	
 
 
@@ -1393,11 +1407,27 @@ float Network::getSaturationPenalization()
 
 // TODO take genome.size() and maybe internalBias into consideration.
 float Network::getRegularizationLoss() {
-	std::vector<int> nParams(complexGenome.size() + 1);
-	std::vector<float> amplitudes(complexGenome.size() + 1);
-	int size;
 	constexpr int nArrays = 6; // eta and gamma's amplitudes are irrelevant here.
 
+	// key and query matrix not considered for now.
+	std::vector<int> nMemoryParams(memoryGenome.size() + 1);
+	std::vector<float> memoryAmplitudes(memoryGenome.size() + 1);
+	for (int i = 0; i < memoryGenome.size(); i++) {
+		int size = memoryGenome[i]->link.nLines * memoryGenome[i]->link.nColumns;
+		nMemoryParams[i] = size;
+		memoryAmplitudes[i] = 0.0f;
+		for (int k = 0; k < size; k++) {
+			memoryAmplitudes[i] += abs(memoryGenome[i]->link.A[k]);
+			memoryAmplitudes[i] += abs(memoryGenome[i]->link.B[k]);
+			memoryAmplitudes[i] += abs(memoryGenome[i]->link.C[k]);
+			memoryAmplitudes[i] += abs(memoryGenome[i]->link.D[k]);
+			memoryAmplitudes[i] += abs(memoryGenome[i]->link.alpha[k]);
+			memoryAmplitudes[i] += abs(memoryGenome[i]->link.w[k]);
+		}
+	}
+
+	std::vector<int> nParams(complexGenome.size() + 1);
+	std::vector<float> amplitudes(complexGenome.size() + 1);
 	for (int i = 0; i < complexGenome.size() + 1; i++) {
 		ComplexNode_G* n;
 		n = i != complexGenome.size() ? complexGenome[i].get() : topNodeG.get();
@@ -1405,7 +1435,7 @@ float Network::getRegularizationLoss() {
 		nParams[i] = 0;
 		amplitudes[i] = 0.0f;
 		for (int j = 0; j < n->internalConnexions.size(); j++) {
-			size = n->internalConnexions[j].nLines * n->internalConnexions[j].nColumns;
+			int size = n->internalConnexions[j].nLines * n->internalConnexions[j].nColumns;
 			nParams[i] += size;
 			for (int k = 0; k < size; k++) {
 				amplitudes[i] += abs(n->internalConnexions[j].A[k]);
@@ -1421,12 +1451,12 @@ float Network::getRegularizationLoss() {
 			amplitudes[i] += amplitudes[n->complexChildren[j]->position];
 		}
 		for (int j = 0; j < n->memoryChildren.size(); j++) {
-			nParams[i] += nParams[n->memoryChildren[j]->position];
-			amplitudes[i] += amplitudes[n->memoryChildren[j]->position];
+			nParams[i] += nMemoryParams[n->memoryChildren[j]->position];
+			amplitudes[i] += memoryAmplitudes[n->memoryChildren[j]->position];
 		}
 	}
 
 	float a = (float)amplitudes[complexGenome.size()] / (float)(nParams[complexGenome.size()]*nArrays); // amplitude term
-	float b = logf(inputSize + outputSize + (float)nParams[complexGenome.size()]);				  // size term
-	return 0.2f*a*(1.0f + b) + b; // The whole vector will be reduced, so multiplying all terms by a common factor does nothing.
+	float b = logf(inputSize + outputSize + (float)nParams[complexGenome.size()]);						// size term
+	return 0.0f*a + .5f * a * b + .5f*b; // normalized, so multiplying by a constant does nothing.
 }

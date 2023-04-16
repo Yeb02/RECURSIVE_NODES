@@ -8,8 +8,9 @@ MemoryNode_P::MemoryNode_P(MemoryNode_G* _type) :
 
 	// Useless initializations:
 	{
-		memory = std::make_unique<float[]>(0);
-		transformedMemory = std::make_unique<float[]>(0);
+		memory.reset(NULL);
+		transformedMemory.reset(NULL);
+		sigmas.reset(NULL);
 		nMemorizedVectors = 0;
 		currentPostSynAct = nullptr;
 		preSynAct = nullptr;
@@ -20,7 +21,6 @@ MemoryNode_P::MemoryNode_P(MemoryNode_G* _type) :
 	}
 }
 
-
 void MemoryNode_P::forward() {
 	
 	// vars defined for readability:
@@ -30,25 +30,69 @@ void MemoryNode_P::forward() {
 	float* preSynOutput = preSynAct + type->inputSize;
 	float* postSynOutput = currentPostSynAct + type->inputSize;
 
+	// link operations: propagation and hebbian update.
+	{
+		// propagate
 
-	int nl = type->outputSize;
-	int nc = type->inputSize;
-	int matID = 0;
+		int nl = type->outputSize;
+		int nc = type->inputSize;
+		int matID = 0;
 
-	float* H = pLink.H.get();
-	float* wLifetime = pLink.wLifetime.get();
-	float* alpha = type->link.alpha.get();
-	float* w = type->link.w.get();
-	
-	for (int i = 0; i < nl; i++) {
-		for (int j = 0; j < nc; j++) {
-			// += (H * alpha + w) * prevAct
-			preSynOutput[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * currentPostSynAct[j];
-			matID++;
+		float* H = pLink.H.get();
+		float* wLifetime = pLink.wLifetime.get();
+		float* alpha = type->link.alpha.get();
+		float* w = type->link.w.get();
+
+		for (int i = 0; i < nl; i++) {
+			for (int j = 0; j < nc; j++) {
+				// += (H * alpha + w) * prevAct
+				preSynOutput[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * currentPostSynAct[j];
+				matID++;
+			}
+		}
+		for (int i = type->inputSize; i < type->inputSize + type->outputSize; i++) {
+			currentPostSynAct[i] = tanhf(preSynAct[i]);
+		}
+
+
+		// hebbian update. TODO could happen after memory. To attempt.
+		float* A = type->link.A.get();
+		float* B = type->link.B.get();
+		float* C = type->link.C.get();
+		float* D = type->link.D.get();
+		float* eta = type->link.eta.get();
+		float* E = pLink.E.get();
+
+#ifdef CONTINUOUS_LEARNING
+		float* gamma = type->link.gamma.get();
+#else
+		float* avgH = pLink.avgH.get();
+#endif
+
+
+		matID = 0;  // = i*nc+j
+		for (int i = 0; i < nl; i++) {
+			for (int j = 0; j < nc; j++) {
+#ifdef CONTINUOUS_LEARNING
+				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * alpha[matID] * H[matID] * localM[1];
+#endif
+				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
+					(A[matID] * postSynOutput[i] * currentPostSynAct[j] + 
+					 B[matID] * postSynOutput[i] + 
+					 C[matID] * currentPostSynAct[j] + 
+				     D[matID]);
+
+				H[matID] += E[matID] * localM[0];
+				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
+#ifndef CONTINUOUS_LEARNING
+				avgH[matID] += H[matID];
+#endif
+				matID++;
+
+			}
 		}
 	}
-	return;
-	// apply tanh ??
+
 	float maxSigma = -1.0f;
 	if (nMemorizedVectors>0){
 		// Compute cosinuses, in sigmas[].
@@ -90,11 +134,11 @@ void MemoryNode_P::forward() {
 	}
 
 
-	// accumulate tin*tQ*K in preSynOutput
+	// accumulate tin*tQxK in preSynOutput
 	for (int i = 0; i < type->outputSize; i++) {
 		preSynOutput[i] = 0.0f;
 		for (int j = 0; j < type->inputSize; j++) {
-			preSynOutput[i] += postSynOutput[j] * type->tQxK[i + j * type->outputSize];
+			preSynOutput[i] += currentPostSynAct[j] * type->tQxK[i + j * type->outputSize];
 		}
 	}
 
@@ -121,7 +165,7 @@ void MemoryNode_P::forward() {
 
 
 		int oldTransormedMemorySize = nMemorizedVectors * type->inputSize;
-		float* newTransformedMemory = new float[oldMemorySize + type->inputSize];
+		float* newTransformedMemory = new float[oldTransormedMemorySize + type->inputSize];
 		std::copy(transformedMemory.get(), transformedMemory.get() + oldTransormedMemorySize, newTransformedMemory);
 		transformedMemory.reset(newTransformedMemory);
 		for (int i = 0; i < type->inputSize; i++) {
@@ -131,13 +175,13 @@ void MemoryNode_P::forward() {
 			}
 		}
 
+		sigmas.reset(new float[nMemorizedVectors+1]);
 
 		for (int i = 0; i < type->outputSize; i++) {
 			candidateMemory[i] = 0.0f;
 		}
 		nMemorizedVectors++;
 	}
-
 }
 
 void MemoryNode_P::setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa) {
@@ -153,13 +197,19 @@ void MemoryNode_P::setArrayPointers(float** ppsa, float** cpsa, float** psa, flo
 	*cpsa += s;
 	*psa += s;
 #ifdef SATURATION_PENALIZING
-	*aa += ...;
+	// Post-Synaptic Output is not in the -1, 1 range because there is no nonlinearities after memory retrieval.
+	// It is therefore not considered when computing saturations.
+	*aa += type->inputSize;  
 #endif
 }
 
 void MemoryNode_P::preTrialReset() {
 	nMemorizedVectors = 0;
-	memory = std::make_unique<float[]>(NULL);
+
+	memory.reset(NULL);
+	transformedMemory.reset(NULL);
+	sigmas.reset(NULL);
+
 	for (int j = 0; j < type->outputSize; j++) {
 		candidateMemory[j] = 0.0f;
 	}
@@ -171,18 +221,15 @@ void MemoryNode_P::preTrialReset() {
 	for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
 		localM[j] = 0.0f;
 	}
-
-	sigmas = new float[0];
 }
 
 #ifdef GUIDED_MUTATIONS
 void MemoryNode_P::accumulateW(float factor) {
-	type->nAccumulations++;
 
 	int s = type->link.nLines * type->link.nColumns;
 	for (int j = 0; j < s; j++) {
 		type->link.accumulator[j] += factor * pLink.wLifetime[j];
-		pLink.wLifetime[j] = 0.0f;
+		//pLink.wLifetime[j] = 0.0f; // TODO
 	}
 }
 #endif

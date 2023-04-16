@@ -75,14 +75,12 @@ struct PopulationEvolutionParameters {
 	// Experimental, default=false. Only used with CONTINUOUS_LEARNING && GUIDED_MUTATIONS, and when enabled in 
 	// Network::postTrialUpdate().  If true, for each specimen, postTrialUpdate adds to an accumulator for each weight:
 	// [wLifetime * normalizedScoreOnThisTrial] * constant 
-	// Then zeros wLifetime, so there is no memory between trials !.
+	// Then zeros wLifetime, so there is no memory between trials ! TODO wise ?
 	bool normalizedScoreGradients;
 
 
 	// Experimental, default=0.0. Only used when SATURATION_PENALIZING is defined, as it slows down forward() (a bit).
-	// The higher, the stronger the penalty for saturated activations. Note that it may act as "anti-size-regulatory" when
-	// the networks are small. So one should compensate by increasing regularizationFactor, or the size regulation factors  
-	// at the bottom of the Network::getRegularizationLoss() function. It may be important to use it when GUIDED_MUTATIONS
+	// The higher, the stronger the penalty for saturated activations. It may be important to use it when GUIDED_MUTATIONS
 	// is defined, as with it networks are prone to oversaturation.
 	float saturationFactor;
 

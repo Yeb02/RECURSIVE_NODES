@@ -23,7 +23,7 @@ struct MemoryNode_P {
 	std::unique_ptr<float[]> candidateMemory;
 
 	// stores the unnormalized cosinuses. Size nMemorized vectors.
-	float* sigmas;
+	std::unique_ptr<float[]> sigmas;
 
 	float localM[MODULATION_VECTOR_SIZE];
 

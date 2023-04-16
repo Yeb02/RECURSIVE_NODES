@@ -64,6 +64,7 @@ private:
 	std::vector<std::unique_ptr<SimpleNode_G>> simpleGenome;
 	std::vector<std::unique_ptr<MemoryNode_G>> memoryGenome;
 
+	// The phenotype is expected to be created and destroyed only once per Network, but it could happen several times.
 	std::unique_ptr<ComplexNode_P> topNodeP;
 
 
@@ -77,36 +78,38 @@ private:
 	std::unique_ptr<float[]> currentPostSynActs;
 	std::unique_ptr<float[]> preSynActs;
 
+	// size of previousPostSynActs, currentPostSynActs and preSynActs
 	int activationArraySize;
 
+	// How many inferences were performed since last call to preTrialReset by the phenotype.
+	int nInferencesOverTrial;
+
+	// How many inferences were performed since phenotype creation.
+	int nInferencesOverLifetime;
+
+	// How many trials the phenotype has experimented.
+	int nExperiencedTrials;
 
 #ifdef SATURATION_PENALIZING
-	// Sum over all the phenotype's activations, over the lifetime, of activation^10.
+	// Sum over all the phenotype's activations, over the lifetime, of powf(activations[i], 2*n), n=typically 10.
 	float saturationPenalization;
 
-	// Used only to average saturationPenalization and averageActivation[] over the forward passes.
-	int nInferencesN; 
-
-	// Follows the same usage pattern as the 4 arrays for plasticity updates. Size phenotypeSaturationArraySize.
+	// Follows the same usage pattern as the 4 arrays for plasticity updates. Size averageActivationArraySize.
 	// Used to store, for each activation function of the phenotype, its average output over lifetime, for use in
-	// getSaturationPenalization().
+	// getSaturationPenalization(). So set to 0 at phenotype creation, and never touched again.
 	std::unique_ptr<float[]> averageActivation;
 
 	// size of the averageActivation array.
-	int phenotypeSaturationArraySize;
+	int averageActivationArraySize;
 #endif
 
-	// Sets phenotypicMultiplicity for each node of the genome, and the topNode. Must be called after each
+	// Sets phenotypicMultiplicity for each node of the genome, and the topNode. Should be called after each
 	// structural modification of the genotype, i.e. after Network creation or mutations. Not necessary at copy 
-	// construction. The genomes does not need to be sorted nor the depths up to date.
-	void computePhenotypicMultiplicities();
+	// construction.
+	void updatePhenotypicMultiplicities();
 
-	// Requires genome be sorted by ascending depth !!
 	// Called with a small probability in mutations. Deletes all nodes that do not show up in the phenotype.
 	void removeUnusedNodes();
-
-	// Requires depths to be up to date
-	bool hasChild(ComplexNode_G* parent, ComplexNode_G* potentialChild);
 
 	// Update the depths of the genome and the top node. Requires every node to have a valid position !
 	// i.e. in [0, genome.size() - 1], and no two nodes share the same.

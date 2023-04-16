@@ -31,12 +31,11 @@ ComplexNode_P::ComplexNode_P(ComplexNode_G* type) : type(type)
 
 #if defined GUIDED_MUTATIONS
 void ComplexNode_P::accumulateW(float factor) {
-	type->nAccumulations++;
 	for (int i = 0; i < internalConnexions.size(); i++) {
 		int s = type->internalConnexions[i].nLines * type->internalConnexions[i].nColumns;
 		for (int j = 0; j < s; j++) {
 			type->internalConnexions[i].accumulator[j] += factor * internalConnexions[i].wLifetime[j];
-			internalConnexions[i].wLifetime[j] = 0.0f;
+			//internalConnexions[i].wLifetime[j] = 0.0f; // TODO
 		}
 	}
 
@@ -51,16 +50,20 @@ void ComplexNode_P::accumulateW(float factor) {
 #endif
 
 #ifndef CONTINUOUS_LEARNING
-void ComplexNode_P::updateWatTrialEnd(float invnInferencesP) {
-	if (nInferencesP == 0) return; // should not have been called in the first place.
+void ComplexNode_P::updateWatTrialEnd(float invNInferencesOverTrial) {
 
 	for (int i = 0; i < complexChildren.size(); i++) {
-		complexChildren[i].updateWatTrialEnd(invnInferencesP);
+		complexChildren[i].updateWatTrialEnd(invNInferencesOverTrial);
 	}
 
 	for (int i = 0; i < internalConnexions.size(); i++) {
 		int s = type->internalConnexions[i].nLines * type->internalConnexions[i].nColumns;
-		internalConnexions[i].updateWatTrialEnd(s, invnInferencesP, type->internalConnexions[i].alpha.get());
+		internalConnexions[i].updateWatTrialEnd(s, invNInferencesOverTrial, type->internalConnexions[i].alpha.get());
+	}
+
+	for (int i = 0; i < memoryChildren.size(); i++) {
+		int s = memoryChildren[i].type->link.nLines * memoryChildren[i].type->link.nColumns;
+		memoryChildren[i].pLink.updateWatTrialEnd(s, invNInferencesOverTrial, memoryChildren[i].type->link.alpha.get());
 	}
 }
 #endif
@@ -79,7 +82,7 @@ void ComplexNode_P::setArrayPointers(float** ppsa, float** cpsa, float** psa, fl
 	*cpsa += s;
 	*psa += s;
 #ifdef SATURATION_PENALIZING
-	*aa += ...;
+	*aa += s + MODULATION_VECTOR_SIZE;
 #endif
 
 
@@ -108,21 +111,17 @@ void ComplexNode_P::preTrialReset() {
 	}
 
 	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-		totalM[i] = 0.0f;
 		localM[i] = 0.0f;
 	}
 
-	nInferencesP = 0;
 }
 
 
 #ifdef SATURATION_PENALIZING
-void ComplexNode_P::setSaturationPenalizationPtr(float* saturationPenalizationPtr) {
-	this->saturationPenalizationPtr = saturationPenalizationPtr;
-	for (int i = 0; i < children.size(); i++) {
-		if (children[i].type->nodeType == ComplexNode_G::COMPLEX) {
-			children[i].setSaturationPenalizationPtr(saturationPenalizationPtr);
-		}
+void ComplexNode_P::setglobalSaturationAccumulator(float* globalSaturationAccumulator) {
+	this->globalSaturationAccumulator = globalSaturationAccumulator;
+	for (int i = 0; i < complexChildren.size(); i++) {
+		complexChildren[i].setglobalSaturationAccumulator(globalSaturationAccumulator);
 	}
 }
 #endif
@@ -131,11 +130,8 @@ void ComplexNode_P::setSaturationPenalizationPtr(float* saturationPenalizationPt
 void ComplexNode_P::forward() {
 
 #ifdef SATURATION_PENALIZING
-	constexpr float modulationMultiplier = 0.0f; // must be set to the same value in Genotype::getNnonLinearities. TODO cleaner.
-	constexpr float saturationExponent = 20.0f;  // one could try lower values... But they must be 2*integer.
+	constexpr float saturationExponent = 10.0f;  // one could try lower values... But they must be 2*integer.
 #endif
-
-	nInferencesP++;
 
 
 	// step 1: save this node's previous local m, for hebbian rules later on.
@@ -156,11 +152,11 @@ void ComplexNode_P::forward() {
 
 		int id = 0;
 		for (int i = 0; i < type->outputSize; i++) {
-			preSynAct[i + type->inputSize] = type->internalBias[id];
+			preSynAct[id + type->inputSize] = type->internalBias[id];
 			id++;
 		}
 		for (int i = 0; i < type->simpleChildren.size(); i++) {
-			preSynAct[i + type->inputSize] = type->internalBias[id];
+			preSynAct[id + type->inputSize] = type->internalBias[id];
 			id++;
 		}
 		for (int i = 0; i < complexChildren.size(); i++) {
@@ -351,20 +347,25 @@ void ComplexNode_P::forward() {
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
 			localM[i] = tanhf(localMpreSyn[i]);
 			totalM[i] += localM[i];
-#ifdef SATURATION_PENALIZING
-			* saturationPenalizationPtr += modulationMultiplier * powf(localM[i], saturationExponent);
-			averageActivation[type->INPUT_NODESize + type->outputSize + i] += localM[i];
-#endif
 		}
 
 		hebbianUpdate(MODULATION, localM);
+
+#ifdef SATURATION_PENALIZING
+		int id = type->inputSize + type->outputSize;
+		for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
+			*globalSaturationAccumulator += powf(localM[j], saturationExponent);
+			averageActivation[id + j] += localM[j];
+		}
+#endif
+
 	}
 
 	// STEP 4: COMPLEX
 	{
 		propagate(COMPLEX, NULL);
 
-		// transmit modulation and INPUT_NODE, then apply forward:
+		// transmit modulation and input, then apply forward:
 		for (int i = 0; i < complexChildren.size(); i++) {
 			for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
 				complexChildren[i].totalM[j] = this->totalM[j];
@@ -372,9 +373,6 @@ void ComplexNode_P::forward() {
 
 			for (int j = 0; j < complexChildren[i].type->inputSize; j++) {
 				complexChildren[i].currentPostSynAct[j] = tanhf(complexChildren[i].preSynAct[j]);
-#ifdef SATURATION_PENALIZING
-				* saturationPenalizationPtr += powf(complexChildren[i].currentPostSynAct[j], saturationExponent);
-#endif
 			}
 		}
 
@@ -384,9 +382,9 @@ void ComplexNode_P::forward() {
 			complexChildren[i].forward();
 
 #ifdef SATURATION_PENALIZING
-			float* array = complexChildren[i].currentPostSynAct + complexChildren[i].type->INPUT_NODESize;
-			for (int j = 0; j < complexChildren[i].type->outputSize; j++) {
-				* saturationPenalizationPtr += powf(array[j], saturationExponent);
+			for (int j = 0; j < complexChildren[i].type->outputSize + complexChildren[i].type->inputSize; j++) {
+				* globalSaturationAccumulator += powf(complexChildren[i].currentPostSynAct[j], saturationExponent);
+				complexChildren[i].averageActivation[j] += complexChildren[i].currentPostSynAct[j];
 			}
 #endif
 		}
@@ -395,10 +393,11 @@ void ComplexNode_P::forward() {
 
 	// STEP 5: SIMPLE
 	{
-		propagate(SIMPLE, preSynAct + type->inputSize + type->outputSize);
+		int id = type->inputSize + type->outputSize;
+		propagate(SIMPLE, preSynAct + id);
 
+		
 		for (int i = 0; i < type->simpleChildren.size(); i++) {
-			int id = i + type->outputSize;
 
 			previousPostSynAct[id] = currentPostSynAct[id];
 
@@ -412,15 +411,21 @@ void ComplexNode_P::forward() {
 			case SINE:
 				currentPostSynAct[id] = sinf(preSynAct[id]);
 				break;
+			case CENTERED_SINE:
+				constexpr float z = 1.0f / .375261f; // to map to [-1, 1]
+				currentPostSynAct[id] = tanhf(preSynAct[id]) * expf(-powf(preSynAct[id], 2.0f)) * z;
+				break;
 			}
 
 #ifdef SATURATION_PENALIZING
-				* saturationPenalizationPtr += powf(currentPostSynAct[id], saturationExponent);
-				averageActivation[...] += currentPostSynAct[id];
+			* globalSaturationAccumulator += powf(currentPostSynAct[id], saturationExponent);
+			averageActivation[id+MODULATION_VECTOR_SIZE] += currentPostSynAct[id];
 #endif
+
+			id++;
 		}
 
-		hebbianUpdate(SIMPLE, preSynAct + type->inputSize + type->outputSize);
+		hebbianUpdate(SIMPLE, currentPostSynAct + type->inputSize + type->outputSize);
 	}
 
 	// STEP 6: MEMORY
@@ -434,9 +439,7 @@ void ComplexNode_P::forward() {
 
 			for (int j = 0; j < memoryChildren[i].type->inputSize; j++) {
 				memoryChildren[i].currentPostSynAct[j] = tanhf(memoryChildren[i].preSynAct[j]);
-#ifdef SATURATION_PENALIZING
-				* saturationPenalizationPtr += powf(memoryChildren[i].currentPostSynAct[j], saturationExponent);
-#endif
+
 			}
 		}
 
@@ -446,9 +449,9 @@ void ComplexNode_P::forward() {
 			memoryChildren[i].forward();
 
 #ifdef SATURATION_PENALIZING
-			float* array = memoryChildren[i].currentPostSynAct + memoryChildren[i].type->INPUT_NODESize;
-			for (int j = 0; j < memoryChildren[i].type->outputSize; j++) {
-				*saturationPenalizationPtr += powf(array[j], saturationExponent);
+			for (int j = 0; j < memoryChildren[i].type->inputSize; j++) {
+				*globalSaturationAccumulator += powf(memoryChildren[i].currentPostSynAct[j], saturationExponent);
+				memoryChildren[i].averageActivation[j] += memoryChildren[i].currentPostSynAct[j];
 			}
 #endif
 		}
@@ -461,9 +464,6 @@ void ComplexNode_P::forward() {
 		for (int i = type->inputSize; i < type->outputSize + type->inputSize; i++) {
 			previousPostSynAct[i] = currentPostSynAct[i];
 			currentPostSynAct[i] = tanhf(preSynAct[i]);
-#ifdef SATURATION_PENALIZING
-			* saturationPenalizationPtr += powf(currentPostSynAct[i], saturationExponent);
-#endif
 		}
 
 		hebbianUpdate(OUTPUT, currentPostSynAct + type->inputSize);

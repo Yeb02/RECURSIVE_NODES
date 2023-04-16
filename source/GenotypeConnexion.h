@@ -78,8 +78,7 @@ struct GenotypeConnexion {
 
 	~GenotypeConnexion() {};
 
-	// invFactor used only when GUIDED_MUTATION is defined
-	void mutateFloats(float p, float invFactor=0.0f);
+	void mutateFloats(float p);
 
 	// nLines++
 	void incrementDestinationInputSize();

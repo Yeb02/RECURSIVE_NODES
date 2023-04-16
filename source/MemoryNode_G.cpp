@@ -25,12 +25,12 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	std::copy(n->queryM.get(), n->queryM.get() + s, queryM.get());
 
 	s = outputSize * inputSize;
+	if (s == 0) {
+		__debugbreak();
+	}
 	tQxK = std::make_unique<float[]>(s);
 	std::copy(n->tQxK.get(), n->tQxK.get() + s, tQxK.get());
 
-#ifdef GUIDED_MUTATIONS
-	nAccumulations = n->nAccumulations;
-#endif
 }
 
 MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
@@ -58,10 +58,6 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
 
 	s = outputSize * inputSize;
 	tQxK = std::make_unique<float[]>(s);
-
-#ifdef GUIDED_MUTATIONS
-	nAccumulations = 0;
-#endif
 }
 
 MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
@@ -79,10 +75,6 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 	keyM = std::move(n.keyM);
 	queryM = std::move(n.queryM);
 	tQxK = std::move(n.tQxK);
-
-#ifdef GUIDED_MUTATIONS
-	nAccumulations = n.nAccumulations;
-#endif
 }
 
 void MemoryNode_G::compute_tQxK() {
@@ -104,12 +96,8 @@ void MemoryNode_G::mutateFloats() {
 	constexpr float p = .4f;
 	float invFactor = 0.0f;
 
-#ifdef GUIDED_MUTATIONS
-	invFactor = nAccumulations == 0 ? 0.0f : 1.0f / nAccumulations;
-	nAccumulations = 0;
-#endif
 
-	link.mutateFloats(p, invFactor);
+	link.mutateFloats(p);
 	
 	int s = outputSize * kernelDimension;
 	SET_BINOMIAL(s, p);
@@ -226,8 +214,6 @@ bool MemoryNode_G::decrementOutputSize(int id){
 			idNew++;
 			idOld++;
 		}
-		newKeyM[idNew] = NORMAL_01 * .2f;
-		idNew++;
 	}
 	keyM.reset(newKeyM);
 

@@ -25,8 +25,8 @@ int main()
 #ifdef _DEBUG
     nThreads = 1;
 #endif
-    int nSpecimens = nThreads * 64;
-    int nDifferentTrials = 4;
+    int nSpecimens = nThreads * 128; //16 -> 512
+    int nDifferentTrials = 8;
     int nSteps = 10000;
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
@@ -36,7 +36,7 @@ int main()
 #ifdef CARTPOLE_T
         trials.emplace_back(new CartPoleTrial(true)); // Parameter corresponds to continuous control.
 #elif defined XOR_T
-        trials.emplace_back(new XorTrial(1,5));  
+        trials.emplace_back(new XorTrial(2,15));  
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
 #elif defined N_LINKS_PENDULUM_T
@@ -46,16 +46,16 @@ int main()
 #endif
     }
 
-    // In visual studio, hover your cursor on the parameters name to see their description ! They are initialized 
-    // by default to safe values, the initilaization below is just for demonstration purposes.
+    // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
+    // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = -2.0f;
+    params.selectionPressure = -1.0f;
     params.nichingNorm = 0.0f;
     params.useSameTrialInit = true;
     params.normalizedScoreGradients = false;
     params.rankingFitness = true;
-    params.saturationFactor = 0.05f;
-    params.regularizationFactor = 0.0f; // .05f
+    params.saturationFactor = 0.01f;
+    params.regularizationFactor = 0.01f; // .05f
     params.targetNSpecimens = 0;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);

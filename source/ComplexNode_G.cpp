@@ -17,13 +17,9 @@ void ComplexNode_G::mutateFloats() {
 	constexpr float p = .4f;
 	float invFactor = 0.0f;
 
-#ifdef GUIDED_MUTATIONS
-	invFactor = nAccumulations == 0 ? 0.0f : 1.0f / nAccumulations;
-	nAccumulations = 0;
-#endif
 
 	for (int i = 0; i < internalConnexions.size(); i++) {
-		internalConnexions[i].mutateFloats(p, invFactor);
+		internalConnexions[i].mutateFloats(p);
 	}
 
 	// Ordinary bias mutations
@@ -412,7 +408,7 @@ void ComplexNode_G::onChildInputSizeIncremented(int modifiedGenomePosition, NODE
 	int biasID = outputSize + (int)simpleChildren.size();
 	if (modifiedType == COMPLEX) {
 		for (int i = 0; i < complexChildren.size(); i++) {
-			if (modifiedType == COMPLEX && complexChildren[i]->position == modifiedGenomePosition) {
+			if (complexChildren[i]->position == modifiedGenomePosition) {
 				internalBias.insert(internalBias.begin() + biasID, NORMAL_01 * .2f);
 			}
 			biasID += complexChildren[i]->inputSize;
@@ -500,7 +496,7 @@ void ComplexNode_G::onChildInputSizeDecremented(int modifiedPosition, NODE_TYPE 
 	int biasID = outputSize + (int)simpleChildren.size();
 	if (modifiedType == COMPLEX) {
 		for (int i = 0; i < complexChildren.size(); i++) {
-			if (modifiedType == COMPLEX && complexChildren[i]->position == modifiedPosition) {
+			if (complexChildren[i]->position == modifiedPosition) {
 				internalBias.erase(internalBias.begin() + biasID + id);
 			}
 			biasID += complexChildren[i]->inputSize;
@@ -549,19 +545,6 @@ void ComplexNode_G::onChildOutputSizeDecremented(int modifiedPosition, NODE_TYPE
 }
 
 
-void ComplexNode_G::getNnonLinearities(std::vector<int>& genomeState) {
-	constexpr int modulationMultiplier = 0; // must be set to the same value in Phenotype::forward. TODO cleaner.
-	int n = inputSize + outputSize + (int) simpleChildren.size() + 2 * modulationMultiplier;
-	for (int i = 0; i < complexChildren.size(); i++) {
-		if (genomeState[complexChildren[i]->position] == 0) complexChildren[i]->getNnonLinearities(genomeState);
-		n += genomeState[complexChildren[i]->position];
-	}
-	for (int i = 0; i < memoryChildren.size(); i++) {
-		n += memoryChildren[i]->inputSize + memoryChildren[i]->outputSize;
-	}
-	genomeState[position] = n;
-}
-
 void ComplexNode_G::updateDepth(std::vector<int>& genomeState) {
 	int dmax = 0;
 	for (int i = 0; i < complexChildren.size(); i++) {
@@ -590,12 +573,15 @@ void ComplexNode_G::computeActivationArraySize(std::vector<int>& genomeState) {
 #ifdef SATURATION_PENALIZING
 // Used to compute the size of the array containing the average saturations of the phenotype.
 void ComplexNode_G::computeSaturationArraySize(std::vector<int>& genomeState) {
-	int s = INPUT_NODESize + 2 + outputSize;
-	for (int i = 0; i < children.size(); i++) {
-		if (genomeState[children[i]->position] == 0) {
-			children[i]->computeSaturationArraySize(genomeState);
+	int s = inputSize + outputSize + MODULATION_VECTOR_SIZE + (int)simpleChildren.size();
+	for (int i = 0; i < complexChildren.size(); i++) {
+		if (genomeState[complexChildren[i]->position] == 0) {
+			complexChildren[i]->computeSaturationArraySize(genomeState);
 		}
-		s += genomeState[children[i]->position];
+		s += genomeState[complexChildren[i]->position];
+	}
+	for (int i = 0; i < memoryChildren.size(); i++) {
+		s += memoryChildren[i]->inputSize;
 	}
 	genomeState[position] = s;
 }
@@ -620,9 +606,6 @@ ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 		internalConnexions.emplace_back(n->internalConnexions[j]);
 	}
 
-#ifdef GUIDED_MUTATIONS
-	nAccumulations = n->nAccumulations;
-#endif
 	phenotypicMultiplicity = n->phenotypicMultiplicity;
 
 	// The following enclosed section is useless if n is not part of the same network as "this", 
@@ -642,16 +625,4 @@ ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 		}
 		closestNode = n->closestNode;
 	}
-}
-
-bool ComplexNode_G::hasChild(std::vector<int>& checked, ComplexNode_G* potentialChild) {
-	if (depth <= potentialChild->depth) return false;
-
-	for (int i = 0; i < (int)complexChildren.size(); i++) {
-		if (checked[complexChildren[i]->position] == 1) continue;
-		if (complexChildren[i] == potentialChild) return true;
-		if (complexChildren[i]->hasChild(checked,potentialChild)) return true;
-		checked[complexChildren[i]->position] = 1;
-	}
-	return false;
 }

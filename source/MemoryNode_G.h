@@ -41,9 +41,6 @@ struct MemoryNode_G {
 	// Maybe = 1 / sqrt(kernelDim * InSize * OutSize)
 	float beta;
 
-#ifdef GUIDED_MUTATIONS
-	int nAccumulations;
-#endif
 
 	MemoryNode_G(MemoryNode_G* n);
 	MemoryNode_G(int inputSize, int outputSize, int kernelDimension);

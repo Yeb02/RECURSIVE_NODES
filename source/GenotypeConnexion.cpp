@@ -168,7 +168,8 @@ GenotypeConnexion GenotypeConnexion::operator=(const GenotypeConnexion& gc) {
 	return *this;
 }
 
-void GenotypeConnexion::mutateFloats(float p, float invFactor) {
+
+void GenotypeConnexion::mutateFloats(float p) {
 
 #ifdef CONTINUOUS_LEARNING
 	constexpr int nArrays = 8;  // 7+gamma
@@ -179,11 +180,10 @@ void GenotypeConnexion::mutateFloats(float p, float invFactor) {
 	constexpr float a = .2f; // .5f ??
 	constexpr float b = .2f; // .5f ??
 
-	constexpr float pMutation = .4f; // .2f ??
 
 #ifdef GUIDED_MUTATIONS
-	// w += clip[-deltaWclipRange,deltaWclipRange](deltaW)
-	constexpr float deltaWclipRange = .3f;
+	// w += clip[-accumulatorClipRange,accumulatorClipRange](accumulator)
+	constexpr float accumulatorClipRange = .3f;
 #endif
 
 	int size = nLines * nColumns;
@@ -224,13 +224,11 @@ void GenotypeConnexion::mutateFloats(float p, float invFactor) {
 	}
 
 #ifdef GUIDED_MUTATIONS
-	if (invFactor != 0.0f) {
-		for (int k = 0; k < size; k++) {
-			float rawDelta = accumulator[k] * invFactor;
-			w[k] += std::max(std::min(rawDelta, deltaWclipRange), -deltaWclipRange);
-			accumulator[k] = 0.0f;
-		}
+	for (int k = 0; k < size; k++) {;
+		w[k] += std::max(std::min(accumulator[k], accumulatorClipRange), -accumulatorClipRange);
+		accumulator[k] = 0.0f;
 	}
+	
 #endif
 }
 
