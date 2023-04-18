@@ -35,7 +35,7 @@ void ComplexNode_P::accumulateW(float factor) {
 		int s = type->internalConnexions[i].nLines * type->internalConnexions[i].nColumns;
 		for (int j = 0; j < s; j++) {
 			type->internalConnexions[i].accumulator[j] += factor * internalConnexions[i].wLifetime[j];
-			//internalConnexions[i].wLifetime[j] = 0.0f; // TODO
+			internalConnexions[i].wLifetime[j] = 0.0f; // TODO
 		}
 	}
 

@@ -10,6 +10,26 @@
 
 //#include <boost/archive/text_iarchive.hpp>
 
+// Stores data on the parent's performances, for use in the selection process and potentially 
+// in GUIDED_MUTATIONS. Is not used (for now) in the dll, only the exe.
+struct ParentData {
+	bool isAvailable;
+
+	// raw scores post ranking transformation, if ranking fitness, post normalization otherwise.
+	float* scores;
+
+	//  = trials.size(), and not nTrialsEvaluated.
+	int scoreSize;
+
+	ParentData() {
+		isAvailable = false;
+		scores = nullptr;
+	}
+
+	~ParentData() {
+		delete scores;
+	}
+};
 
 class Network {
 	friend class Drawer;
@@ -48,7 +68,7 @@ public:
 	// In some cases, it is not a good idea to keep learned weights between trials, for instance when learned knowledge does
 	// not transpose from one to the other. The fitness  argument can either be relative to other individuals in the genotype,
 	// or absolute, in which case the Network instance must keep in memory the fitness of its parent on the same trial.
-	void postTrialUpdate(float score);
+	void postTrialUpdate(float score, int trialID);
 
 	// a positive float, increasing with the networks number of parameters and their amplitudes. Ignores biases.
 	float getRegularizationLoss();
@@ -56,6 +76,8 @@ public:
 	float getSaturationPenalization();
 
 	int inputSize, outputSize;
+
+	ParentData parentData;
 
 private:
 	std::unique_ptr<ComplexNode_G> topNodeG;

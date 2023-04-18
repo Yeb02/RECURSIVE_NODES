@@ -48,7 +48,7 @@ Network::Network(Network* n) {
 		for (int j = 0; j < n->complexGenome[i]->memoryChildren.size(); j++) {
 			complexGenome[i]->memoryChildren[j] = memoryGenome[n->complexGenome[i]->memoryChildren[j]->position].get();
 		}
-
+		
 		complexGenome[i]->closestNode = n->complexGenome[i]->closestNode == NULL ?
 			NULL :
 			complexGenome[n->complexGenome[i]->closestNode->position].get();
@@ -161,7 +161,7 @@ float* Network::getOutput() {
 }
 
 
-void Network::postTrialUpdate(float score) {
+void Network::postTrialUpdate(float score, int trialID) {
 
 	if (nInferencesOverTrial != 0) {
 		
@@ -174,22 +174,32 @@ void Network::postTrialUpdate(float score) {
 		//float trialLengthFactor = powf((float)nInferencesOverTrial, -.5f);
 		float trialLengthFactor = 1.0f / (float)nInferencesOverTrial;
 
-		float argument;
+		float argument = 5.0f;
 
-		// One and only one of these three values of argument MUST be uncommented:
+		// One and only one of these two options for argument can be uncommented, or 
+		// the default value can be kept:
 
-		// 1-
-		// Requires population.normalizedScoreGradients = true, or rankingFitness = true. 
+		// 1- 
 		// Constant factor between 5 and 100 recommended.
-		//argument = 1.0f*score;			 
+		//argument *= score;			 
+
 
 		// 2-
-		// Drastically improves perfs when learning is "too simple". Constant factor between 5 and 100 recommended.
-		argument = 5.0f;
-
-		// 3-
-		// Not implemented yet.
-		//  argument = score-parentScore
+		// wellll... the logic behind this is that different trials within a step are fundamentally different, 
+		// and trials at the same position in the trials[] list but at different steps (or even for different 
+		// specimens) are fundamentally similar but have a different random initialization.
+		// So this option is not recommended in the simplest cases, when trials[] is made of copies of a single
+		// trial, with different inits.
+		if (parentData.isAvailable) {
+			if (trialID >= parentData.scoreSize) {
+				std::cerr <<
+					"ERROR : TRIAL LIST CHANGED BETWEEN STEPS WHEN IT WAS NOT EXPECTED"
+				<< std::endl;
+			} else {
+				argument *= (score - parentData.scores[trialID]);
+			}
+		}
+		 
 
 #ifdef CONTINUOUS_LEARNING
 		argument *= trialLengthFactor;  
@@ -633,17 +643,12 @@ void Network::mutate() {
 					}
 				}
 
-				if (child == parent) {
-					break;
-				}
 				parent->addComplexChild(child);
 
-				updatePhenotypicMultiplicities(); 
+				updatePhenotypicMultiplicities();
 				updateDepths();
 				sortGenome();
-
 			}
-			
 		}
 		
 
@@ -732,7 +737,6 @@ void Network::mutate() {
 	}
 	
 
-
 	// Replacing child nodes.
 	{
 		ComplexNode_G* parent = nullptr;
@@ -817,10 +821,6 @@ void Network::mutate() {
 					int rID = binarySearch(probabilities, r);
 
 					parent->complexChildren[inParentID] = candidates[rID];
-
-					if (candidates[rID] == parent) {
-						break;
-					}
 
 					// adjust connexion sizes. TODO better.
 
@@ -1107,7 +1107,6 @@ void Network::mutate() {
 		}
 	}
 	
-
 	// Duplicating child nodes.
 	{
 		// Chooses a node in the genotype, clones it, and replaces it with the clone in one of the nodes
@@ -1214,8 +1213,6 @@ void Network::mutate() {
 
 		}
 	}
-	
-
 
 	// the order of the following calls must be respected.
 	
@@ -1232,12 +1229,15 @@ void Network::mutate() {
 		removeUnusedNodes(); 
 	}
 
+
 	// Update mutational distances.
 	for (int i = 0; i < complexGenome.size(); i++) {
 		if (complexGenome[i]->phenotypicMultiplicity > 0) {
 			complexGenome[i]->mutationalDistance++;
 		}
+		complexGenome[i]->computeInternalBiasSize();
 	}
+	topNodeG->computeInternalBiasSize();
 	for (int i = 0; i < memoryGenome.size(); i++) {
 		if (memoryGenome[i]->phenotypicMultiplicity > 0) {
 			memoryGenome[i]->mutationalDistance++;
@@ -1245,7 +1245,7 @@ void Network::mutate() {
 	}
 
 	computeMemoryUtils(); // ready memory nodes for inference
-
+	
 	// Phenotype is destroyed, as it may have become outdated. It will have to be recreated
 	// before next inference.
 	topNodeP.reset(NULL);
@@ -1284,7 +1284,7 @@ void Network::sortGenome() {
 	}
 
 	for (int i = 0; i < size; i++) {
-		complexGenome[i] = std::make_unique<ComplexNode_G>(tempStorage[depthXposition[i].second]);
+		complexGenome[i].reset(tempStorage[depthXposition[i].second]);
 	}
 
 	for (int i = 0; i < complexGenome.size(); i++) {
@@ -1338,10 +1338,35 @@ void Network::removeUnusedNodes() {
 		if (complexGenome[i]->phenotypicMultiplicity == 0) { 
 
 			// firstly, handle the replacement pointers. Could do better, TODO .
-			for (int j = 0; j < complexGenome.size(); j++) {
-				if (complexGenome[j]->closestNode == complexGenome[i].get()) {
-					complexGenome[j]->closestNode = complexGenome[i]->closestNode;
-					complexGenome[j]->mutationalDistance += complexGenome[i]->mutationalDistance;
+			if (complexGenome[i]->closestNode != NULL)
+			{
+				for (int j = 0; j < complexGenome.size(); j++) {
+					if (complexGenome[j]->closestNode == complexGenome[i].get()) {
+						complexGenome[j]->closestNode = complexGenome[i]->closestNode;
+						complexGenome[j]->mutationalDistance += complexGenome[i]->mutationalDistance;
+					}
+				}
+			}
+			else {
+				int dMin = 1000000000; 
+				ComplexNode_G* newRoot = nullptr;
+				for (int j = 0; j < complexGenome.size(); j++) {
+					if (complexGenome[j]->closestNode == complexGenome[i].get()) {
+						if (complexGenome[j]->mutationalDistance < dMin) {
+							dMin = complexGenome[j]->mutationalDistance;
+							newRoot = complexGenome[j].get();
+						}
+					}
+				}
+				if (newRoot != nullptr) {
+					newRoot->closestNode = NULL;
+					newRoot->mutationalDistance = 0;
+					for (int j = 0; j < complexGenome.size(); j++) {
+						if (complexGenome[j]->closestNode == complexGenome[i].get()) {
+							complexGenome[j]->mutationalDistance += dMin;
+							complexGenome[j]->closestNode = newRoot;
+						}
+					}
 				}
 			}
 
@@ -1351,7 +1376,7 @@ void Network::removeUnusedNodes() {
 		}
 	}
 
-	for (int j = 0; j < complexGenome.size(); j++) complexGenome[j]->position = j;
+	for (int i = 0; i < complexGenome.size(); i++) complexGenome[i]->position = i;
 	topNodeG->position = (int)complexGenome.size();
 
 	for (int i = (int)memoryGenome.size()-1; i >= 0; i--) {
@@ -1359,10 +1384,35 @@ void Network::removeUnusedNodes() {
 		if (memoryGenome[i]->phenotypicMultiplicity == 0) {
 
 			// firstly, handle the replacement pointers. Could do better, TODO .
-			for (int j = 0; j < memoryGenome.size(); j++) {
-				if (memoryGenome[j]->closestNode == memoryGenome[i].get()) {
-					memoryGenome[j]->closestNode = memoryGenome[i]->closestNode;
-					memoryGenome[j]->mutationalDistance += memoryGenome[i]->mutationalDistance;
+			if (memoryGenome[i]->closestNode != NULL)
+			{
+				for (int j = 0; j < memoryGenome.size(); j++) {
+					if (memoryGenome[j]->closestNode == memoryGenome[i].get()) {
+						memoryGenome[j]->closestNode = memoryGenome[i]->closestNode;
+						memoryGenome[j]->mutationalDistance += memoryGenome[i]->mutationalDistance;
+					}
+				}
+			}
+			else {
+				int dMin = 1000000000;
+				MemoryNode_G* newRoot = nullptr;
+				for (int j = 0; j < memoryGenome.size(); j++) {
+					if (memoryGenome[j]->closestNode == memoryGenome[i].get()) {
+						if (memoryGenome[j]->mutationalDistance < dMin) {
+							dMin = memoryGenome[j]->mutationalDistance;
+							newRoot = memoryGenome[j].get();
+						}
+					}
+				}
+				if (newRoot != nullptr) {
+					newRoot->closestNode = NULL;
+					newRoot->mutationalDistance = 0;
+					for (int j = 0; j < memoryGenome.size(); j++) {
+						if (memoryGenome[j]->closestNode == memoryGenome[i].get()) {
+							memoryGenome[j]->mutationalDistance += dMin;
+							memoryGenome[j]->closestNode = newRoot;
+						}
+					}
 				}
 			}
 
@@ -1372,7 +1422,7 @@ void Network::removeUnusedNodes() {
 			continue;
 		}
 	}
-	for (int j = 0; j < memoryGenome.size(); j++) memoryGenome[j]->position = j;
+	for (int i = 0; i < memoryGenome.size(); i++) memoryGenome[i]->position = i;
 }
 
 

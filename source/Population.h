@@ -60,11 +60,10 @@ struct PopulationEvolutionParameters {
 	float nichingNorm;
 
 
-	// Should be < 1.0 , safe value is 0.0 . Works like this: 
-	// The final fitness array has mean 0 and variance ~1. Each specimen is assigned a probability to generate offsprings.
-	// Probability is proportionnal to max(0, fitness - selectionPressure).	
-	// Example of values at each evolution step:  UNIFORM_01 -.5f    OR   .5f*sinf((float)evolutionStep / 10.0f)   OR ...
-	float selectionPressure;
+	// Both values should be < 1.0 , safe value is 0.0 .  
+	// ".first " influences the probability of each specimen to be present once in the next generation. 
+	// ".second" influences the probability of each specimen to take a spot left empty by a specimen that did not make it
+	std::pair<float, float> selectionPressure;
 
 
 	// If set to true, each trial of the vector passed to the step function will be reset to the same initial values for
@@ -72,42 +71,39 @@ struct PopulationEvolutionParameters {
 	bool useSameTrialInit;
 
 
-	// Experimental, default=false. Only used with CONTINUOUS_LEARNING && GUIDED_MUTATIONS, and when enabled in 
-	// Network::postTrialUpdate().  If true, for each specimen, postTrialUpdate adds to an accumulator for each weight:
-	// [wLifetime * normalizedScoreOnThisTrial] * constant 
-	// Then zeros wLifetime, so there is no memory between trials ! TODO wise ?
-	bool normalizedScoreGradients;
-
-
 	// Experimental, default=0.0. Only used when SATURATION_PENALIZING is defined, as it slows down forward() (a bit).
 	// The higher, the stronger the penalty for saturated activations. It may be important to use it when GUIDED_MUTATIONS
 	// is defined, as with it networks are prone to oversaturation.
 	float saturationFactor;
 
-	// Must be a multiple of N_THREADS. If 0, ignored. The number of specimens after the next call to step(). 
-	int targetNSpecimens;
-
 
 	// EvaluateFitness() is supposed to receive a vector of fitnesses, 1 value per specimen, more or less normally 
 	// distributed (the function handles centering and reducing). However, many trials have no such measure
-	// of the fitness : it may be exponential, or too noisy , or ... In general, it wont be easily interpretable for
-	// generating offsprings with the best probabilities. 
-	// And even if it were the  case, the distribution of fitnesses ultimately depends on the population itself.
-	// This is why a ranking-fitness should be used in the general case, instead of raw trial scores. Scores may be
-	// relevant for certain trials, but do not use them when unsure.
+	// of the fitness : it may be exponential, or discontinuous , or ... In general, it wont be easily interpretable 
+	// for generating offsprings with the best probabilities. 
+	// And even if it were the  case, the normalizity of the fitness distribution ultimately depends on the 
+	// relative performances of the networks. This is why a ranking fitness should be used in the general case, 
+	// instead of raw trial scores. When unsure,  use rankingFitness = true.
 	bool rankingFitness;
+
+
+	// Disabled when = 0. Recommended range: [0, .3]. Useless after the maximum score has been reached.
+	// Induces a term in the fitness which compares score at this step with score of the parent on the 
+	// corresponding trial, at the previous step. (Therefore on a different random initialization.) 
+	// Makes sense to use only if trials within a step are semantically different, and the random initialization
+	// does not influence the score "too much". See note in Network.postTrialUpdate.
+	float competitionFactor;
 
 
 	//defaults:
 	PopulationEvolutionParameters() {
-		selectionPressure = 0.0f;
+		selectionPressure = { -10.0f, 0.0f };
 		regularizationFactor = 0.1f;
 		nichingNorm = 0.0f;
 		useSameTrialInit = false;
-		normalizedScoreGradients = false;
 		saturationFactor = .05f;
-		targetNSpecimens = 0;
 		rankingFitness = true;
+		competitionFactor = .1f;
 	}
 };
 
@@ -134,16 +130,17 @@ public:
 	// No requirement on avgScorePerSpecimen, other that a higher score = a better specimen.
 	void computeFitnesses(std::vector<float>& avgScorePerSpecimen);
 
-	void createOffsprings();
+	// nTrials is used in Network.parentData if available.
+	void createOffsprings(int nTrials=0);
+
 	void setEvolutionParameters(PopulationEvolutionParameters params) {
 		this->regularizationFactor = params.regularizationFactor;
 		this->selectionPressure = params.selectionPressure;
 		this->nichingNorm = params.nichingNorm;
 		this->useSameTrialInit = params.useSameTrialInit;
-		this->normalizedScoreGradients = params.normalizedScoreGradients;
 		this->saturationFactor = params.saturationFactor;
-		this->targetNSpecimens = params.targetNSpecimens;
 		this->rankingFitness = params.rankingFitness;
+		this->competitionFactor = params.competitionFactor;
 	}
 
 
@@ -198,18 +195,16 @@ private:
 	// Pointer to the score matrix (a vector local to step(), so make sure it is not out of scope). 
 	float* pScores;
 
-
-
 	// EVOLUTION PARAMETERS: 
 	
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
-	int targetNSpecimens;
+	float regularizationFactor, nichingNorm, saturationFactor, competitionFactor;
 
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
-	float regularizationFactor, nichingNorm, selectionPressure, saturationFactor;
+	std::pair<float, float> selectionPressure;
 
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
-	bool useSameTrialInit, normalizedScoreGradients, rankingFitness;
+	bool useSameTrialInit, rankingFitness;
 
 
 

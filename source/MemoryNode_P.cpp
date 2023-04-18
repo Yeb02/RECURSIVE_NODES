@@ -204,14 +204,17 @@ void MemoryNode_P::setArrayPointers(float** ppsa, float** cpsa, float** psa, flo
 }
 
 void MemoryNode_P::preTrialReset() {
-	nMemorizedVectors = 0;
+	
+	// TODO keep memory between trial ?
+	{
+		nMemorizedVectors = 0;
+		memory.reset(NULL);
+		transformedMemory.reset(NULL);
+		sigmas.reset(NULL);
 
-	memory.reset(NULL);
-	transformedMemory.reset(NULL);
-	sigmas.reset(NULL);
-
-	for (int j = 0; j < type->outputSize; j++) {
-		candidateMemory[j] = 0.0f;
+		for (int j = 0; j < type->outputSize; j++) {
+			candidateMemory[j] = 0.0f;
+		}
 	}
 
 	int s = type->link.nLines * type->link.nColumns;;
@@ -229,7 +232,7 @@ void MemoryNode_P::accumulateW(float factor) {
 	int s = type->link.nLines * type->link.nColumns;
 	for (int j = 0; j < s; j++) {
 		type->link.accumulator[j] += factor * pLink.wLifetime[j];
-		//pLink.wLifetime[j] = 0.0f; // TODO
+		pLink.wLifetime[j] = 0.0f; // TODO
 	}
 }
 #endif

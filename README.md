@@ -10,7 +10,7 @@ Implements a 3 loops optimization algorithm to tackle reinforcement learning cha
 <em>Visualization of one network. The numbers inside circles correspond to the node 'Node n°X'.</em>
 
 &nbsp;
-##### KNOWN BUGS: None, report any !
+##### KNOWN BUGS: None, but partial evaluation and gradient guided mutations are for now incompatible and will cause a crash.
 ##### TODO: Save a model or a population, with boost.serialize. Then heap defragmentation.
 &nbsp;
 Several variants of the algorithm are implemented, change the active preprocessor directives in config.h to compile a custom version. More info in the file.

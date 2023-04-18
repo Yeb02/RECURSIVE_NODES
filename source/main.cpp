@@ -26,7 +26,7 @@ int main()
     nThreads = 1;
 #endif
     int nSpecimens = nThreads * 128; //16 -> 512
-    int nDifferentTrials = 8;
+    int nDifferentTrials = 2;
     int nSteps = 10000;
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
@@ -34,9 +34,9 @@ int main()
     vector<unique_ptr<Trial>> trials;
     for (int i = 0; i < nDifferentTrials; i++) {
 #ifdef CARTPOLE_T
-        trials.emplace_back(new CartPoleTrial(true)); // Parameter corresponds to continuous control.
+        trials.emplace_back(new CartPoleTrial(true)); // bool : continuous control.
 #elif defined XOR_T
-        trials.emplace_back(new XorTrial(2,15));  
+        trials.emplace_back(new XorTrial(2,15));  // int : vSize, int : delay
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
 #elif defined N_LINKS_PENDULUM_T
@@ -49,19 +49,19 @@ int main()
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = -1.0f;
+    params.selectionPressure = { -5.0f, 0.0f };
     params.nichingNorm = 0.0f;
     params.useSameTrialInit = true;
-    params.normalizedScoreGradients = false;
     params.rankingFitness = true;
-    params.saturationFactor = 0.01f;
-    params.regularizationFactor = 0.01f; // .05f
-    params.targetNSpecimens = 0;
+    params.saturationFactor = 0.05f;
+    params.regularizationFactor = -0.1f; // .05f
+    params.competitionFactor = 0.0f; 
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
     population.setEvolutionParameters(params); 
 
     // Only the last _nTrialsEvaluated are used for fitness calculations. Others are only used for learning.
+    // DO NOT USE A VALUE DIFFERENT OF nDifferentTrials, AS OF NOW IT WILL CAUSE A CRASH. TODO adapt parentData
     int _nTrialsEvaluated = nDifferentTrials ;   // = (int)trials.size(), or 4, or (int)trials.size() / 4, ...
 
 

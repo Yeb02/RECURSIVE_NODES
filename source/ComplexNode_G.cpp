@@ -226,7 +226,7 @@ void ComplexNode_G::addComplexChild(ComplexNode_G* child) {
 	for (int i = biasID; i < biasID + child->inputSize; i++) {
 		internalBias[i] = NORMAL_01 * .2f;
 	}
-
+	//internalBiasSize += child->inputSize;
 	complexChildren.emplace_back(child);
 }
 void ComplexNode_G::addSimpleChild(SimpleNode_G* child) {

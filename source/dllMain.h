@@ -44,7 +44,7 @@ extern "C" {
 	}
 	RECURSIVE_NODES_API void set_evolution_parameters(Population* population, float selectionPressure, float regularizationFactor, float nichingNorm) {
 		PopulationEvolutionParameters params;
-		params.selectionPressure = selectionPressure;
+		params.selectionPressure.second = selectionPressure;
 		params.regularizationFactor = regularizationFactor;
 		params.nichingNorm = nichingNorm;
 		population->setEvolutionParameters(params);
@@ -55,7 +55,7 @@ extern "C" {
 		n->preTrialReset();
 	}
 	RECURSIVE_NODES_API void end_trial(Network* n) {
-		n->postTrialUpdate(1.0f);
+		n->postTrialUpdate(1.0f, -1);
 	}
 	RECURSIVE_NODES_API void get_actions(Network* n, float* observations, float* actions) {
 		std::vector<float> observationsV(observations, observations + n->inputSize);

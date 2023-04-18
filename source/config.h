@@ -17,8 +17,8 @@
 
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
 // These do not affect the DLL.
-//#define CARTPOLE_T
-#define XOR_T
+#define CARTPOLE_T
+//#define XOR_T
 //#define TMAZE_T
 //#define N_LINKS_PENDULUM_T
 //#define MEMORY_T
@@ -37,7 +37,7 @@
 // may need to increase the value fed to accumulateW in Network::postTrialUpdate(), to 10 or 50., and accumulatorClipRange to
 // 1.0 or 2.0 in ComplexNode_G::mutateFloats()). Accumulators are reset to 0 after a call to mutate floats.
 // Adding a factor decreasing the effect over generations could be interesting, TODO .
-// TODO toggle zeroing of wLifetime at trial end. If off, the accumulation should only happen at lifetime's end, 
+// TODO toggle zeroing of wLifetime at trial end. If off, the accumulation should only happen at lifetime's end.
 #define GUIDED_MUTATIONS
 
 

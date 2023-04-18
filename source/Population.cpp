@@ -38,6 +38,28 @@ void normalizeArray(float* v, int size) {
 	}
 }
 
+void convertRawToRank(float* v, int size) {
+	std::vector<int> positions(size);
+	for (int i = 0; i < size; i++) {
+		positions[i] = i;
+	}
+	// sort position by ascending fitnesses.
+	std::sort(positions.begin(), positions.end(), [v](int a, int b) -> bool
+		{
+			return v[a] < v[b];
+		}
+	);
+	float invSize = 1.0f / (float)size;
+	for (int i = 0; i < size; i++) {
+		// linear in [-1,1], -1 for the worst specimen, 1 for the best
+		float positionValue = (float)(2 * i - size) * invSize;
+		// arbitrary, to make it a bit more selective. 
+		positionValue = 4.0f * powf(positionValue * .8f, 3.0f);
+
+		v[positions[i]] = positionValue;
+	}
+	return;
+}
 
 Population::Population(int IN_SIZE, int OUT_SIZE, int nSpecimens) :
 	nSpecimens(nSpecimens), N_THREADS(0), pScores(nullptr), threadIteration(0), mustTerminate(false)
@@ -168,7 +190,7 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 			currentThreadIteration++;
 
 			for (int j = i0; j < i0 + subArraySize; j++) {
-				networks[j]->postTrialUpdate(localScorePtr[j]);
+				networks[j]->postTrialUpdate(localScorePtr[j], i);
 			}
 		}
 		
@@ -226,8 +248,13 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			}
 
 			// Non threaded operations on score array:
-			if (i < tSize && normalizedScoreGradients) {
-				normalizeArray(pScores + i * nSpecimens, nSpecimens);
+			if (i < tSize) {
+				if (rankingFitness) {
+					convertRawToRank(pScores + i * nSpecimens, nSpecimens);
+				}
+				else {
+					normalizeArray(pScores + i * nSpecimens, nSpecimens);
+				}
 			}
 		}
 	}
@@ -241,20 +268,24 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			pScores = &scores[i * nSpecimens];
 			evaluate(0, nSpecimens, trials[i].get(), pScores);
 
-			if (normalizedScoreGradients) {
+			if (rankingFitness) {
+				convertRawToRank(pScores, nSpecimens);
+			}
+			else {
 				normalizeArray(pScores, nSpecimens);
 			}
 
-			for (int i = 0; i < nSpecimens; i++) {
-				networks[i]->postTrialUpdate(pScores[i]);
+			for (int j = 0; j < nSpecimens; j++) {
+				networks[j]->postTrialUpdate(pScores[j], i);
 			}
 		}
+		pScores = scores.data();
 	}
 
 
-	// LOGGING SCORES. MONITORING ONLY, CAN BE DISABLED.
+	// logging scores. monitoring only, can be disabled.
 	if (true) {
-		if (normalizedScoreGradients) {
+		if (rankingFitness) {
 			float maxScore = -1000000.0f, score;
 			int maxScoreID = -1;
 			for (int i = 0; i < nSpecimens; i++) {
@@ -299,55 +330,65 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			avgavgf /= nTrialsEvaluated;
 			std::cout << "At generation " << evolutionStep
 			<< ", max score = " << maxScore
-			<< ", avg avg score = " << avgavgf << ".\n";
+			<< ", average score per specimen per trial = " << avgavgf << ".\n";
 		//std::cout << maxScore << ", ";
 		}
 	}
 
 
-	// Result-based niching, if nichingNorm > 0. Otherwise, simple sum and normalization.
+	// Result-based niching, if nichingNorm > 0. Otherwise, simple average.
 	std::vector<float> avgScorePerSpecimen(nSpecimens);
-	if (nichingNorm > 0.0f) {
-		std::vector<float> sums, mins;
-		sums.resize(nTrialsEvaluated);
-		mins.resize(nTrialsEvaluated); // 0 init is fine cause there WILL be values < 0.
-		for (int j = i0; j < tSize; j++) {
-			for (int i = 0; i < nSpecimens; i++) {
-				sums[j - i0] += scores[i + j * nSpecimens];
-				if (scores[i + j * nSpecimens] < mins[j - i0]) {
-					mins[j - i0] = scores[i + j * nSpecimens];
-				}
-			}
-		}
-
-		for (int i = 0; i < nTrialsEvaluated; i++) {
-			sums[i] -= mins[i] * (float)nSpecimens;
-			sums[i] = 1.0f / sums[i];
-		}
-
+	if (nichingNorm > 0.0f && nTrialsEvaluated > 1) {
 		float invNichingNorm = 1.0f/ nichingNorm;
 		for (int i = 0; i < nSpecimens; i++) {
 			float s = 0.0f;
-			for (int j = i0; j < tSize; j++) {
-				s += powf((scores[i + j * nSpecimens] - mins[j-i0]) * sums[j-i0], nichingNorm);
+			if (networks[i]->parentData.isAvailable && competitionFactor > 0.0f) {
+				for (int j = i0; j < tSize; j++) {
+					float _score = scores[i + j * nSpecimens] + competitionFactor *
+						powf(
+							std::clamp(networks[i]->parentData.scores[j] - scores[i + j * nSpecimens], -1.0f, 1.0f),
+							3.0f
+						);
+
+					s += powf(_score, nichingNorm);
+				}
 			}
+			else {
+				for (int j = i0; j < tSize; j++) {
+					s += powf(scores[i + j * nSpecimens], nichingNorm);
+				}
+			}
+			
 			// Dividing s by nTrialsEvaluated so that changing nTrialsEvaluated does not
-			// influence too much other hyperparameters.
+			// influence too much other hyperparameters ?
 			//avgScorePerSpecimen[i] = powf(s/(float) nTrialsEvaluated, invNichingNorm);
-			avgScorePerSpecimen[i] = powf(s, invNichingNorm);
+			avgScorePerSpecimen[i] = powf(s, invNichingNorm); 
 		}
 	} 
 	else {
-		for (int j = i0; j < tSize; j++) {
-			for (int i = 0; i < nSpecimens; i++) {
-				avgScorePerSpecimen[i] += scores[i + j * nSpecimens];
+		for (int i = 0; i < nSpecimens; i++) {
+			float s = 0.0f;
+			if (networks[i]->parentData.isAvailable && competitionFactor > 0.0f) {
+				for (int j = i0; j < tSize; j++) {
+					s += scores[i + j * nSpecimens] + competitionFactor *
+						powf(
+							std::clamp(networks[i]->parentData.scores[j] - scores[i + j * nSpecimens], -1.0f, 1.0f),
+							3.0f
+						);
+				}
 			}
+			else {
+				for (int j = i0; j < tSize; j++) {
+					s += scores[i + j * nSpecimens];
+				}
+			}
+			avgScorePerSpecimen[i] = s;
 		}
 	}
 
 	computeFitnesses(avgScorePerSpecimen);
 
-	createOffsprings();
+	createOffsprings((int)trials.size());
 	
 	evolutionStep++;
 }
@@ -372,27 +413,9 @@ void Population::computeFitnesses(std::vector<float> &avgScorePerSpecimen) {
 #endif
 
 
-
+	// These happen twice if there is only one trial. Redundant 
 	if (rankingFitness) {
-		std::vector<int> positions(nSpecimens);
-		for (int i = 0; i < nSpecimens; i++) {
-			positions[i] = i;
-		}
-		// sort position by ascending fitnesses.
-		std::sort(positions.begin(), positions.end(), [&avgScorePerSpecimen](int a, int b) -> bool
-			{
-				return avgScorePerSpecimen[a] < avgScorePerSpecimen[b];
-			}
-		);
-		float invPop = 1.0f / (float)nSpecimens;
-		for (int i = 0; i < nSpecimens; i++) {
-			// linear in [-1,1], -1 for the worst specimen, 1 for the best
-			float positionValue = (float)(2 * i - nSpecimens) * invPop; 
-			// arbitrary, to make it a bit more selective. 
-			positionValue = 4.0f * powf(positionValue*.8f, 3.0f);
-
-			avgScorePerSpecimen[positions[i]] = positionValue;
-		}
+		convertRawToRank(avgScorePerSpecimen.data(), nSpecimens); 
 	}
 	else {
 		normalizeArray(avgScorePerSpecimen.data(), nSpecimens);
@@ -412,57 +435,68 @@ void Population::computeFitnesses(std::vector<float> &avgScorePerSpecimen) {
 			fMax = fitnesses[i];
 			fittestSpecimen = i;
 		}
-		if (fitnesses[i] < selectionPressure) fitnesses[i] = 0.0f;
-		else fitnesses[i] -= selectionPressure;
 	}
-
-	if (fMax == selectionPressure) {
-		std::cerr <<
-		"WARNING : selectionPressure TOO HIGH, ALL SPECIMENS REJECTED. < 1 RECOMMENDED FOR STABILITY, < 0 TO BE SURE."
-		<< std::endl;
-
-		fitnesses[fittestSpecimen] = 1.0f;
-	}
-
 }
 
-void Population::createOffsprings() {
+void Population::createOffsprings(int nTrials) {
+	std::vector<float> probabilities(nSpecimens);
+	std::vector<Network*> tempNetworks(nSpecimens);
+
+	// already happens in computeFitnesses...
+	float fMax = -10000.0f;
+	for (int i = 0; i < nSpecimens; i++) {
+		if (fitnesses[i] > fMax) {
+			fMax = fitnesses[i];
+		}
+	}
+
+	float normalizationFactor = 1.0f / (fMax - selectionPressure.first);
+	for (int i = 0; i < nSpecimens; i++) {
+		probabilities[i] = (fitnesses[i] - selectionPressure.first)*normalizationFactor;
+		if (fitnesses[i] < selectionPressure.second) fitnesses[i] = 0.0f;
+		else fitnesses[i] -= selectionPressure.second;
+	}
+
+	auto setParentData = [this, nTrials](int parentID, Network* offspring) {
+		if (pScores != nullptr) { // should be true if and only if running the exe and not the dll, for now. TODO
+			offspring->parentData.isAvailable = true;
+			offspring->parentData.scoreSize = nTrials;
+			offspring->parentData.scores = new float[nTrials];
+			for (int i = 0; i < nTrials; i++) {
+				offspring->parentData.scores[i] = pScores[i * nSpecimens + parentID];
+			}
+		}
+		return;
+	};
+
+	int nReconductedSpecimens = 0;
+	for (int i = 0; i < nSpecimens; i++) {
+		if (UNIFORM_01 < probabilities[i]) {
+			tempNetworks[nReconductedSpecimens] = new Network(networks[i]);
+			setParentData(i, tempNetworks[nReconductedSpecimens]);
+			nReconductedSpecimens++;
+		}
+	}
 
 	// Compute probabilities for roulette wheel selection.
 	float fitnessSum = 0.0f;
 	for (int i = 0; i < nSpecimens; i++) {
 		fitnessSum += fitnesses[i];
 	}
-	std::vector<float> probabilities(nSpecimens);
+	
 	probabilities[0] = fitnesses[0] / fitnessSum;
 	for (int i = 1; i < nSpecimens; i++) {
 		probabilities[i] = probabilities[i - 1] + fitnesses[i] / fitnessSum;
 	}
 
-	// Establish the number of specimens to create.
-	int nOffsprings = nSpecimens;
-	if (targetNSpecimens != 0 && targetNSpecimens != nSpecimens) { 
-		if (N_THREADS > 1 && targetNSpecimens % N_THREADS != 0) {
-			nOffsprings = ((targetNSpecimens / N_THREADS) + 1) * N_THREADS;
-			std::cerr <<
-				"WARNING: THE CHOSEN NUMBER OF SPECIMENS IS NOT A MUTLIPLE OF THE NUMBER OF THREADS. " <<
-				"USING ROUNDED UP NUMBER : " << nOffsprings
-				<< std::endl;
-			targetNSpecimens = nOffsprings;
-		} 
-		nOffsprings = targetNSpecimens;
-	}
-
-	// Create the next generation, while keeping track of one of the fittest specimen's children.
-	bool updated = false;  
 	int parentID;
-	std::vector<Network*> tempNetworks(nOffsprings);
-	for (int i = 0; i < nOffsprings; i++) {
+	for (int i = nReconductedSpecimens; i < nSpecimens; i++) {
 		parentID = binarySearch(probabilities, UNIFORM_01);
 		tempNetworks[i] = new Network(networks[parentID]);
-		if (parentID == fittestSpecimen && !updated) {
+		setParentData(parentID, tempNetworks[i]);
+
+		if (parentID == fittestSpecimen) {
 			fittestSpecimen = i; 
-			updated = true;
 		}
 	}
 
@@ -471,11 +505,7 @@ void Population::createOffsprings() {
 	for (int i = 0; i < nSpecimens; i++) {
 		delete networks[i];
 	}
-	if (nOffsprings != nSpecimens) {
-		nSpecimens = nOffsprings;
-		networks.resize(nSpecimens);
-		fitnesses.resize(nSpecimens);
-	}
+
 	for (int i = 0; i < nSpecimens; i++) {
 		networks[i] = tempNetworks[i];
 	}

@@ -25,12 +25,7 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	std::copy(n->queryM.get(), n->queryM.get() + s, queryM.get());
 
 	s = outputSize * inputSize;
-	if (s == 0) {
-		__debugbreak();
-	}
 	tQxK = std::make_unique<float[]>(s);
-	std::copy(n->tQxK.get(), n->tQxK.get() + s, tQxK.get());
-
 }
 
 MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
