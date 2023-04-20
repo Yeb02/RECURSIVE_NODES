@@ -54,7 +54,7 @@ void convertRawToRank(float* v, int size) {
 		// linear in [-1,1], -1 for the worst specimen, 1 for the best
 		float positionValue = (float)(2 * i - size) * invSize;
 		// arbitrary, to make it a bit more selective. 
-		positionValue = 4.0f * powf(positionValue * .8f, 3.0f);
+		positionValue = 2.0f * powf(positionValue * .8f, 3.0f);
 
 		v[positions[i]] = positionValue;
 	}
@@ -77,6 +77,7 @@ Population::Population(int IN_SIZE, int OUT_SIZE, int nSpecimens) :
 
 	fittestSpecimen = 0;
 	evolutionStep = 0;
+	nTrialsAtThisStep = -1;
 }
 
 void Population::stopThreads() {
@@ -217,21 +218,21 @@ void Population::evaluate(const int i0, const int subArraySize, Trial* trial, fl
 
 void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEvaluated) {
 	// utils
-	int tSize = (int)trials.size();
-	int i0 = tSize - nTrialsEvaluated;
+	nTrialsAtThisStep = (int)trials.size();
+	int i0 = nTrialsAtThisStep - nTrialsEvaluated;
 
 	// Mutate, then evaluate the specimens on trials. Threaded operation if specified.
-	std::vector<float> scores(tSize * nSpecimens);
+	std::vector<float> scores(nTrialsAtThisStep * nSpecimens);
 	if (N_THREADS > 1) {
 
 		// acquire pointers to this step's trials.
-		globalTrials.resize(tSize);
-		for (int j = 0; j < tSize; j++) {
+		globalTrials.resize(nTrialsAtThisStep);
+		for (int j = 0; j <nTrialsAtThisStep; j++) {
 			globalTrials[j] = trials[j].get();
 		}
 
 		pScores = scores.data();
-		for (int i = 0; i < tSize + 1; i++) {
+		for (int i = 0; i <nTrialsAtThisStep + 1; i++) {
 			
 			// send msg to workers to start processing
 			{
@@ -248,7 +249,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			}
 
 			// Non threaded operations on score array:
-			if (i < tSize) {
+			if (i <nTrialsAtThisStep) {
 				if (rankingFitness) {
 					convertRawToRank(pScores + i * nSpecimens, nSpecimens);
 				}
@@ -264,7 +265,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			networks[i]->createPhenotype();
 		}
 
-		for (int i = 0; i < tSize; i++) {
+		for (int i = 0; i <nTrialsAtThisStep; i++) {
 			pScores = &scores[i * nSpecimens];
 			evaluate(0, nSpecimens, trials[i].get(), pScores);
 
@@ -290,7 +291,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			int maxScoreID = -1;
 			for (int i = 0; i < nSpecimens; i++) {
 				score = 0;
-				for (int j = i0; j < tSize; j++) {
+				for (int j = i0; j <nTrialsAtThisStep; j++) {
 					score += scores[i + j * nSpecimens];
 				}
 				if (score > maxScore) {
@@ -315,7 +316,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			float score, avgFactor = 1.0f / (float)nTrialsEvaluated;
 			for (int i = 0; i < nSpecimens; i++) {
 				score = 0;
-				for (int j = i0; j < tSize; j++) {
+				for (int j = i0; j <nTrialsAtThisStep; j++) {
 					score += scores[i + j * nSpecimens];
 					avgScoresPerTrial[j - i0] += scores[i + j * nSpecimens];
 				}
@@ -335,65 +336,48 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		}
 	}
 
-
-	// Result-based niching, if nichingNorm > 0. Otherwise, simple average.
-	std::vector<float> avgScorePerSpecimen(nSpecimens);
-	if (nichingNorm > 0.0f && nTrialsEvaluated > 1) {
-		float invNichingNorm = 1.0f/ nichingNorm;
+	// Competition score adjustment. Assuming that either all networks have a valid parentData, or none has.
+	if (competitionFactor != 0.0f && networks[0]->parentData.isAvailable) { 
 		for (int i = 0; i < nSpecimens; i++) {
-			float s = 0.0f;
-			if (networks[i]->parentData.isAvailable && competitionFactor > 0.0f) {
-				for (int j = i0; j < tSize; j++) {
-					float _score = scores[i + j * nSpecimens] + competitionFactor *
-						powf(
-							std::clamp(networks[i]->parentData.scores[j] - scores[i + j * nSpecimens], -1.0f, 1.0f),
-							3.0f
-						);
-
-					s += powf(_score, nichingNorm);
-				}
+			for (int j = i0; j <nTrialsAtThisStep; j++) {
+				scores[i + j * nSpecimens] += competitionFactor *
+					powf(
+						std::clamp(networks[i]->parentData.scores[j] - scores[i + j * nSpecimens], -1.0f, 1.0f),
+						3.0f
+					);
 			}
-			else {
-				for (int j = i0; j < tSize; j++) {
-					s += powf(scores[i + j * nSpecimens], nichingNorm);
-				}
-			}
-			
-			// Dividing s by nTrialsEvaluated so that changing nTrialsEvaluated does not
-			// influence too much other hyperparameters ?
-			//avgScorePerSpecimen[i] = powf(s/(float) nTrialsEvaluated, invNichingNorm);
-			avgScorePerSpecimen[i] = powf(s, invNichingNorm); 
-		}
-	} 
-	else {
-		for (int i = 0; i < nSpecimens; i++) {
-			float s = 0.0f;
-			if (networks[i]->parentData.isAvailable && competitionFactor > 0.0f) {
-				for (int j = i0; j < tSize; j++) {
-					s += scores[i + j * nSpecimens] + competitionFactor *
-						powf(
-							std::clamp(networks[i]->parentData.scores[j] - scores[i + j * nSpecimens], -1.0f, 1.0f),
-							3.0f
-						);
-				}
-			}
-			else {
-				for (int j = i0; j < tSize; j++) {
-					s += scores[i + j * nSpecimens];
-				}
-			}
-			avgScorePerSpecimen[i] = s;
 		}
 	}
 
+
+	// Compute the final score per specimen.
+	std::vector<float> avgScorePerSpecimen(nSpecimens);
+#ifdef SPECIALIZATION_INCENTIVE
+	float invP = 1.0f / SPECIALIZATION_INCENTIVE;
+	for (int i = 0; i < nSpecimens; i++) {
+		float s = 0.0f;
+		for (int j = i0; j <nTrialsAtThisStep; j++) {
+			s += powf(std::max( scores[i + j * nSpecimens], 0.0f) , SPECIALIZATION_INCENTIVE);
+		}
+		avgScorePerSpecimen[i] = powf(s, invP);
+	}
+#else
+	for (int i = 0; i < nSpecimens; i++) {
+		for (int j = i0; j <nTrialsAtThisStep; j++) {
+			avgScorePerSpecimen[i] += scores[i + j * nSpecimens];
+		}
+	}
+#endif
+
+	// Adds regularization, saturation penalization, ...
 	computeFitnesses(avgScorePerSpecimen);
 
-	createOffsprings((int)trials.size());
+	createOffsprings();
 	
 	evolutionStep++;
 }
 
-void Population::computeFitnesses(std::vector<float> &avgScorePerSpecimen) {
+void Population::computeFitnesses(std::vector<float>& avgScorePerSpecimen) {
 
 	// compute and normalize the regularization term
 	std::vector<float> regularizationScore(nSpecimens);
@@ -413,14 +397,15 @@ void Population::computeFitnesses(std::vector<float> &avgScorePerSpecimen) {
 #endif
 
 
-	// These happen twice if there is only one trial. Redundant 
-	if (rankingFitness) {
-		convertRawToRank(avgScorePerSpecimen.data(), nSpecimens); 
+	// TODO these are only useful in the dll.
+	if (pScores == nullptr) {
+		if (rankingFitness) {
+			convertRawToRank(avgScorePerSpecimen.data(), nSpecimens);
+		}
+		else {
+			normalizeArray(avgScorePerSpecimen.data(), nSpecimens);
+		}
 	}
-	else {
-		normalizeArray(avgScorePerSpecimen.data(), nSpecimens);
-	}
-
 
 
 	// Then, the fitness is simply a weighted sum of the 2 intermediate measures, score and regularization.
@@ -438,7 +423,7 @@ void Population::computeFitnesses(std::vector<float> &avgScorePerSpecimen) {
 	}
 }
 
-void Population::createOffsprings(int nTrials) {
+void Population::createOffsprings() {
 	std::vector<float> probabilities(nSpecimens);
 	std::vector<Network*> tempNetworks(nSpecimens);
 
@@ -457,12 +442,12 @@ void Population::createOffsprings(int nTrials) {
 		else fitnesses[i] -= selectionPressure.second;
 	}
 
-	auto setParentData = [this, nTrials](int parentID, Network* offspring) {
+	auto setParentData = [this](int parentID, Network* offspring) {
 		if (pScores != nullptr) { // should be true if and only if running the exe and not the dll, for now. TODO
 			offspring->parentData.isAvailable = true;
-			offspring->parentData.scoreSize = nTrials;
-			offspring->parentData.scores = new float[nTrials];
-			for (int i = 0; i < nTrials; i++) {
+			offspring->parentData.scoreSize = nTrialsAtThisStep;
+			offspring->parentData.scores = new float[nTrialsAtThisStep];
+			for (int i = 0; i < nTrialsAtThisStep; i++) {
 				offspring->parentData.scores[i] = pScores[i * nSpecimens + parentID];
 			}
 		}
@@ -477,6 +462,7 @@ void Population::createOffsprings(int nTrials) {
 			nReconductedSpecimens++;
 		}
 	}
+	//std::cout << "reconducted fraction : " << (float)nReconductedSpecimens / (float)nSpecimens << std::endl;
 
 	// Compute probabilities for roulette wheel selection.
 	float fitnessSum = 0.0f;

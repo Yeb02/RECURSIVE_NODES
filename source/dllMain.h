@@ -46,7 +46,6 @@ extern "C" {
 		PopulationEvolutionParameters params;
 		params.selectionPressure.second = selectionPressure;
 		params.regularizationFactor = regularizationFactor;
-		params.nichingNorm = nichingNorm;
 		population->setEvolutionParameters(params);
 	}
 	

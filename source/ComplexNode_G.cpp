@@ -183,17 +183,18 @@ void ComplexNode_G::addConnexion() {
 			}
 		}
 
-		if (true) { // If true, only one connexion allowed between two nodes
-			if (nSameConnexion>0) continue;
+#ifdef ALLOW_DUPLICATE_CONNEXIONS
+		// the probability of a connexion being created diminishes exponentially as the number of preexisting connexions 
+		// between the same 2 nodes increases.
+		constexpr float failureProbability = .7f;
+		if (UNIFORM_01 < 1.0f - powf(failureProbability, (float)nSameConnexion)) {
+			continue;
 		}
-		else {  
-			// the probability of a connexion being created diminishes exponentially as the number of preexisting connexions 
-			// between the same 2 nodes increases.
-			constexpr float failureProbability = .7f;
-			if (UNIFORM_01 < 1.0f - powf(failureProbability, (float)nSameConnexion)) {
-				continue;
-			}
+#else
+		if (nSameConnexion > 0) {
+			continue;
 		}
+#endif
 		
 		// ZERO initialization to minimize disturbance of the network
 		internalConnexions.emplace_back(oType, dType, oID, dID, dInSize, oOutSize, GenotypeConnexion::ZERO);

@@ -78,6 +78,10 @@ Network::Network(Network* n) {
 	nInferencesOverLifetime = n->nInferencesOverLifetime;
 	nExperiencedTrials = n->nExperiencedTrials;
 
+	// WARNING TODO this line is necessary if a network is copied and used for inference without calling mutate(), but 
+	// it should not happen. I keep it uncommented but thats a (tiny) performance loss.
+	computeMemoryUtils();
+
 	topNodeP.reset(NULL);
 }
 
@@ -92,12 +96,12 @@ Network::Network(int inputSize, int outputSize) :
 	simpleGenome.emplace_back(new SimpleNode_G(GAUSSIAN));
 
 	complexGenome.resize(0);
-	ComplexNode_G* baseComplexNode = new ComplexNode_G();
+	/*ComplexNode_G* baseComplexNode = new ComplexNode_G();
 	baseComplexNode->inputSize = 1;
 	baseComplexNode->outputSize = 1;
 	baseComplexNode->computeInternalBiasSize();
 	baseComplexNode->internalBias.resize(baseComplexNode->internalBiasSize);
-	complexGenome.emplace_back(baseComplexNode);
+	complexGenome.emplace_back(baseComplexNode);*/
 
 
 
@@ -116,7 +120,8 @@ Network::Network(int inputSize, int outputSize) :
 
 		topNodeG->complexChildren.resize(0);
 		topNodeG->simpleChildren.resize(0);
-		topNodeG->memoryChildren.resize(0);
+
+		/*topNodeG->memoryChildren.resize(0);
 
 		topNodeG->internalConnexions.resize(0);
 		topNodeG->internalConnexions.reserve(4);
@@ -125,7 +130,27 @@ Network::Network(int inputSize, int outputSize) :
 		);
 		topNodeG->internalConnexions.emplace_back(
 			INPUT_NODE, MODULATION, -1, -1, MODULATION_VECTOR_SIZE, inputSize, GenotypeConnexion::RANDOM
-		);
+		);*/
+
+		{
+			topNodeG->memoryChildren.resize(1);
+			topNodeG->memoryChildren[0] = memoryGenome[0].get();
+			topNodeG->internalConnexions.resize(0);
+			topNodeG->internalConnexions.reserve(4);
+			topNodeG->internalConnexions.emplace_back(
+				INPUT_NODE, OUTPUT, -1, -1, outputSize, inputSize, GenotypeConnexion::RANDOM
+			);
+			topNodeG->internalConnexions.emplace_back(
+				INPUT_NODE, MODULATION, -1, -1, MODULATION_VECTOR_SIZE, inputSize, GenotypeConnexion::RANDOM
+			);
+			topNodeG->internalConnexions.emplace_back(
+				INPUT_NODE, MEMORY, -1, 0, inputSize, inputSize, GenotypeConnexion::RANDOM
+			);
+			topNodeG->internalConnexions.emplace_back(
+				MEMORY, OUTPUT, 0, -1, outputSize, outputSize, GenotypeConnexion::RANDOM
+			);
+		}
+
 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
 			topNodeG->modulationBias[i] = 0.0f;
@@ -177,7 +202,7 @@ void Network::postTrialUpdate(float score, int trialID) {
 		float argument = 5.0f;
 
 		// One and only one of these two options for argument can be uncommented, or 
-		// the default value can be kept:
+		// the default constant value can be kept:
 
 		// 1- 
 		// Constant factor between 5 and 100 recommended.
@@ -347,15 +372,15 @@ void Network::mutate() {
 	constexpr float addComplexChildProbability = .01f;
 	constexpr float removeComplexChildProbability = .002f;
 
-	constexpr float addMemoryChildProbability = .01f;
-	constexpr float removeMemoryChildProbability = .002f;
+	constexpr float addMemoryChildProbability = .0f; // .01f
+	constexpr float removeMemoryChildProbability = .0f; // .002f
 
 	constexpr float replaceSimpleChildProbability = .05f;
 	constexpr float replaceComplexChildProbability = .05f;
 	constexpr float replaceMemoryChildProbability = .05f;
 
 	constexpr float duplicateComplexChildProbability = .01f;
-	constexpr float duplicateMemoryChildProbability = .01f;
+	constexpr float duplicateMemoryChildProbability = .0f; //.01f
 
 	float r;
 
@@ -568,9 +593,9 @@ void Network::mutate() {
 		ComplexNode_G* parent = nullptr;
 
 		// Complex
-		SET_BINOMIAL((int)complexGenome.size(), addComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, addComplexChildProbability);
 		nMutations = BINOMIAL;
-		if (nMutations > 0) {
+		if (nMutations > 0 && complexGenome.size() > 0) {
 			auto criterion = [](ComplexNode_G* n) {
 				float p = (float)n->phenotypicMultiplicity ;
 
@@ -653,7 +678,7 @@ void Network::mutate() {
 		
 
 		// Simple
-		SET_BINOMIAL((int)complexGenome.size(), addSimpleChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, addSimpleChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -696,7 +721,7 @@ void Network::mutate() {
 
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size(), addMemoryChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, addMemoryChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0 && memoryGenome.size() > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -742,7 +767,7 @@ void Network::mutate() {
 		ComplexNode_G* parent = nullptr;
 
 		// Complex
-		SET_BINOMIAL((int)complexGenome.size(), replaceComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, replaceComplexChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -798,12 +823,12 @@ void Network::mutate() {
 					invDistances.push_back(invDistance);
 					sumInvDistances += invDistance;
 				}
-				for (int j = 0; j < complexGenome.size(); j++) {
-					if (complexGenome[j]->closestNode == toBeReplacedChild && 
-						isPotentialReplacement[j] == 1) {
+				for (int i = 0; i < complexGenome.size(); i++) {
+					if (complexGenome[i]->closestNode == toBeReplacedChild && 
+						isPotentialReplacement[i] == 1) {
 
-						candidates.push_back(complexGenome[j].get());
-						float invDistance = 1.0f / (10.0f + (float)complexGenome[j]->mutationalDistance);
+						candidates.push_back(complexGenome[i].get());
+						float invDistance = 1.0f / (10.0f + (float)complexGenome[i]->mutationalDistance);
 						invDistances.push_back(invDistance);
 						sumInvDistances += invDistance;
 					}
@@ -820,21 +845,22 @@ void Network::mutate() {
 					float r = UNIFORM_01;
 					int rID = binarySearch(probabilities, r);
 
-					parent->complexChildren[inParentID] = candidates[rID];
+					ComplexNode_G* replacement = candidates[rID];
+					parent->complexChildren[inParentID] = replacement;
 
 					// adjust connexion sizes. TODO better.
 
 					for (int i = 0; i < parent->internalConnexions.size(); i++) {
 						if (parent->internalConnexions[i].destinationType == COMPLEX &&
 							parent->internalConnexions[i].destinationID == inParentID && 
-							candidates[rID]->inputSize != toBeReplacedChild->inputSize)
+							replacement->inputSize != toBeReplacedChild->inputSize)
 						{
 							GenotypeConnexion gc(
 								parent->internalConnexions[i].originType,
 								parent->internalConnexions[i].destinationType,
 								parent->internalConnexions[i].originID,
 								parent->internalConnexions[i].destinationID,
-								candidates[rID]->inputSize,
+								replacement->inputSize,
 								parent->internalConnexions[i].nColumns,
 								GenotypeConnexion::RANDOM
 							);
@@ -842,7 +868,7 @@ void Network::mutate() {
 						}
 						if (parent->internalConnexions[i].originType == COMPLEX &&
 							parent->internalConnexions[i].originID == inParentID &&
-							candidates[rID]->outputSize != toBeReplacedChild->outputSize)
+							replacement->outputSize != toBeReplacedChild->outputSize)
 						{
 							GenotypeConnexion gc(
 								parent->internalConnexions[i].originType,
@@ -850,15 +876,30 @@ void Network::mutate() {
 								parent->internalConnexions[i].originID,
 								parent->internalConnexions[i].destinationID,
 								parent->internalConnexions[i].nLines,
-								candidates[rID]->outputSize,
+								replacement->outputSize,
 								GenotypeConnexion::RANDOM
 							);
 							parent->internalConnexions[i] = gc;
 						}
 					}
 				
-					
-
+					// adjust bias
+					int biasID = parent->outputSize + (int)parent->simpleChildren.size();
+					for (int i = 0; i < inParentID; i++) {
+						biasID += parent->complexChildren[i]->inputSize;
+					}
+					if (toBeReplacedChild->inputSize < replacement->inputSize) {
+						int diff = replacement->inputSize - toBeReplacedChild->inputSize;
+						parent->internalBias.insert(parent->internalBias.begin() + biasID, diff, 0.0f);
+						for (int i = 0; i < diff; i++) {
+							parent->internalBias[biasID + i] = NORMAL_01*.2f;
+						}
+					}
+					else if (toBeReplacedChild->inputSize > replacement->inputSize) {
+						int diff = toBeReplacedChild->inputSize - replacement->inputSize;
+						parent->internalBias.erase(parent->internalBias.begin() + biasID,
+							parent->internalBias.begin() + biasID + diff);
+					}
 
 					// one could lower the mutational distance between the swapped children. But this is a recursive
 					// mutation, and I have never managed to make those improve results.
@@ -873,7 +914,7 @@ void Network::mutate() {
 
 
 		// Simple
-		SET_BINOMIAL((int)complexGenome.size(), replaceSimpleChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, replaceSimpleChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -906,7 +947,7 @@ void Network::mutate() {
 
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size(), replaceMemoryChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, replaceMemoryChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -928,7 +969,7 @@ void Network::mutate() {
 
 				// pick a child:
 				int inParentID = INT_0X((int)parent->memoryChildren.size());
-				MemoryNode_G* toBeReplacedChild = memoryGenome[INT_0X((int)memoryGenome.size())].get();
+				MemoryNode_G* toBeReplacedChild = parent->memoryChildren[inParentID];
 
 
 				// determine candidates to replacement
@@ -963,24 +1004,23 @@ void Network::mutate() {
 					float r = UNIFORM_01;
 					int rID = binarySearch(probabilities, r);
 
-					parent->memoryChildren[inParentID]->phenotypicMultiplicity -= parent->phenotypicMultiplicity;
-					candidates[rID]->phenotypicMultiplicity += parent->phenotypicMultiplicity;
-					parent->memoryChildren[inParentID] = candidates[rID];
-
+					MemoryNode_G* replacement = candidates[rID];
+					toBeReplacedChild->phenotypicMultiplicity -= parent->phenotypicMultiplicity;
+					replacement->phenotypicMultiplicity += parent->phenotypicMultiplicity;
 
 					// adjust connexion sizes. TODO better.
 
 					for (int i = 0; i < parent->internalConnexions.size(); i++) {
 						if (parent->internalConnexions[i].destinationType == MEMORY &&
 							parent->internalConnexions[i].destinationID == inParentID &&
-							candidates[rID]->inputSize != toBeReplacedChild->inputSize)
+							replacement->inputSize != toBeReplacedChild->inputSize)
 						{
 							GenotypeConnexion gc(
 								parent->internalConnexions[i].originType,
 								parent->internalConnexions[i].destinationType,
 								parent->internalConnexions[i].originID,
 								parent->internalConnexions[i].destinationID,
-								candidates[rID]->inputSize,
+								replacement->inputSize,
 								parent->internalConnexions[i].nColumns,
 								GenotypeConnexion::RANDOM
 							);
@@ -988,7 +1028,7 @@ void Network::mutate() {
 						}
 						if (parent->internalConnexions[i].originType == MEMORY &&
 							parent->internalConnexions[i].originID == inParentID &&
-							candidates[rID]->outputSize != toBeReplacedChild->outputSize)
+							replacement->outputSize != toBeReplacedChild->outputSize)
 						{
 							GenotypeConnexion gc(
 								parent->internalConnexions[i].originType,
@@ -996,16 +1036,37 @@ void Network::mutate() {
 								parent->internalConnexions[i].originID,
 								parent->internalConnexions[i].destinationID,
 								parent->internalConnexions[i].nLines,
-								candidates[rID]->outputSize,
+								replacement->outputSize,
 								GenotypeConnexion::RANDOM
 							);
 							parent->internalConnexions[i] = gc;
 						}
 					}
 
+					// adjust bias size
+					int biasID = parent->outputSize + (int)parent->simpleChildren.size();
+					for (int i = 0; i < (int)parent->complexChildren.size(); i++) {
+						biasID += parent->complexChildren[i]->inputSize;
+					}
+					for (int i = 0; i < inParentID; i++) {
+						biasID += parent->memoryChildren[i]->inputSize;
+					}
+					if (toBeReplacedChild->inputSize < replacement->inputSize) {
+						int diff = replacement->inputSize - toBeReplacedChild->inputSize;
+						parent->internalBias.insert(parent->internalBias.begin() + biasID, diff, 0.0f);
+						for (int i = 0; i < diff; i++) {
+							parent->internalBias[biasID + i] = NORMAL_01 * .2f;
+						}
+					}
+					else if (toBeReplacedChild->inputSize > replacement->inputSize) {
+						int diff = toBeReplacedChild->inputSize - replacement->inputSize;
+						parent->internalBias.erase(parent->internalBias.begin() + biasID,
+							parent->internalBias.begin() + biasID + diff);
+					}
+
 					// one could lower the mutational distance between the swapped children. But this is a recursive
 					// mutation, and I have never managed to make those improve results.
-
+					parent->memoryChildren[inParentID] = replacement;
 				}
 
 			}
@@ -1019,7 +1080,7 @@ void Network::mutate() {
 		ComplexNode_G* parent = nullptr;
 
 		// Complex
-		SET_BINOMIAL((int)complexGenome.size(), removeComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, removeComplexChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -1051,7 +1112,7 @@ void Network::mutate() {
 
 
 		// Simple
-		SET_BINOMIAL((int)complexGenome.size(), removeSimpleChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, removeSimpleChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -1079,7 +1140,7 @@ void Network::mutate() {
 
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size(), removeMemoryChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, removeMemoryChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -1107,6 +1168,7 @@ void Network::mutate() {
 		}
 	}
 	
+
 	// Duplicating child nodes.
 	{
 		// Chooses a node in the genotype, clones it, and replaces it with the clone in one of the nodes
@@ -1116,7 +1178,7 @@ void Network::mutate() {
 		ComplexNode_G* parent = nullptr;
 
 		// Complex
-		SET_BINOMIAL((int)complexGenome.size(), duplicateComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, duplicateComplexChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -1174,7 +1236,7 @@ void Network::mutate() {
 		}
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size(), duplicateMemoryChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, duplicateMemoryChildProbability);
 		nMutations = BINOMIAL;
 		if (nMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
@@ -1214,15 +1276,17 @@ void Network::mutate() {
 		}
 	}
 
+
+	
 	// the order of the following calls must be respected.
 	
-	// these 3 are unnecessary:
+	// these 3 are unnecessary, because a correct state is guaranteed by each mutation.
 	/*
 	updateDepths();
 	sortGenome();
 	updatePhenotypicMultiplicities(); 
 	*/
-	
+
 
 	// Removing unused nodes. Find a better solution, TODO 
 	if (UNIFORM_01 < .03f) {
@@ -1482,7 +1546,8 @@ float Network::getRegularizationLoss() {
 		ComplexNode_G* n;
 		n = i != complexGenome.size() ? complexGenome[i].get() : topNodeG.get();
 
-		nParams[i] = 0;
+		// biases are not regulated, but the presence of simple nodes is. Hopefully this 
+		nParams[i] = (int)n->simpleChildren.size();
 		amplitudes[i] = 0.0f;
 		for (int j = 0; j < n->internalConnexions.size(); j++) {
 			int size = n->internalConnexions[j].nLines * n->internalConnexions[j].nColumns;

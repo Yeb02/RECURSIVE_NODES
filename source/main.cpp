@@ -26,7 +26,7 @@ int main()
     nThreads = 1;
 #endif
     int nSpecimens = nThreads * 128; //16 -> 512
-    int nDifferentTrials = 2;
+    int nDifferentTrials = 4;
     int nSteps = 10000;
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
@@ -42,19 +42,18 @@ int main()
 #elif defined N_LINKS_PENDULUM_T
         trials.emplace_back(new NLinksPendulumTrial(false, 2));
 #elif defined MEMORY_T
-        trials.emplace_back(new MemoryTrial(2, 4, 2, true));
+        trials.emplace_back(new MemoryTrial(1, 2, 1, true)); // int nMotifs, int motifSize, int responseSize, bool binary = true
 #endif
     }
 
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { -5.0f, 0.0f };
-    params.nichingNorm = 0.0f;
+    params.selectionPressure = { -10.0f, 0.0f };
     params.useSameTrialInit = true;
     params.rankingFitness = true;
     params.saturationFactor = 0.05f;
-    params.regularizationFactor = -0.1f; // .05f
+    params.regularizationFactor = 0.05f; 
     params.competitionFactor = 0.0f; 
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);

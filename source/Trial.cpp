@@ -533,6 +533,7 @@ MemoryTrial::MemoryTrial(int nMotifs, int motifSize, int responseSize, bool bina
 	reset(false);
 }
 
+// Max score is unachievable if two responses are identified by the same motif. TODO .
 void MemoryTrial::reset(bool sameSeed) {
 	score = 0.0f;
 	isTrialOver = false;
@@ -555,19 +556,21 @@ void MemoryTrial::reset(bool sameSeed) {
 }
 
 // During the evaluation, each motif is shown evaluationExposure steps before we actually compute a score,
-// for evaluationDuration steps.
+// for evaluationDuration steps, during which the motif is still displayed. Order is the same as training 
+// for now, but will soon be changed to random.
 void MemoryTrial::step(const float* actions) {
-	constexpr int learningExposure = 10;  // how long each motif is shown during the training phase
+	// how long each motif is shown during the training phase
+	constexpr int learningExposure = 10;  
 
-	// how long each motif is shown during the evaluation phase, not accounting for 
+	// how long each motif is shown during the evaluation phase
 	constexpr int evaluationExposure = 10; 
 
-	constexpr int evaluationDuration = 5; // n steps for which a score is computed
+	// number of steps for which a score is computed
+	constexpr int evaluationDuration = 5;
 	
 	if (isTrialOver) return;
 
-	int motifID = 0;
-	int subStep = 0;
+	int motifID, subStep;
 	if (currentNStep < nMotifs * learningExposure) { // learning phase
 		motifID = currentNStep / learningExposure;
 		subStep = currentNStep % learningExposure;
@@ -577,7 +580,7 @@ void MemoryTrial::step(const float* actions) {
 			}
 		}
 	}
-	else if (currentNStep < nMotifs * (learningExposure + evaluationExposure + evaluationDuration)) {										// evaluation phase
+	else if (currentNStep < nMotifs * (learningExposure + evaluationExposure + evaluationDuration)) { // evaluation phase
 		int a = currentNStep - nMotifs * learningExposure;
 		int b = evaluationExposure + evaluationDuration;
 		motifID = a / b;

@@ -17,11 +17,11 @@
 
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
 // These do not affect the DLL.
-#define CARTPOLE_T
+//#define CARTPOLE_T
 //#define XOR_T
 //#define TMAZE_T
 //#define N_LINKS_PENDULUM_T
-//#define MEMORY_T
+#define MEMORY_T
 
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
@@ -38,7 +38,7 @@
 // 1.0 or 2.0 in ComplexNode_G::mutateFloats()). Accumulators are reset to 0 after a call to mutate floats.
 // Adding a factor decreasing the effect over generations could be interesting, TODO .
 // TODO toggle zeroing of wLifetime at trial end. If off, the accumulation should only happen at lifetime's end.
-#define GUIDED_MUTATIONS
+//#define GUIDED_MUTATIONS
 
 
 // IN DEVELOPPEMENT
@@ -50,3 +50,22 @@
 // when computing fitness. The lower sum(F), the fitter.
 #define SATURATION_PENALIZING
   
+
+
+/*********************************************************************************************************
+		Various minor options, that appear here to avoid jumping from one file to another:
+**********************************************************************************************************/
+
+
+
+// Allows multiple same-direction connexions between two child nodes in a complex node.
+//#define ALLOW_DUPLICATE_CONNEXIONS
+
+	
+// Usually, when there are several aspects to a task, an average over performances on each task (here, trial) is used to 
+// compute the general performance. This option generalizes the idea, by computing the p-norm of the vector of score per
+// sub task for each specimen. (The classic average is proportional to the 1-norm.) Happens after raw score transformation
+// (ranking/normalization) and competition term addition, the values are made positive by clamping at 0. This has a significant
+// influence on selection, TODO figure a better way to do it.
+// The higher p, the more specialists are incentivized. And the lower p, the more generalists strive. 
+//#define SPECIALIZATION_INCENTIVE .8f	// = p. Recommended range: [0.6, 10.0]

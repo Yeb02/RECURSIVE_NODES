@@ -51,15 +51,6 @@ struct PopulationEvolutionParameters {
 	float regularizationFactor;
 
 
-	// Enables artificial niching, when > 0. 0.0f to disable. Value of pNorm's p. When on, encourages high diversity
-	// of solution, so one may want to increase the selection pressure. The higher the value, the more specialists,
-	// those that perform very well on one trial and poorly on the other, are encouraged. At the opposite,
-	// low values favor generalists.
-	// When enabled, all trials at a time step should have similar distributions of scores, at a linear transformation,
-	// and have equal "value" in the global fitness. 0.8 is a good baseline, dont go under 0.5 or over 10.
-	float nichingNorm;
-
-
 	// Both values should be < 1.0 , safe value is 0.0 .  
 	// ".first " influences the probability of each specimen to be present once in the next generation. 
 	// ".second" influences the probability of each specimen to take a spot left empty by a specimen that did not make it
@@ -99,7 +90,6 @@ struct PopulationEvolutionParameters {
 	PopulationEvolutionParameters() {
 		selectionPressure = { -10.0f, 0.0f };
 		regularizationFactor = 0.1f;
-		nichingNorm = 0.0f;
 		useSameTrialInit = false;
 		saturationFactor = .05f;
 		rankingFitness = true;
@@ -131,12 +121,11 @@ public:
 	void computeFitnesses(std::vector<float>& avgScorePerSpecimen);
 
 	// nTrials is used in Network.parentData if available.
-	void createOffsprings(int nTrials=0);
+	void createOffsprings();
 
 	void setEvolutionParameters(PopulationEvolutionParameters params) {
 		this->regularizationFactor = params.regularizationFactor;
 		this->selectionPressure = params.selectionPressure;
-		this->nichingNorm = params.nichingNorm;
 		this->useSameTrialInit = params.useSameTrialInit;
 		this->saturationFactor = params.saturationFactor;
 		this->rankingFitness = params.rankingFitness;
@@ -179,6 +168,9 @@ private:
 	void threadLoop(const int i0, const int subArraySize);
 	void evaluate(const int i0, const int subArraySize, Trial* trial, float* scores);
 
+	// A util.
+	int nTrialsAtThisStep;
+	
 	// Current size of the networks and fitness arrays. Must be a multiple of N_THREADS.
 	int nSpecimens;
 		
@@ -198,7 +190,7 @@ private:
 	// EVOLUTION PARAMETERS: 
 	
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
-	float regularizationFactor, nichingNorm, saturationFactor, competitionFactor;
+	float regularizationFactor, saturationFactor, competitionFactor;
 
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
 	std::pair<float, float> selectionPressure;

@@ -53,9 +53,12 @@ public:
 	// To be called before running inferences if the memory nodes have changed/have just been created.
 	void computeMemoryUtils() {
 		for (int i = 0; i < memoryGenome.size(); i++) {
-			memoryGenome[i]->precomputeUtils();
+			if (memoryGenome[i]->phenotypicMultiplicity != 0) {
+				memoryGenome[i]->precomputeUtils();
+			}
 		}
 	}
+
 #ifdef GUIDED_MUTATIONS
 	// Sets at 0 the accumulators of both internal connexions for complex nodes and key+query for memory nodes.
 	void zeroAccumulators();

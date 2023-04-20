@@ -14,7 +14,7 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	K = n->K;
 	beta = n->beta;
 
-	link = n->link; // deep copy assignement
+	link = n->link; // deep copy assignement using overloaded = operator of genotypeConnexion
 
 	int s = outputSize * kernelDimension;
 	keyM = std::make_unique<float[]>(s);
@@ -24,8 +24,10 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	queryM = std::make_unique<float[]>(s);
 	std::copy(n->queryM.get(), n->queryM.get() + s, queryM.get());
 
-	s = outputSize * inputSize;
-	tQxK = std::make_unique<float[]>(s);
+	tQxK.reset(NULL);
+
+	// no use, as it will be called from outside alongside computeBeta:
+	//compute_tQxK();
 }
 
 MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
@@ -51,8 +53,7 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
 		queryM[i] = NORMAL_01 * .2f;
 	}
 
-	s = outputSize * inputSize;
-	tQxK = std::make_unique<float[]>(s);
+	tQxK.reset(NULL);
 }
 
 MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
@@ -75,8 +76,7 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 void MemoryNode_G::compute_tQxK() {
 	// It would be better to store tK and tQ...
 	// Also more efficient to only reallocate tQxK when sizes change, but thats tedious and im lazy.
-	tQxK.release();
-	tQxK = std::make_unique<float[]>(inputSize * outputSize);
+	tQxK.reset(new float[inputSize * outputSize]);
 	for (int i = 0; i < inputSize; i++) {
 		for (int j = 0; j < outputSize; j++) {
 			tQxK[i * outputSize + j] = 0.0f;
@@ -88,7 +88,7 @@ void MemoryNode_G::compute_tQxK() {
 }
 
 void MemoryNode_G::mutateFloats() {
-	constexpr float p = .4f;
+	constexpr float p = .1f;
 	float invFactor = 0.0f;
 
 
@@ -98,14 +98,14 @@ void MemoryNode_G::mutateFloats() {
 	SET_BINOMIAL(s, p);
 	int nMutations = BINOMIAL;
 	for (int i = 0; i < nMutations; i++) {
-		keyM[INT_0X(s)] += NORMAL_01 * .1f;
+		keyM[INT_0X(s)] += NORMAL_01 * .3f;
 	}
 
 	s = inputSize * kernelDimension;
 	SET_BINOMIAL(s, p);
 	nMutations = BINOMIAL;
 	for (int i = 0; i < nMutations; i++) {
-		queryM[INT_0X(s)] += NORMAL_01 * .1f;
+		queryM[INT_0X(s)] += NORMAL_01 * .3f;
 	}
 }
 

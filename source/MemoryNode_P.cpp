@@ -22,9 +22,8 @@ MemoryNode_P::MemoryNode_P(MemoryNode_G* _type) :
 }
 
 void MemoryNode_P::forward() {
-	
 	// vars defined for readability:
-	float ksi1 = (localM[2] + 1.0f) * .5f;
+	float ksi1 = (localM[2] + 1.0f) * .5f; // from [-1, 1] to [0, 1]
 	float ksi2 = localM[3];
 	float ksi3 = localM[4];
 	float* preSynOutput = preSynAct + type->inputSize;
@@ -50,12 +49,12 @@ void MemoryNode_P::forward() {
 				matID++;
 			}
 		}
-		for (int i = type->inputSize; i < type->inputSize + type->outputSize; i++) {
-			currentPostSynAct[i] = tanhf(preSynAct[i]);
+		for (int i = 0; i < type->outputSize; i++) {
+			preSynOutput[i] = tanhf(preSynOutput[i]); // storing in pre-syn because memory will be accumulated in post syn.
 		}
 
 
-		// hebbian update. TODO could happen after memory. To attempt.
+		// hebbian update. TODO could happen after memory.
 		float* A = type->link.A.get();
 		float* B = type->link.B.get();
 		float* C = type->link.C.get();
@@ -77,8 +76,8 @@ void MemoryNode_P::forward() {
 				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * alpha[matID] * H[matID] * localM[1];
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-					(A[matID] * postSynOutput[i] * currentPostSynAct[j] + 
-					 B[matID] * postSynOutput[i] + 
+					(A[matID] * preSynOutput[i] * currentPostSynAct[j] + // as stated above, using pre-syn array for storage of post syn.
+					 B[matID] * preSynOutput[i] +						// for program efficiency.
 					 C[matID] * currentPostSynAct[j] + 
 				     D[matID]);
 
@@ -108,7 +107,7 @@ void MemoryNode_P::forward() {
 		maxSigma = -1000.0f;
 		for (int i = 0; i < nMemorizedVectors; i++) {
 			sigmas[i] *= type->beta;
-			if (maxSigma > sigmas[i]) [[unlikely]] { maxSigma = sigmas[i]; }
+			if (maxSigma < sigmas[i]) [[unlikely]] { maxSigma = sigmas[i]; }
 			sigmas[i] = expf(sigmas[i]);
 			softmaxNormalizationFactor += sigmas[i];
 		}
@@ -129,12 +128,12 @@ void MemoryNode_P::forward() {
 		}
 
 		for (int i = 0; i < type->outputSize; i++) {
-			postSynOutput[i] = ksi1 * preSynOutput[i] + (1.0f-ksi1) * postSynOutput[i];
+			postSynOutput[i] = ksi1 * preSynOutput[i] + (1.0f-ksi1) * postSynOutput[i]; // preSynOutput's content can be discarded now.
 		}
 	}
 
 
-	// accumulate tin*tQxK in preSynOutput
+	// accumulate tin*tQxK in preSynOutput, which is not used anymore.
 	for (int i = 0; i < type->outputSize; i++) {
 		preSynOutput[i] = 0.0f;
 		for (int j = 0; j < type->inputSize; j++) {
@@ -164,14 +163,14 @@ void MemoryNode_P::forward() {
 		}
 
 
-		int oldTransormedMemorySize = nMemorizedVectors * type->inputSize;
-		float* newTransformedMemory = new float[oldTransormedMemorySize + type->inputSize];
-		std::copy(transformedMemory.get(), transformedMemory.get() + oldTransormedMemorySize, newTransformedMemory);
+		int oldTransformedMemorySize = nMemorizedVectors * type->inputSize;
+		float* newTransformedMemory = new float[oldTransformedMemorySize + type->inputSize];
+		std::copy(transformedMemory.get(), transformedMemory.get() + oldTransformedMemorySize, newTransformedMemory);
 		transformedMemory.reset(newTransformedMemory);
 		for (int i = 0; i < type->inputSize; i++) {
-			transformedMemory[i + oldTransormedMemorySize] = 0.0f;
+			transformedMemory[i + oldTransformedMemorySize] = 0.0f;
 			for (int j = 0; j < type->outputSize; j++) {
-				transformedMemory[i + oldTransormedMemorySize] += type->tQxK[i* type->outputSize + j] * candidateMemory[j];
+				transformedMemory[i + oldTransformedMemorySize] += type->tQxK[i* type->outputSize + j] * candidateMemory[j];
 			}
 		}
 
@@ -211,10 +210,10 @@ void MemoryNode_P::preTrialReset() {
 		memory.reset(NULL);
 		transformedMemory.reset(NULL);
 		sigmas.reset(NULL);
+	}
 
-		for (int j = 0; j < type->outputSize; j++) {
-			candidateMemory[j] = 0.0f;
-		}
+	for (int j = 0; j < type->outputSize; j++) {
+		candidateMemory[j] = 0.0f;
 	}
 
 	int s = type->link.nLines * type->link.nColumns;;
@@ -232,7 +231,7 @@ void MemoryNode_P::accumulateW(float factor) {
 	int s = type->link.nLines * type->link.nColumns;
 	for (int j = 0; j < s; j++) {
 		type->link.accumulator[j] += factor * pLink.wLifetime[j];
-		pLink.wLifetime[j] = 0.0f; // TODO
+		//pLink.wLifetime[j] = 0.0f; // TODO
 	}
 }
 #endif

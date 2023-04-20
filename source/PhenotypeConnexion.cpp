@@ -10,9 +10,9 @@ PhenotypeConnexion::PhenotypeConnexion(int s)
 	avgH = std::make_unique<float[]>(s);
 #endif
 
-	zeroWlifetime(s);
+	zeroWlifetime(s); // necessary because ComplexNode_P::preTrialReset() does not have to do it.
 
-	zero(s); // not necessary, because in theory ComplexNode_P::preTrialReset() should be called before any computation. TODO
+	// zero(s); not necessary, because ComplexNode_P::preTrialReset() should be called before any computation. 
 }
 
 #ifndef CONTINUOUS_LEARNING
