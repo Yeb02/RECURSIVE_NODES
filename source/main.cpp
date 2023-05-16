@@ -42,19 +42,20 @@ int main()
 #elif defined N_LINKS_PENDULUM_T
         trials.emplace_back(new NLinksPendulumTrial(false, 2));
 #elif defined MEMORY_T
-        trials.emplace_back(new MemoryTrial(1, 2, 1, true)); // int nMotifs, int motifSize, int responseSize, bool binary = true
+        trials.emplace_back(new MemoryTrial(1, 2, 2, true)); // int nMotifs, int motifSize, int responseSize, bool binary = true
 #endif
     }
 
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { -10.0f, 0.0f };
+    params.selectionPressure = { -10.0f, .25f };
     params.useSameTrialInit = true;
     params.rankingFitness = true;
-    params.saturationFactor = 0.05f;
+    params.saturationFactor = 0.1f;
     params.regularizationFactor = 0.05f; 
     params.competitionFactor = 0.0f; 
+    params.scoreBatchTransformation = NORMALIZE;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
     population.setEvolutionParameters(params); 

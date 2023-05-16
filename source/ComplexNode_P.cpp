@@ -2,7 +2,12 @@
 
 
 
-ComplexNode_P::ComplexNode_P(ComplexNode_G* type) : type(type)
+ComplexNode_P::ComplexNode_P(ComplexNode_G* _type) : 
+	type(_type),
+	toComplex(&_type->toComplex),
+	toMemory(&_type->toMemory),
+	toModulation(&_type->toModulation),
+	toOutput(&_type->toOutput)
 {
 	// create COMPLEX children recursively 
 	complexChildren.reserve(type->complexChildren.size());
@@ -16,28 +21,17 @@ ComplexNode_P::ComplexNode_P(ComplexNode_G* type) : type(type)
 		memoryChildren.emplace_back(type->memoryChildren[i]);
 	}
 
-	// create connexions ( in the appropriate order: TODO )
-	internalConnexions.reserve(type->internalConnexions.size());
-	for (int i = 0; i < type->internalConnexions.size(); i++) {
-		internalConnexions.emplace_back(
-			type->internalConnexions[i].nLines *
-			type->internalConnexions[i].nColumns
-		);
-	}
-
-	// LocalM, TotalM and nInferencesP are not instantiated here because a call to preTrialReset() 
+	// TotalM is not initialized (zeroed) here because a call to preTrialReset() 
 	// must be made before any forward pass. (Or call to postTrialUpdate)
 };
 
 #if defined GUIDED_MUTATIONS
 void ComplexNode_P::accumulateW(float factor) {
-	for (int i = 0; i < internalConnexions.size(); i++) {
-		int s = type->internalConnexions[i].nLines * type->internalConnexions[i].nColumns;
-		for (int j = 0; j < s; j++) {
-			type->internalConnexions[i].accumulator[j] += factor * internalConnexions[i].wLifetime[j];
-			//internalConnexions[i].wLifetime[j] = 0.0f; // TODO
-		}
-	}
+	
+	type->toComplex.accumulateW(factor, toComplex.wLifetime.get());
+	type->toMemory.accumulateW(factor, toMemory.wLifetime.get());
+	type->toModulation.accumulateW(factor, toModulation.wLifetime.get());
+	type->toOutput.accumulateW(factor, toOutput.wLifetime.get());
 
 	for (int i = 0; i < type->memoryChildren.size(); i++) {
 		memoryChildren[i].accumulateW(factor);
@@ -56,19 +50,21 @@ void ComplexNode_P::updateWatTrialEnd(float invNInferencesOverTrial) {
 		complexChildren[i].updateWatTrialEnd(invNInferencesOverTrial);
 	}
 
-	for (int i = 0; i < internalConnexions.size(); i++) {
-		int s = type->internalConnexions[i].nLines * type->internalConnexions[i].nColumns;
-		internalConnexions[i].updateWatTrialEnd(s, invNInferencesOverTrial, type->internalConnexions[i].alpha.get());
-	}
-
+	toComplex.updateWatTrialEnd(invNInferencesOverTrial);
+	toMemory.updateWatTrialEnd(invNInferencesOverTrial);
+	toModulation.updateWatTrialEnd(invNInferencesOverTrial);
+	toOutput.updateWatTrialEnd(invNInferencesOverTrial);
+	
 	for (int i = 0; i < memoryChildren.size(); i++) {
-		int s = memoryChildren[i].type->link.nLines * memoryChildren[i].type->link.nColumns;
-		memoryChildren[i].pLink.updateWatTrialEnd(s, invNInferencesOverTrial, memoryChildren[i].type->link.alpha.get());
+		memoryChildren[i].pLink.updateWatTrialEnd(invNInferencesOverTrial);
 	}
 }
 #endif
 
 void ComplexNode_P::setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa) {
+
+	// TODO ? if the program runs out of heap memory, one could make it so that a node does not store its own 
+	// output. But prevents in place matmul, and complexifies things.
 
 	previousPostSynAct = *ppsa;
 	currentPostSynAct = *cpsa;
@@ -77,20 +73,27 @@ void ComplexNode_P::setArrayPointers(float** ppsa, float** cpsa, float** psa, fl
 	averageActivation = *aa;
 #endif
 
-	int s = type->inputSize + type->outputSize + (int) type->simpleChildren.size();
-	*ppsa += s;
-	*cpsa += s;
-	*psa += s;
+	*ppsa += type->inputSize + MODULATION_VECTOR_SIZE;
+	*cpsa += type->inputSize + MODULATION_VECTOR_SIZE;
+	*psa += type->outputSize + MODULATION_VECTOR_SIZE;
 #ifdef SATURATION_PENALIZING
-	*aa += s + MODULATION_VECTOR_SIZE;
+	*aa += type->outputSize + type->inputSize + MODULATION_VECTOR_SIZE;
 #endif
 
+	for (int i = 0; i < complexChildren.size(); i++) {
+		*ppsa += complexChildren[i].type->outputSize;
+		*cpsa += complexChildren[i].type->outputSize;
+		*psa += complexChildren[i].type->inputSize;
+	}
+	for (int i = 0; i < memoryChildren.size(); i++) {
+		memoryChildren[i].setArrayPointers(cpsa, psa, currentPostSynAct + type->inputSize);
+		*ppsa += memoryChildren[i].type->outputSize;
+		*cpsa += memoryChildren[i].type->outputSize;
+		*psa += memoryChildren[i].type->inputSize;
+	}
 
 	for (int i = 0; i < complexChildren.size(); i++) {
 		complexChildren[i].setArrayPointers(ppsa, cpsa, psa, aa);
-	}
-	for (int i = 0; i < memoryChildren.size(); i++) {
-		memoryChildren[i].setArrayPointers(ppsa, cpsa, psa, aa);
 	}
 }
 
@@ -105,15 +108,10 @@ void ComplexNode_P::preTrialReset() {
 		memoryChildren[i].preTrialReset();
 	}
 
-	for (int i = 0; i < internalConnexions.size(); i++) {
-		int s = type->internalConnexions[i].nLines * type->internalConnexions[i].nColumns;
-		internalConnexions[i].zero(s); // zero E, H, and AVG_H if need be. 
-	}
-
-	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-		localM[i] = 0.0f;
-	}
-
+	toComplex.zero();
+	toMemory.zero();
+	toModulation.zero();
+	toOutput.zero();
 }
 
 
@@ -128,345 +126,253 @@ void ComplexNode_P::setglobalSaturationAccumulator(float* globalSaturationAccumu
 
 
 void ComplexNode_P::forward() {
+	// TODO is it global modulation or local modulation that should
+	// be used as a modulation node output, after its own hebbian update ?
+
+	// TODO there are no reasons not to propagate several times through certain types, for instance:
+	// MODULATION -> MEMORY -> COMPLEX -> MODULATION -> MEMORY -> OUTPUT ...
+	// And it can even be node specific. To be evolved ?
+
+	// TODO hebbian update before or after non linearity ?
+	// After is problematic in this implementation, because the original (currentPostSynAct) input
+	// from the node of the same type has changed... 
+	// We could use previousPostSynAct for this type, which has it stored, but it requires extra code.
+	// (thats previousPostSynAct sole use at the moment) Also be wary of global modulation addition.
 
 #ifdef SATURATION_PENALIZING
 	constexpr float saturationExponent = 10.0f;  // one could try lower values... But they must be 2*integer.
 #endif
 
-
-	// step 1: save this node's previous local m, for hebbian rules later on.
-
-	float previousLocalM[MODULATION_VECTOR_SIZE];
-	float localMpreSyn[MODULATION_VECTOR_SIZE];
-	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-		previousLocalM[i] = localM[i];
-	}
-
-
-	// step 2: initialize all pre-synaptic activations with the associated weight
+	// STEP 0: initialize all pre-synaptic activations with the associated weights
 
 	{
-		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			localMpreSyn[i] = type->modulationBias[i];
-		}
-
 		int id = 0;
 		for (int i = 0; i < type->outputSize; i++) {
-			preSynAct[id + type->inputSize] = type->internalBias[id];
+			preSynAct[id] = type->outputBias[id];
 			id++;
 		}
-		for (int i = 0; i < type->simpleChildren.size(); i++) {
-			preSynAct[id + type->inputSize] = type->internalBias[id];
+		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
+			preSynAct[id] = type->modulationBias[i];
 			id++;
 		}
-		for (int i = 0; i < complexChildren.size(); i++) {
-			for (int j = 0; j < complexChildren[i].type->inputSize; j++) {
-				complexChildren[i].preSynAct[j] = type->internalBias[id];
-				id++;
-			}
+		for (int i = 0; i < type->complexBiasSize; i++) {
+			preSynAct[id] = type->complexBias[i];
+			id++;
 		}
-		for (int i = 0; i < memoryChildren.size(); i++) {
-			for (int j = 0; j < memoryChildren[i].type->inputSize; j++) {
-				memoryChildren[i].preSynAct[j] = type->internalBias[id];
-				id++;
-			}
+		for (int i = 0; i < type->memoryBiasSize; i++) {
+			preSynAct[id] = type->memoryBias[i];
+			id++;
 		}
 	}
 	
 
 
-	// STEP 3 to 7: NODE_TYPE by NODE_TYPE, follow those 3 substeps: 
-	// - propagate currentPostSynAct in preSynAct of all NODE_TYPE children of "this"
-	// - apply all NODE_TYPE children's forward
-	// - apply hebbian update to the involved connexion
+	// STEP 1 to 4: for each of the 4 types of nodes (output, memory, complex, modulation), do:
 	
-	// This could be done simultaneously for all NODE_TYPEs, but doing it this way drastically speeds up information transmition
-	// through the network. The following order is respected (INPUT_NODE is handled by the parent, or by Network):
-	// MODULATION -> COMPLEX -> SIMPLE -> MEMORY -> OUTPUT
+	// - propagate currentPostSynAct in preSynAct of all children of the type
+	// - apply all children of the type's forward
+	// - apply hebbian update to the involved connexion matrices
+	
+	// This could be done simultaneously for all types, but doing it this way drastically speeds up information transmission
+	// through the network. The following order is used :
+	// MODULATION -> COMPLEX -> MEMORY -> OUTPUT
 
+	// These 3 lambdas, hopefully inline, avoid repetition, as they are used for each child type.
 
-	// These 2 lambdas, hopefully inline, avoid repetition, as they are used for each NODE_TYPE:
-
-	// For each node type, to be called at the beginning of the process 
-	auto propagate = [this](NODE_TYPE targetType, float* destinationArray)
+	auto propagate = [this](InternalConnexion_P& icp, float* destinationArray)
 	{
-		int nc, nl, destinationID, originID, matID;
-		for (int id = 0; id < internalConnexions.size(); id++) {
+		int nl = icp.type->nLines;
+		int nc = icp.type->nColumns;
+		int matID = 0;
 
-			if (type->internalConnexions[id].destinationType != targetType) {
-				continue;
-			}
+		float* H = icp.H.get();
+		float* wLifetime = icp.wLifetime.get();
+		float* alpha = icp.type->alpha.get();
+		float* w = icp.type->w.get();
 
-			destinationID = type->internalConnexions[id].destinationID;
-			originID = type->internalConnexions[id].originID;
-			nl = type->internalConnexions[id].nLines;
-			nc = type->internalConnexions[id].nColumns;
-			matID = 0;
-
-			float* H = internalConnexions[id].H.get();
-			float* wLifetime = internalConnexions[id].wLifetime.get();
-			float* alpha = type->internalConnexions[id].alpha.get();
-			float* w = type->internalConnexions[id].w.get();
-
-			float* originArray=nullptr;
-			switch (type->internalConnexions[id].originType) {
-			case INPUT_NODE:
-				originArray = currentPostSynAct;
-				break;
-			case MODULATION:
-				originArray = localM;
-				break;
-			case COMPLEX:
-				originArray = complexChildren[originID].currentPostSynAct + type->complexChildren[originID]->inputSize;
-				break;
-			case MEMORY:
-				originArray = memoryChildren[originID].currentPostSynAct + type->memoryChildren[originID]->inputSize;
-				break;
-			case SIMPLE:
-				originArray = currentPostSynAct + type->inputSize + type->outputSize + originID;
-				break;
-			}
-
-			if (targetType == COMPLEX) {
-				destinationArray = complexChildren[destinationID].preSynAct;
-			}
-			else if (targetType == MEMORY) {
-				destinationArray = memoryChildren[destinationID].preSynAct;
-			}
 			
-			for (int i = 0; i < nl; i++) {
-				for (int j = 0; j < nc; j++) {
-					// += (H * alpha + w) * prevAct
-					destinationArray[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * originArray[j];
-					matID++;
-				}
+		for (int i = 0; i < nl; i++) {
+			for (int j = 0; j < nc; j++) {
+				// += (H * alpha + w) * prevAct
+				destinationArray[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * currentPostSynAct[j];
+				matID++;
 			}
 		}
-		return;
 	};
 
-	// For each node type, to be called after applying the activation function on the presynatic inputs, but before forward.
-	//  Since for simple neurons and modulation, these are merged,  this lambda is called after forward().
-	auto hebbianUpdate = [this, &previousLocalM](NODE_TYPE targetType, float* iArray) {
-		int nc, nl, destinationID, originID, matID;
-		for (int id = 0; id < internalConnexions.size(); id++) {
-			if (type->internalConnexions[id].destinationType != targetType) {
-				continue;
-			}
-			originID = type->internalConnexions[id].originID;
-			destinationID = type->internalConnexions[id].destinationID;
+	auto hebbianUpdate = [this](InternalConnexion_P& icp, float* destinationArray) {
+		int nl = icp.type->nLines;
+		int nc = icp.type->nColumns;
+		int matID = 0;
 
-			float* A = type->internalConnexions[id].A.get();
-			float* B = type->internalConnexions[id].B.get();
-			float* C = type->internalConnexions[id].C.get();
-			float* D = type->internalConnexions[id].D.get();
-			float* eta = type->internalConnexions[id].eta.get();
-			float* H = internalConnexions[id].H.get();
-			float* E = internalConnexions[id].E.get();
+		float* A = icp.type->A.get();
+		float* B = icp.type->B.get();
+		float* C = icp.type->C.get();
+		float* D = icp.type->D.get();
+		float* eta = icp.type->eta.get();
+		float* H = icp.H.get();
+		float* E = icp.E.get();
 
 #ifdef CONTINUOUS_LEARNING
-			float* wLifetime = internalConnexions[id].wLifetime.get();
-			float* gamma = type->internalConnexions[id].gamma.get();
-			float* alpha = type->internalConnexions[id].alpha.get();
+		float* wLifetime = icp.wLifetime.get();
+		float* gamma = icp.type->gamma.get();
+		float* alpha = icp.type->alpha.get();
 #else
-			float* avgH = internalConnexions[id].avgH.get();
+		float* avgH = icp.avgH.get();
 #endif
 
-			// the output of the origin node
-			float* jArray=nullptr;
 
-			switch (type->internalConnexions[id].originType) {
-			case INPUT_NODE:
-				jArray = currentPostSynAct;
-				break;
-			case MODULATION:
-				if (targetType == MODULATION) {
-					jArray = previousLocalM;
-				}
-				else {
-					jArray = localM;
-				}
-				break;
-			case COMPLEX:
-				jArray = complexChildren[originID].currentPostSynAct + complexChildren[originID].type->inputSize;
-				break;
-			case MEMORY:
-				jArray = memoryChildren[originID].currentPostSynAct + memoryChildren[originID].type->inputSize;
-				break;
-			case SIMPLE:
-				if (targetType == SIMPLE) {
-					jArray = previousPostSynAct + type->inputSize + type->outputSize + originID;
-				}
-				else {
-					jArray = currentPostSynAct + type->inputSize + type->outputSize + originID;
-				}
-				break;
-			}
-
-
-			// the post-synaptic input of the destination node
-			// float* iArray;
-			if (targetType == COMPLEX) {
-				iArray = complexChildren[destinationID].currentPostSynAct;
-			}
-			else if (targetType == MEMORY) {
-				iArray = memoryChildren[destinationID].currentPostSynAct;
-			}
-
-
-			nl = type->internalConnexions[id].nLines;
-			nc = type->internalConnexions[id].nColumns;
-			matID = 0;  // = i*nc+j
-			for (int i = 0; i < nl; i++) {
-				for (int j = 0; j < nc; j++) {
+		for (int i = 0; i < nl; i++) {
+			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-					wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * alpha[matID] * H[matID] * totalM[1];
+				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * alpha[matID] * H[matID] * totalM[1];
 #endif
-					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-						(A[matID] * iArray[i] * jArray[j] + B[matID] * iArray[i] + C[matID] * jArray[j] + D[matID]);
+				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
+					(A[matID] * destinationArray[i] * currentPostSynAct[j] + B[matID] * destinationArray[i] + C[matID] * currentPostSynAct[j] + D[matID]);
 
-					H[matID] += E[matID] * totalM[0];
-					H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
+				H[matID] += E[matID] * totalM[0];
+				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
 #ifndef CONTINUOUS_LEARNING
-					avgH[matID] += H[matID];
+				avgH[matID] += H[matID];
 #endif
-					matID++;
+				matID++;
 
-				}
 			}
 		}
-
-		return;
 	};
 
-	// STEP 3: MODULATION
+	// Dont forget to update the copy of this function in network.step when this one changes.
+	auto applyNonLinearities = [](float* src, float* dst, ACTIVATION* fcts, int size) 
 	{
-		propagate(MODULATION, localMpreSyn);
-		
-		// Apply forward.
+		for (int i = 0; i < size; i++) {
+			switch (fcts[i]) {
+			case TANH:
+				dst[i] = tanhf(src[i]);
+				break;
+			case GAUSSIAN:
+				dst[i] = 2.0f * expf(-src[i] * src[i]) - 1.0f; // technically the bias is not correctly put in. Does it matter ?
+				break;
+			case SINE:
+				dst[i] = sinf(src[i]);
+				break;
+			case CENTERED_SINE:
+				constexpr float z = 1.0f / .375261f; // to map to [-1, 1]
+				dst[i] = tanhf(src[i]) * expf(-powf(src[i], 2.0f)) * z;
+			}
+		}
+	};
+
+	// STEP 1: MODULATION 
+	{
+		propagate(toModulation, preSynAct + type->outputSize);
+		hebbianUpdate(toModulation, preSynAct + type->outputSize);
+		applyNonLinearities(
+			preSynAct + type->outputSize,
+			currentPostSynAct + type->inputSize, 
+			type->modulationActivations, 
+			MODULATION_VECTOR_SIZE
+		);
+
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			localM[i] = tanhf(localMpreSyn[i]);
-			totalM[i] += localM[i];
+			totalM[i] += currentPostSynAct[i + type->inputSize];
 		}
 
-		hebbianUpdate(MODULATION, localM);
+		
 
 #ifdef SATURATION_PENALIZING
-		int id = type->inputSize + type->outputSize;
-		for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
-			*globalSaturationAccumulator += powf(localM[j], saturationExponent);
-			averageActivation[id + j] += localM[j];
+		for (int j = type->inputSize; j < MODULATION_VECTOR_SIZE + type->inputSize; j++) {
+			*globalSaturationAccumulator += powf(currentPostSynAct[j], saturationExponent);
+			averageActivation[j + type->outputSize] += currentPostSynAct[j];
 		}
 #endif
 
 	}
 
-	// STEP 4: COMPLEX
+	// STEP 2: COMPLEX
 	{
-		propagate(COMPLEX, NULL);
+		float* ptrToInputs = preSynAct + type->outputSize + MODULATION_VECTOR_SIZE;
+		propagate(toComplex, ptrToInputs);
+		hebbianUpdate(toComplex, ptrToInputs);
+		
 
-		// transmit modulation and input, then apply forward:
+		// transmit modulation and input, apply forward, then retrieve the child's output.
+		int id = 0;
+		float* childOut = currentPostSynAct + type->inputSize + MODULATION_VECTOR_SIZE;
 		for (int i = 0; i < complexChildren.size(); i++) {
+
 			for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
 				complexChildren[i].totalM[j] = this->totalM[j];
 			}
 
-			for (int j = 0; j < complexChildren[i].type->inputSize; j++) {
-				complexChildren[i].currentPostSynAct[j] = tanhf(complexChildren[i].preSynAct[j]);
-			}
-		}
+			applyNonLinearities(
+				ptrToInputs + id,
+				complexChildren[i].currentPostSynAct,
+				&type->complexActivations[id],
+				complexChildren[i].type->inputSize
+			);
 
-		hebbianUpdate(COMPLEX, NULL);
-
-		for (int i = 0; i < complexChildren.size(); i++) {
 			complexChildren[i].forward();
 
+			applyNonLinearities(
+				complexChildren[i].preSynAct,
+				childOut,
+				type->complexChildren[i]->outputActivations.data(),
+				complexChildren[i].type->outputSize
+			);
+
 #ifdef SATURATION_PENALIZING
-			for (int j = 0; j < complexChildren[i].type->outputSize + complexChildren[i].type->inputSize; j++) {
+			for (int j = 0; j < complexChildren[i].type->inputSize; j++) {
 				* globalSaturationAccumulator += powf(complexChildren[i].currentPostSynAct[j], saturationExponent);
 				complexChildren[i].averageActivation[j] += complexChildren[i].currentPostSynAct[j];
 			}
+			for (int j = 0; j < complexChildren[i].type->outputSize; j++) {
+				*globalSaturationAccumulator += powf(complexChildren[i].preSynAct[j], saturationExponent);
+				complexChildren[i].averageActivation[j + complexChildren[i].type->inputSize] += childOut[j];
+			}
 #endif
+
+			id += complexChildren[i].type->inputSize;
+			childOut += complexChildren[i].type->outputSize;
 		}
 
 	}
 
-	// STEP 5: SIMPLE
+	// STEP 3: MEMORY
 	{
-		int id = type->inputSize + type->outputSize;
-		propagate(SIMPLE, preSynAct + id);
+		float* ptrToInputs = preSynAct + type->memoryPreSynOffset;
+		propagate(toMemory, ptrToInputs);
+		hebbianUpdate(toMemory, ptrToInputs);
 
-		
-		for (int i = 0; i < type->simpleChildren.size(); i++) {
 
-			previousPostSynAct[id] = currentPostSynAct[id];
-
-			switch (type->simpleChildren[i]->activation) {
-			case TANH:
-				currentPostSynAct[id] = tanhf(preSynAct[id]);
-				break;
-			case GAUSSIAN:
-				currentPostSynAct[id] = 2.0f * expf(-preSynAct[id] * preSynAct[id]) - 1.0f; // technically the bias is not correctly put in. Does it matter ?
-				break;
-			case SINE:
-				currentPostSynAct[id] = sinf(preSynAct[id]);
-				break;
-			case CENTERED_SINE:
-				constexpr float z = 1.0f / .375261f; // to map to [-1, 1]
-				currentPostSynAct[id] = tanhf(preSynAct[id]) * expf(-powf(preSynAct[id], 2.0f)) * z;
-				break;
-			}
-
-#ifdef SATURATION_PENALIZING
-			* globalSaturationAccumulator += powf(currentPostSynAct[id], saturationExponent);
-			averageActivation[id+MODULATION_VECTOR_SIZE] += currentPostSynAct[id];
-#endif
-
-			id++;
-		}
-
-		hebbianUpdate(SIMPLE, currentPostSynAct + type->inputSize + type->outputSize);
-	}
-
-	// STEP 6: MEMORY
-	{
-		propagate(MEMORY, NULL);
-			
+		// modulation is not transmitted, as it is shared with this node.
+		int id = 0;
 		for (int i = 0; i < memoryChildren.size(); i++) {
-			for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
-				memoryChildren[i].localM[j] = this->totalM[j];
-			}
 
-			for (int j = 0; j < memoryChildren[i].type->inputSize; j++) {
-				memoryChildren[i].currentPostSynAct[j] = tanhf(memoryChildren[i].preSynAct[j]);
+			// in place, as the memory child's input is shared with this node.
+			applyNonLinearities(
+				ptrToInputs + id,
+				ptrToInputs + id, // = memoryChildren[i].input
+				&type->memoryActivations[id],
+				memoryChildren[i].type->inputSize
+			);
 
-			}
-		}
-
-		hebbianUpdate(MEMORY, NULL);
-
-		for (int i = 0; i < memoryChildren.size(); i++) {
 			memoryChildren[i].forward();
 
-#ifdef SATURATION_PENALIZING
-			for (int j = 0; j < memoryChildren[i].type->inputSize; j++) {
-				*globalSaturationAccumulator += powf(memoryChildren[i].currentPostSynAct[j], saturationExponent);
-				memoryChildren[i].averageActivation[j] += memoryChildren[i].currentPostSynAct[j];
-			}
-#endif
+			// no retrieval, as the memory child's output is shared with this node.
+
+			id += memoryChildren[i].type->inputSize;
 		}
+
 	}
 
-	// STEP 7: OUTPUT
+	// STEP 4: OUTPUT
 	{
-		propagate(OUTPUT, preSynAct + type->inputSize);
-
-		for (int i = type->inputSize; i < type->outputSize + type->inputSize; i++) {
-			previousPostSynAct[i] = currentPostSynAct[i];
-			currentPostSynAct[i] = tanhf(preSynAct[i]);
-		}
-
-		hebbianUpdate(OUTPUT, currentPostSynAct + type->inputSize);
+		propagate(toOutput, preSynAct);
+		hebbianUpdate(toOutput, preSynAct);
+		
+		// no call to applyNonLinearities, because it is the parent that calls
+		// it to avoid one unnecessary copy. (the parent being Network for the top Node)
+		// If saturation penalization is enabled, it is also handled by the parent.
 	}
 	
 }

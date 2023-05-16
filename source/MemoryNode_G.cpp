@@ -11,23 +11,15 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	closestNode = n->closestNode;
 	kernelDimension = n->kernelDimension;
 	phenotypicMultiplicity = n->phenotypicMultiplicity;
-	K = n->K;
 	beta = n->beta;
+	decay = n->decay;
 
 	link = n->link; // deep copy assignement using overloaded = operator of genotypeConnexion
 
-	int s = outputSize * kernelDimension;
-	keyM = std::make_unique<float[]>(s);
-	std::copy(n->keyM.get(), n->keyM.get() + s, keyM.get());
+	int s = inputSize * kernelDimension;
+	Q = std::make_unique<float[]>(s);
+	std::copy(n->Q.get(), n->Q.get() + s, Q.get());
 
-	s = inputSize * kernelDimension;
-	queryM = std::make_unique<float[]>(s);
-	std::copy(n->queryM.get(), n->queryM.get() + s, queryM.get());
-
-	tQxK.reset(NULL);
-
-	// no use, as it will be called from outside alongside computeBeta:
-	//compute_tQxK();
 }
 
 MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
@@ -37,23 +29,18 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
 	mutationalDistance = 0;
 	phenotypicMultiplicity = 0;
 	position = -1;
-	K = .2f;
+	setBeta();
 
-	link = GenotypeConnexion(INPUT_NODE, OUTPUT, -1, -1, outputSize, inputSize, GenotypeConnexion::RANDOM);
+	link = InternalConnexion_G(outputSize, inputSize, InternalConnexion_G::RANDOM);
 
-	int s = outputSize * kernelDimension;
-	keyM = std::make_unique<float[]>(s);
+	decay = UNIFORM_01 * .3f;
+	
+	int s = inputSize * kernelDimension;
+	Q = std::make_unique<float[]>(s);
 	for (int i = 0; i < s; i++) {
-		keyM[i] = NORMAL_01 * .2f;
+		Q[i] = NORMAL_01 * .2f;
 	}
 
-	s = inputSize * kernelDimension;
-	queryM = std::make_unique<float[]>(s);
-	for (int i = 0; i < s; i++) {
-		queryM[i] = NORMAL_01 * .2f;
-	}
-
-	tQxK.reset(NULL);
 }
 
 MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
@@ -63,49 +50,30 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 	mutationalDistance = n.mutationalDistance;
 	closestNode = n.closestNode;
 	kernelDimension = n.kernelDimension;
-	K = n.K;
 	beta = n.beta;
 	phenotypicMultiplicity = n.phenotypicMultiplicity;
 	
 	link = std::move(n.link);
-	keyM = std::move(n.keyM);
-	queryM = std::move(n.queryM);
-	tQxK = std::move(n.tQxK);
-}
-
-void MemoryNode_G::compute_tQxK() {
-	// It would be better to store tK and tQ...
-	// Also more efficient to only reallocate tQxK when sizes change, but thats tedious and im lazy.
-	tQxK.reset(new float[inputSize * outputSize]);
-	for (int i = 0; i < inputSize; i++) {
-		for (int j = 0; j < outputSize; j++) {
-			tQxK[i * outputSize + j] = 0.0f;
-			for (int k = 0; k < kernelDimension; k++) {
-				tQxK[i * outputSize + j] += queryM[i + k * inputSize] * keyM[j + k * outputSize]; 
-			}
-		}
-	}
+	Q = std::move(n.Q);
 }
 
 void MemoryNode_G::mutateFloats() {
-	constexpr float p = .1f;
-	float invFactor = 0.0f;
-
+	constexpr float p = .2f;
 
 	link.mutateFloats(p);
 	
-	int s = outputSize * kernelDimension;
+	if (UNIFORM_01 > .05f) [[likely]] {
+		decay += decay * (1 - decay) * (UNIFORM_01 - .5f);
+	}
+	else [[unlikely]] {
+		decay = decay * .6f + UNIFORM_01 * .4f;
+	}
+
+	int s = inputSize * kernelDimension;
 	SET_BINOMIAL(s, p);
 	int nMutations = BINOMIAL;
 	for (int i = 0; i < nMutations; i++) {
-		keyM[INT_0X(s)] += NORMAL_01 * .3f;
-	}
-
-	s = inputSize * kernelDimension;
-	SET_BINOMIAL(s, p);
-	nMutations = BINOMIAL;
-	for (int i = 0; i < nMutations; i++) {
-		queryM[INT_0X(s)] += NORMAL_01 * .3f;
+		Q[INT_0X(s)] += NORMAL_01 * .3f;
 	}
 }
 
@@ -114,61 +82,45 @@ bool MemoryNode_G::incrementInputSize() {
 	if (inputSize == MAX_MEMORY_INPUT_SIZE) { return false; }
 
 
-	// increment query matrix's number of columns
+	// increment Q's number of columns
 	int newSize = (inputSize+1) * kernelDimension;
-	float* newQueryM = new float[newSize];
+	float* newQ = new float[newSize];
 	int idOld = 0, idNew = 0;
 	for (int j = 0; j < kernelDimension; j++) {
 		for (int k = 0; k < inputSize; k++) {
 
-			newQueryM[idNew] = queryM[idOld];
+			newQ[idNew] = Q[idOld];
 
 			idNew++;
 			idOld++;
 		}
-		newQueryM[idNew] = NORMAL_01 * .2f;
+		newQ[idNew] = NORMAL_01 * .2f;
 		idNew++;
 	}
-	queryM.reset(newQueryM);
+	Q.reset(newQ);
 
 
 	inputSize++;
-	link.incrementOriginOutputSize();
+	setBeta();
+	link.insertColumnRange(link.nColumns, 1);
 	return true;
 }
 
 bool MemoryNode_G::incrementOutputSize(){
 	if (outputSize == MAX_MEMORY_OUTPUT_SIZE) { return false; }
 
-	// increment key matrix's number of columns
-	int newSize = (outputSize + 1) * kernelDimension;
-	float* newKeyM = new float[newSize];
-	int idOld = 0, idNew = 0;
-	for (int j = 0; j < kernelDimension; j++) {
-		for (int k = 0; k < outputSize; k++) {
-
-			newKeyM[idNew] = keyM[idOld];
-
-			idNew++;
-			idOld++;
-		}
-		newKeyM[idNew] = NORMAL_01 * .2f;
-		idNew++;
-	}
-	keyM.reset(newKeyM);
-
-
 	outputSize++;
-	link.incrementDestinationInputSize();
+	setBeta();
+	link.insertLineRange(link.nLines, 1);
 	return true;
 }
 
 bool MemoryNode_G::decrementInputSize(int id){
 	if (inputSize == 1) { return false; }
 
-	// decrement query matrix's number of columns
+	// decrement Q's number of columns
 	int newSize = (inputSize - 1) * kernelDimension;
-	float* newQueryM = new float[newSize];
+	float* newQ = new float[newSize];
 	int idOld = 0, idNew = 0;
 	for (int j = 0; j < kernelDimension; j++) {
 		for (int k = 0; k < inputSize; k++) {
@@ -176,45 +128,27 @@ bool MemoryNode_G::decrementInputSize(int id){
 				idOld++;
 				continue;
 			}
-			newQueryM[idNew] = queryM[idOld];
+			newQ[idNew] = Q[idOld];
 
 			idNew++;
 			idOld++;
 		}
 	}
-	queryM.reset(newQueryM);
+	Q.reset(newQ);
 
 
 	inputSize--;
-	link.decrementOriginOutputSize(id);
+	setBeta();
+	link.removeColumnRange(id, 1);
 	return true;
 }
 
 bool MemoryNode_G::decrementOutputSize(int id){
 	if (outputSize == 1) { return false; }
 
-
-	// decrement key matrix's number of columns
-	int newSize = (outputSize - 1) * kernelDimension;
-	float* newKeyM = new float[newSize];
-	int idOld = 0, idNew = 0;
-	for (int j = 0; j < kernelDimension; j++) {
-		for (int k = 0; k < outputSize; k++) {
-			if (k == id) {
-				idOld++;
-				continue;
-			}
-			newKeyM[idNew] = keyM[idOld];
-
-			idNew++;
-			idOld++;
-		}
-	}
-	keyM.reset(newKeyM);
-
-
 	outputSize--;
-	link.decrementDestinationInputSize(id);
+	setBeta();
+	link.removeLineRange(id, 1);
 	return true;
 }
 
@@ -222,56 +156,36 @@ bool MemoryNode_G::decrementOutputSize(int id){
 bool MemoryNode_G::incrementKernelDimension() {
 	if (kernelDimension == MAX_KERNEL_DIMENSION) { return false; }
 
-	// increment query matrix's number of lines
+	// increment Q's number of lines
 	int newSize = inputSize * (kernelDimension + 1);
-	float* newQueryM = new float[newSize];
+	float* newQ = new float[newSize];
 	int idOld = 0, idNew = 0;
 	for (int j = 0; j < kernelDimension; j++) {
 		for (int k = 0; k < inputSize; k++) {
 
-			newQueryM[idNew] = queryM[idOld];
+			newQ[idNew] = Q[idOld];
 
 			idNew++;
 			idOld++;
 		}
 	}
 	for (int j = 0; j < inputSize; j++) {
-		newQueryM[idNew] = NORMAL_01 * .2f;
+		newQ[idNew] = NORMAL_01 * .2f;
 		idNew++;
 	}
-	queryM.reset(newQueryM);
-
-	// increment key matrix's number of lines
-	newSize = outputSize * (kernelDimension + 1);
-	float* newKeyM = new float[newSize];
-	idOld = 0;
-	idNew = 0;
-	for (int j = 0; j < kernelDimension; j++) {
-		for (int k = 0; k < outputSize; k++) {
-
-			newKeyM[idNew] = keyM[idOld];
-
-			idNew++;
-			idOld++;
-		}
-	}
-	for (int j = 0; j < outputSize; j++) {
-		newKeyM[idNew] = NORMAL_01 * .2f;
-		idNew++;
-	}
-	keyM.reset(newKeyM);
-
+	Q.reset(newQ);
 
 	kernelDimension++;
+	setBeta();
 	return true;
 }
 
 bool MemoryNode_G::decrementKernelDimension(int id){
 	if (kernelDimension == 1) { return false; }
 
-	// decrement query matrix's number of lines
+	// decrement Q's number of lines
 	int newSize = inputSize * (kernelDimension - 1);
-	float* newQueryM = new float[newSize];
+	float* newQ = new float[newSize];
 	int idOld = 0, idNew = 0;
 	for (int j = 0; j < kernelDimension; j++) {
 		if (j == id) { 
@@ -280,36 +194,16 @@ bool MemoryNode_G::decrementKernelDimension(int id){
 		}
 		for (int k = 0; k < inputSize; k++) {
 
-			newQueryM[idNew] = queryM[idOld];
+			newQ[idNew] = Q[idOld];
 
 			idNew++;
 			idOld++;
 		}
 	}
-	queryM.reset(newQueryM);
-
-	// decrement key matrix's number of lines
-	newSize = outputSize * (kernelDimension - 1);
-	float* newKeyM = new float[newSize];
-	idOld = 0;
-	idNew = 0;
-	for (int j = 0; j < kernelDimension; j++) {
-		if (j == id) {
-			idOld += outputSize;
-			continue;
-		}
-		for (int k = 0; k < outputSize; k++) {
-
-			newKeyM[idNew] = keyM[idOld];
-
-			idNew++;
-			idOld++;
-		}
-	}
-	keyM.reset(newKeyM);
-
+	Q.reset(newQ);
 
 	kernelDimension--;
+	setBeta();
 	return true;
 }
 

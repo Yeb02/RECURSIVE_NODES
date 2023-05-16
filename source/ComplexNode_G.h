@@ -9,16 +9,25 @@
 #include "Random.h"
 #include "Config.h"
 
-#include "SimpleNode_G.h"
 #include "MemoryNode_G.h"
-#include "GenotypeConnexion.h"
+#include "InternalConnexion_G.h"
 
 // Constants:
-#define MAX_SIMPLE_CHILDREN_PER_COMPLEX  20
 #define MAX_COMPLEX_CHILDREN_PER_COMPLEX  10
 #define MAX_MEMORY_CHILDREN_PER_COMPLEX  5
 #define MAX_COMPLEX_INPUT_NODE_SIZE  10          // Does not apply to the top node
 #define MAX_COMPLEX_OUTPUT_SIZE  10         // Does not apply to the top node
+
+
+// TODO : implement DERIVATOR, that outputs the difference between INPUT_NODE at this step and INPUT_NODE at the previous step.
+// CENTERED_SINE(x) = tanhf(x) * expf(-x*x) * 1/.375261
+// I dont really know what to expect from SINE and CENTERED_SINE when it comes to applying 
+// hebbian updates... It does not make much sense. But I plan to add cases where activations
+// do not use hebbian rules.
+
+#define N_ACTIVATIONS  2 // only using TANH and GAUSSIAN for now
+const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, SINE = 2, CENTERED_SINE = 3 };
+
 
 // Util:
 inline int binarySearch(std::vector<float>& proba, float value) {
@@ -50,21 +59,23 @@ inline int binarySearch(std::vector<float>& proba, float value) {
 
 struct ComplexNode_G {
 	
-	static const NODE_TYPE nodeType = NODE_TYPE::COMPLEX;    
-
 	int inputSize, outputSize; // >= 1
 
 	
 	// Contains pointers to the children. A pointer can appear multiple times.
 	std::vector<ComplexNode_G*> complexChildren;
-	std::vector<SimpleNode_G*> simpleChildren;
 	std::vector<MemoryNode_G*> memoryChildren;
 
-	// Vector of structs holding pointers to the fixed connexion matrices linking children
-	std::vector<GenotypeConnexion> internalConnexions;
+	// Struct containing the constant, evolved, matrix of parameters linking internal nodes.
+	// The name specifies the type of node that takes the result of the matrix operations as inputs.
+	// nLines = sum(node.inputSize) for node of the type corresponding to the name
+	// nColumns = this.inputSize + MODULATION_VECTOR_SIZE + sum(complexChild.inputSize) + sum(memoryChild.inputSize)
+	InternalConnexion_G toComplex, toMemory, toModulation, toOutput;
 
-	// neuromodulation bias.
+	
 	float modulationBias[MODULATION_VECTOR_SIZE];
+
+	ACTIVATION modulationActivations[MODULATION_VECTOR_SIZE];
 
 	// Depth of the children tree. =0 for simple neurons, at least 1 otherwise, even if there are no children.
 	int depth;
@@ -72,7 +83,7 @@ struct ComplexNode_G {
 	// The position in the genome vector. Must be genome.size() for the top node.
 	int position;
 
-	// Point towards the node it was cloned from or boxed from on the tree of life. 
+	// Points towards the node this was cloned from or boxed from on the tree of life. 
 	ComplexNode_G* closestNode;
 
 	// How many iterations of floating point values mutations it has undergone since it was created.
@@ -81,34 +92,26 @@ struct ComplexNode_G {
 	// How many times this node appears in the phenotype.
 	int phenotypicMultiplicity;
 
-	// Updated by a call to computeInternalBiasSize. Happens only at the end of structural mutations and a node creation,
-	// since this value is used only during forward and floating point mutations. 
-	// Equals : outputSize + nSimpleNeurons + sum(complexChild.inputSize) + sum(memoryChild.inputSize) 
-	int internalBiasSize;
+	// Updated by a call to computeBiasSizes. 
+	int complexBiasSize, memoryBiasSize;
 
-	// size internalBiasSize. In the following order: output -> simple -> complex -> memory
-	std::vector<float> internalBias;
+	std::vector<float> complexBias, memoryBias, outputBias;
+
+	// arrays indicating the activation function to use on each presynaptic input.
+	std::vector<ACTIVATION> complexActivations, memoryActivations, outputActivations;
+
+	// Precomputed for efficiency, = outputSize + MODULATION_VECTOR_SIZE + sum(complexChildren.inputSize)
+	int memoryPreSynOffset;
+	void computeMemoryPreSynOffset() {
+		int s = outputSize + MODULATION_VECTOR_SIZE;
+		for (int i = 0; i < complexChildren.size(); i++) {
+			s += complexChildren[i]->inputSize;
+		}
+		memoryPreSynOffset = s;
+	}
 
 	// Does not do much, because most attributes are set by the network owning this.
-	ComplexNode_G() 
-	{
-		phenotypicMultiplicity = 0;
-		mutationalDistance = 0;
-		closestNode = NULL;
-
-		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			modulationBias[i] = NORMAL_01 * .2f;
-		}
-
-		// The following initializations must be done outside.
-		{
-			depth = -1;
-			inputSize = -1;
-			outputSize = -1;
-			position = -1;
-			internalBiasSize = -1;
-		}
-	};
+	ComplexNode_G(int inputSize, int outputSize);
 
 	// WARNING ! "this" node is now a deep copy of n, but the pointers towards the children 
 	// must be updated manually if "this" and n do not belong to the same Network !
@@ -117,14 +120,20 @@ struct ComplexNode_G {
 
 	~ComplexNode_G() {};
 
-	// Sets internalBiasSize
-	void computeInternalBiasSize();
+	void createInternalConnexions();
+
+	// Sets complexBiasSize, memoryBiasSize
+	void computeBiasSizes();
 
 	// genomeState is an array of the size of the genome, which has 1s where the node's depth is known and 0s elsewhere
 	void updateDepth(std::vector<int>& genomeState);
 
-	// Used to compute the size of the 4 arrays containing the activations of the phenotype.
-	void computeActivationArraySize(std::vector<int>& genomeState);
+	// Compute the size of the array containing the pre synaptic activations of the phenotype.
+	void computePreSynActArraySize(std::vector<int>& genomeState);
+
+	// Compute the size of the 2 arrays containing the post synaptic activations of the phenotype,
+	// previousPostSynAct and currentPostSynAct.
+	void computePostSynActArraySize(std::vector<int>& genomeState);
 
 
 
@@ -136,63 +145,64 @@ struct ComplexNode_G {
 	// Mutate real-valued floating point parameters.
 	void mutateFloats();
 
-	// Util that returns a randomly picked node that can serve as a connexion's origin. There is 
-	// a configurable bias towards linking to input, and modulation. More generally, the probability of
-	// linking to a node is proportional to its output's size.
-	std::tuple<NODE_TYPE, int, int> pickRandomOriginNode();
+	// Mutate the non linearities entering the modulation, complex and memory children, and output.
+	void mutateActivations();
 
-	// Util that returns a randomly picked node that can serve as a connexion's destination. There is 
-	// a configurable bias towards linking to output, and modulation. More generally, the probability of
-	// linking to a node is proportional to its input's size.
-	std::tuple<NODE_TYPE, int, int> pickRandomDestinationNode();
-
-	// Try to connect two random children nodes. Is less likely to succed as the connexion density rises.
-	void addConnexion();
-
-	// Disconnect two children nodes picked randomely. 
-	void removeConnexion();
-
-	// Add the specified child to the node. Must be followed by a call to Network::updateDepth() and Network::sortGenome().
-	// The child's depth is <= to this node's depth.
-	// The child is initially connected to 2 random nodes, with a preference for the INPUT_NODE and the output.
+	// Add the specified child to the node. After the call to this function, depths, genome order, and 
+	// phenotypic multiplicities must be manually updated.
 	void addComplexChild(ComplexNode_G* child);
 
-	void addSimpleChild(SimpleNode_G* child);
-
+	// Add the specified child to the node. After the call to this function, 
+	// phenotypic multiplicities must be manually updated.
 	void addMemoryChild(MemoryNode_G* child);
 
 
-	// Removes the rID th simple child in the children list.
-	void removeSimpleChild(int rID);
-	// Removes the rID th complex child in the children list.
+
+	// Removes the rID th complex child. Handles connexion matrices resizing.
 	void removeComplexChild(int rID);
-	// Removes the rID th memory child in the children list.
+
+	// Removes the rID th memory child. Handles connexion matrices resizing.
 	void removeMemoryChild(int rID);
 
-	// Also resizes the matrices of every connexion between the children and the INPUT_NODE, adding a column. Returns a 
-	// boolean indicating whether the operation was allowed or not. If not, nothing happened. 
+	
+
+	// Returns a boolean indicating whether the operation was allowed or not. If false, nothing happened. 
+	// If true, everything was handled by this function and there is nothing to do outside.
 	bool incrementInputSize();
-	// Resizes the connexion matrices linking the children together.
-	void onChildInputSizeIncremented(int modifiedPosition, NODE_TYPE modifiedType);
 
-	// Also resizes the matrices of every connexion between the children and the output, adding a line. Returns a 
-	// boolean indicating whether the operation was allowed or not. If not, nothing happened. 
+	// Returns a boolean indicating whether the operation was allowed or not. If false, nothing happened. 
+	// If true, everything was handled by this function and there is nothing to do outside.
 	bool incrementOutputSize();
-	// Resizes the connexion matrices linking the children together.
-	void onChildOutputSizeIncremented(int modifiedPosition, NODE_TYPE modifiedType);
 
-
-	// Also resizes the matrices of every connexion between the children and the INPUT_NODE, deleting the id-th column. 
-	// Returns a boolean indicating whether the operation was allowed or not. If not, nothing happened. 
+	// Returns a boolean indicating whether the operation was allowed or not. If false, nothing happened. 
+	// If true, everything was handled by this function and there is nothing to do outside.
 	bool decrementInputSize(int id);
-	// Resizes the connexion matrices linking the children together.
-	void onChildInputSizeDecremented(int modifiedPosition, NODE_TYPE modifiedType, int id);
 
-
-	// Also resizes the matrices of every connexion between the children and the output, deleting the id-th line. 
-	// Returns a boolean indicating whether the operation was allowed or not. If not, nothing happened. 
+	// Returns a boolean indicating whether the operation was allowed or not. If false, nothing happened. 
+	// If true, everything was handled by this function and there is nothing to do outside.
 	bool decrementOutputSize(int id);
-	// Resizes the connexion matrices linking the children together.
-	void onChildOutputSizeDecremented(int modifiedPosition, NODE_TYPE modifiedType, int id);
+
+
+
+	// Resizes the connexion matrices when a potential child has had its input size incremented.
+	// bool complexNode is true if the potential child is a complex node, false if it is a memory node.
+	void onChildInputSizeIncremented(void* potentialChild, bool complexNode);
+
+
+	// Resizes the connexion matrices when a potential child has had its output size incremented.
+	// bool complexNode is true if the potential child is a complex node, false if it is a memory node.
+	void onChildOutputSizeIncremented(void* potentialChild, bool complexNode);
+
+
+	// Resizes the connexion matrices when a potential child has had its input size decremented.
+	// bool complexNode is true if the potential child is a complex node, false if it is a memory node.
+	// id is the index of the deleted input in the potential child's interface.
+	void onChildInputSizeDecremented(void* potentialChild, bool complexNode, int id);
+
+
+	// Resizes the connexion matrices when a potential child has had its output size decremented.
+	// bool complexNode is true if the potential child is a complex node, false if it is a memory node.
+	// id is the index of the deleted output in the potential child's interface.
+	void onChildOutputSizeDecremented(void* potentialChild, bool complexNode, int id);
 };
 

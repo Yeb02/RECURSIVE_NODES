@@ -18,7 +18,7 @@ extern "C" {
 
 	RECURSIVE_NODES_API Population* create_population(int IN_SIZE, int OUT_SIZE, int nSpecimens)
 	{
-		Population* p = new Population(IN_SIZE, OUT_SIZE, nSpecimens);
+		Population* p = new Population(IN_SIZE, OUT_SIZE, nSpecimens, true);
 		//void* p2 = reinterpret_cast<void*>(p);
 		return p;
 	}

@@ -1,33 +1,39 @@
 #include "MemoryNode_P.h"
 
 MemoryNode_P::MemoryNode_P(MemoryNode_G* _type) :
-	type(_type), pLink(_type->inputSize*_type->outputSize)
+	type(_type), pLink(&_type->link)
 {
 	
-	candidateMemory = std::make_unique<float[]>(type->outputSize);
+	candidateMemory = std::make_unique<float[]>(type->outputSize+type->kernelDimension);
+	QX = std::make_unique<float[]>(type->kernelDimension);
+	outputBuffer = std::make_unique<float[]>(type->outputSize);
 
 	// Useless initializations:
 	{
-		memory.reset(NULL);
-		transformedMemory.reset(NULL);
-		sigmas.reset(NULL);
+		memory.resize(0);
+		invNorms.resize(0);
+		unnormalizedCosines.resize(0);
 		nMemorizedVectors = 0;
-		currentPostSynAct = nullptr;
-		preSynAct = nullptr;
-		previousPostSynAct = nullptr;
-		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			localM[i] = 0.0f;
-		}
+		input = nullptr;
+		output = nullptr;
+		modulation = nullptr;
 	}
 }
 
+
 void MemoryNode_P::forward() {
+
 	// vars defined for readability:
-	float ksi1 = (localM[2] + 1.0f) * .5f; // from [-1, 1] to [0, 1]
-	float ksi2 = localM[3];
-	float ksi3 = localM[4];
-	float* preSynOutput = preSynAct + type->inputSize;
-	float* postSynOutput = currentPostSynAct + type->inputSize;
+	
+	float ksi1 = (modulation[2] + 1.0f) * .5f; // from [-1, 1] to [0, 1]
+	float ksi2 = modulation[3];
+	float ksi3 = (modulation[4] + 1.0f) * .5f; // from [-1, 1] to [0, 1]
+
+	//float ksi1 = .5f; 
+	//float ksi2 = .2f;
+	//float ksi3 = 1.0f;
+
+	int memoryVectorSize = type->kernelDimension + type->outputSize;
 
 	// link operations: propagation and hebbian update.
 	{
@@ -37,6 +43,8 @@ void MemoryNode_P::forward() {
 		int nc = type->inputSize;
 		int matID = 0;
 
+		std::fill(outputBuffer.get(), outputBuffer.get() + nl, 0.0f);
+
 		float* H = pLink.H.get();
 		float* wLifetime = pLink.wLifetime.get();
 		float* alpha = type->link.alpha.get();
@@ -45,12 +53,12 @@ void MemoryNode_P::forward() {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 				// += (H * alpha + w) * prevAct
-				preSynOutput[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * currentPostSynAct[j];
+				outputBuffer[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
 				matID++;
 			}
 		}
 		for (int i = 0; i < type->outputSize; i++) {
-			preSynOutput[i] = tanhf(preSynOutput[i]); // storing in pre-syn because memory will be accumulated in post syn.
+			output[i] = tanhf(outputBuffer[i]);
 		}
 
 
@@ -73,15 +81,15 @@ void MemoryNode_P::forward() {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * alpha[matID] * H[matID] * localM[1];
+				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * alpha[matID] * H[matID] * modulation[1];
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-					(A[matID] * preSynOutput[i] * currentPostSynAct[j] + // as stated above, using pre-syn array for storage of post syn.
-					 B[matID] * preSynOutput[i] +						// for program efficiency.
-					 C[matID] * currentPostSynAct[j] + 
+					(A[matID] * outputBuffer[i] * input[j] + 
+					 B[matID] * outputBuffer[i] +
+					 C[matID] * input[j] + 
 				     D[matID]);
 
-				H[matID] += E[matID] * localM[0];
+				H[matID] += E[matID] * modulation[0];
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
 #ifndef CONTINUOUS_LEARNING
 				avgH[matID] += H[matID];
@@ -92,114 +100,102 @@ void MemoryNode_P::forward() {
 		}
 	}
 
-	float maxSigma = -1.0f;
+	float maxCos = -1.0f;
 	if (nMemorizedVectors>0){
-		// Compute cosinuses, in sigmas[].
-		for (int i = 0; i < nMemorizedVectors; i++) {
-			sigmas[i] = 0.0f;
+		// Compute QX and its norm
+		int QID = 0;
+		float invQXnorm = 0.0f;
+		for (int i = 0; i < type->kernelDimension; i++) {
+			QX[i] = 0.0f;
 			for (int j = 0; j < type->inputSize; j++) {
-				sigmas[i] += currentPostSynAct[j] * transformedMemory[i * type->inputSize + j];
+				QX[i] += type->Q[QID] * input[j];
+				QID++;
+			}
+			invQXnorm += QX[i] * QX[i];
+		}
+		invQXnorm = powf(invQXnorm, -.5f);
+
+
+		// Compute unnormalized cosinuses
+		for (int i = 0; i < nMemorizedVectors; i++) {
+			unnormalizedCosines[i] = 0.0f;
+			int id = i * memoryVectorSize;
+			for (int j = 0; j < type->kernelDimension; j++) {
+				unnormalizedCosines[i] += QX[j] * memory[id + j];
 			}
 		}
 
-		// applies softmax
+		// compute softmax(beta* unnormalizedCosines), and extract the max of the cosines.
 		float softmaxNormalizationFactor = 0.0f;
-		maxSigma = -1000.0f;
 		for (int i = 0; i < nMemorizedVectors; i++) {
-			sigmas[i] *= type->beta;
-			if (maxSigma < sigmas[i]) [[unlikely]] { maxSigma = sigmas[i]; }
-			sigmas[i] = expf(sigmas[i]);
-			softmaxNormalizationFactor += sigmas[i];
+			
+			float cosine = unnormalizedCosines[i] * invQXnorm * invNorms[i];
+			if (maxCos < cosine) [[unlikely]] { maxCos = cosine; }
+
+			// from now on unnormalizedCosines will contain coefficients for the weighted sum of the
+			// memorized responses, and not unnormalized cosines.
+
+			unnormalizedCosines[i] *= type->beta;
+			unnormalizedCosines[i] = expf(unnormalizedCosines[i]);
+			softmaxNormalizationFactor += unnormalizedCosines[i];
 		}
 		softmaxNormalizationFactor = 1.0f / softmaxNormalizationFactor;
 		for (int i = 0; i < nMemorizedVectors; i++) {
-			sigmas[i] *= softmaxNormalizationFactor;
+			unnormalizedCosines[i] *= softmaxNormalizationFactor;
 		}
 
-		// accumulates the memory vector weighted by the sigmas.
-		for (int j = 0; j < type->outputSize; j++) {
-			postSynOutput[j] = 0.0f;
-		}
+		std::fill(outputBuffer.get(), outputBuffer.get() + type->outputSize, 0.0f);
 
 		for (int i = 0; i < nMemorizedVectors; i++) {
+			int id = i * memoryVectorSize + type->kernelDimension;
 			for (int j = 0; j < type->outputSize; j++) {
-				postSynOutput[j] += sigmas[i] * transformedMemory[i * type->outputSize + j];
+				outputBuffer[j] += unnormalizedCosines[i] * memory[id + j];
 			}
 		}
 
 		for (int i = 0; i < type->outputSize; i++) {
-			postSynOutput[i] = ksi1 * preSynOutput[i] + (1.0f-ksi1) * postSynOutput[i]; // preSynOutput's content can be discarded now.
+			output[i] = ksi1 * output[i] + (1.0f-ksi1) * outputBuffer[i]; // preSynOutput's content can be discarded now.
 		}
+
 	}
 
-
-	// accumulate tin*tQxK in preSynOutput, which is not used anymore.
-	for (int i = 0; i < type->outputSize; i++) {
-		preSynOutput[i] = 0.0f;
-		for (int j = 0; j < type->inputSize; j++) {
-			preSynOutput[i] += currentPostSynAct[j] * type->tQxK[i + j * type->outputSize];
-		}
-	}
-
-
-	//Update candidate memory
-	float F = ksi1 * ksi2 * powf(1.0f - maxSigma, 1.0f); // std::max(std::min(powf(1.0f - maxSigma, 1.0f), 1.0f)) , -1.0f) ?
-	float f = type->beta * type->K;
+	// TODO which vector's norm should be used ? Using key as of now
+	//Compute candidate memory norm to check if it is to be added to memory
 	float candidateL2Norm = 0.0f;
-	for (int i = 0; i < type->outputSize; i++) {
-		candidateMemory[i] += (preSynOutput[i] * f + postSynOutput[i]) * F;
+	for (int i = 0; i < type->kernelDimension; i++) {
 		candidateL2Norm += candidateMemory[i] * candidateMemory[i];
 	}
 	
-	// Add candidate memory to memory if a certain treshold is passed. TODO make it more efficient in copy and reallocations.
+	// If the treshhold is reached, add candidate memory to memory, and its inverse norm to
+	// invNorms. TODO make it more efficient in copy and reallocations.
 	if (sqrtf(candidateL2Norm) * ksi3 > 1) {
 
-		int oldMemorySize = nMemorizedVectors * type->outputSize;
-		float* newMemory = new float[oldMemorySize + type->outputSize];
-		std::copy(memory.get(), memory.get() + oldMemorySize, newMemory);
-		memory.reset(newMemory);
-		for (int i = 0; i < type->outputSize; i++) {
-			memory[i + oldMemorySize] = candidateMemory[i];
-		}
+		int oldMemorySize = nMemorizedVectors * memoryVectorSize;
+		memory.insert(memory.end(), candidateMemory.get(), candidateMemory.get()+ memoryVectorSize);
 
+		invNorms.push_back(candidateL2Norm);
 
-		int oldTransformedMemorySize = nMemorizedVectors * type->inputSize;
-		float* newTransformedMemory = new float[oldTransformedMemorySize + type->inputSize];
-		std::copy(transformedMemory.get(), transformedMemory.get() + oldTransformedMemorySize, newTransformedMemory);
-		transformedMemory.reset(newTransformedMemory);
-		for (int i = 0; i < type->inputSize; i++) {
-			transformedMemory[i + oldTransformedMemorySize] = 0.0f;
-			for (int j = 0; j < type->outputSize; j++) {
-				transformedMemory[i + oldTransformedMemorySize] += type->tQxK[i* type->outputSize + j] * candidateMemory[j];
-			}
-		}
+		unnormalizedCosines.resize(nMemorizedVectors+1);
 
-		sigmas.reset(new float[nMemorizedVectors+1]);
+		std::fill(candidateMemory.get(), candidateMemory.get() + memoryVectorSize, 0.0f);
 
-		for (int i = 0; i < type->outputSize; i++) {
-			candidateMemory[i] = 0.0f;
-		}
 		nMemorizedVectors++;
+	}
+
+	//Update candidate memory
+	float F = ksi1 * ksi2 * type->decay * powf(1.0f - maxCos, 1.0f);
+	for (int i = 0; i < type->kernelDimension; i++) {
+		candidateMemory[i] = (1.0f - type->decay) * candidateMemory[i] + F * QX[i];
+	}
+	for (int i = type->kernelDimension; i < memoryVectorSize; i++) {
+		candidateMemory[i] = (1.0f - type->decay) * candidateMemory[i] + F * output[i - type->kernelDimension];
 	}
 }
 
-void MemoryNode_P::setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa) {
-	previousPostSynAct = *ppsa;
-	currentPostSynAct = *cpsa;
-	preSynAct = *psa;
-#ifdef SATURATION_PENALIZING
-	averageActivation = *aa;
-#endif
-
-	int s = type->inputSize + type->outputSize;
-	*ppsa += s;
-	*cpsa += s;
-	*psa += s;
-#ifdef SATURATION_PENALIZING
-	// Post-Synaptic Output is not in the -1, 1 range because there is no nonlinearities after memory retrieval.
-	// It is therefore not considered when computing saturations.
-	*aa += type->inputSize;  
-#endif
+void MemoryNode_P::setArrayPointers(float** cpsa, float** psa, float* globalModulation) {
+	output = *cpsa;
+	input = *psa;
+	modulation = globalModulation;
 }
 
 void MemoryNode_P::preTrialReset() {
@@ -207,31 +203,20 @@ void MemoryNode_P::preTrialReset() {
 	// TODO keep memory between trial ?
 	{
 		nMemorizedVectors = 0;
-		memory.reset(NULL);
-		transformedMemory.reset(NULL);
-		sigmas.reset(NULL);
+		memory.resize(0);
+		invNorms.resize(0);
+		unnormalizedCosines.resize(0);
 	}
 
-	for (int j = 0; j < type->outputSize; j++) {
-		candidateMemory[j] = 0.0f;
-	}
+	std::fill(candidateMemory.get(), candidateMemory.get() + type->outputSize + type->kernelDimension, 0.0f);
 
 	int s = type->link.nLines * type->link.nColumns;;
-	pLink.zero(s); // zero E, H, and AVG_H if need be.
-
-
-	for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
-		localM[j] = 0.0f;
-	}
+	pLink.zero(); // zero E, H, and AVG_H if need be.
 }
 
 #ifdef GUIDED_MUTATIONS
 void MemoryNode_P::accumulateW(float factor) {
 
-	int s = type->link.nLines * type->link.nColumns;
-	for (int j = 0; j < s; j++) {
-		type->link.accumulator[j] += factor * pLink.wLifetime[j];
-		//pLink.wLifetime[j] = 0.0f; // TODO
-	}
+	type->link.accumulateW(factor, pLink.wLifetime.get());
 }
 #endif

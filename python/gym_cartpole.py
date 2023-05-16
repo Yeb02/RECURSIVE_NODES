@@ -5,7 +5,7 @@ import ctypes
 print("If there is a syntax error, update your version of gym, the lib has changed a lot.\n")
 env = gym.make("CartPole-v1")
 
-N_SPECIMENS = 500
+N_SPECIMENS = 512
 N_TRIALS = 5
 in_size = env.observation_space.shape[0]
 # out_size = env.action_space.shape[0] # does not work for cartpole
@@ -51,14 +51,14 @@ while True:
                 maxScore = score
             scores[i] += score
         
-
+    normalize(scores, N_SPECIMENS)
     compute_fitnesses(population, scores)
     create_offsprings(population)
     draw_network(drawer, get_fittest_network_handle(population), evolutionStep)
     print(f"At iteration {evolutionStep}, max score was {maxScore}")
     evolutionStep += 1
     if maxScore >= 500 : 
-        print("Max score reached.")
+        print("\nMax score reached. Learning over, freeing the DLL.")
         break
 
 env.close()

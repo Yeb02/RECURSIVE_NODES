@@ -50,15 +50,6 @@ public:
 	void createPhenotype();
 	void destroyPhenotype();
 
-	// To be called before running inferences if the memory nodes have changed/have just been created.
-	void computeMemoryUtils() {
-		for (int i = 0; i < memoryGenome.size(); i++) {
-			if (memoryGenome[i]->phenotypicMultiplicity != 0) {
-				memoryGenome[i]->precomputeUtils();
-			}
-		}
-	}
-
 #ifdef GUIDED_MUTATIONS
 	// Sets at 0 the accumulators of both internal connexions for complex nodes and key+query for memory nodes.
 	void zeroAccumulators();
@@ -86,7 +77,6 @@ private:
 	std::unique_ptr<ComplexNode_G> topNodeG;
 
 	std::vector<std::unique_ptr<ComplexNode_G>> complexGenome;
-	std::vector<std::unique_ptr<SimpleNode_G>> simpleGenome;
 	std::vector<std::unique_ptr<MemoryNode_G>> memoryGenome;
 
 	// The phenotype is expected to be created and destroyed only once per Network, but it could happen several times.
@@ -103,8 +93,8 @@ private:
 	std::unique_ptr<float[]> currentPostSynActs;
 	std::unique_ptr<float[]> preSynActs;
 
-	// size of previousPostSynActs, currentPostSynActs and preSynActs
-	int activationArraySize;
+	// size of previousPostSynActs and currentPostSynActs
+	int postSynActArraySize;
 
 	// How many inferences were performed since last call to preTrialReset by the phenotype.
 	int nInferencesOverTrial;

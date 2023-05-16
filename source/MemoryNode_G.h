@@ -1,13 +1,12 @@
 #pragma once
 
 #include <memory>
-#include "GenotypeConnexion.h"
+#include "InternalConnexion_G.h"
 
 #define MAX_KERNEL_DIMENSION 100
-#define MAX_MEMORY_INPUT_SIZE  10          // Does not apply to the top node
-#define MAX_MEMORY_OUTPUT_SIZE  10         // Does not apply to the top node
+#define MAX_MEMORY_INPUT_SIZE  10          
+#define MAX_MEMORY_OUTPUT_SIZE  10         
 #define MODULATION_VECTOR_SIZE 5           // Short-term, long-term, ksi1, ksi2, ksi3
-
 
 struct MemoryNode_G {
 	int inputSize, outputSize;
@@ -26,21 +25,20 @@ struct MemoryNode_G {
 	int mutationalDistance;
 
 	// the connexion linking input and output
-	GenotypeConnexion link;
+	InternalConnexion_G link;
 
-	// The key and query matrices
-	std::unique_ptr<float[]> keyM, queryM;
+	// y = softmax(tX * tQ * K * M) * V * M, here we have the following simplifications / optimisations:
+	// *   K = Q, and K*M is stored, not M.
+	// *   V * M is replaced by a set of memorized output vectors.
+	std::unique_ptr<float[]> Q;
 
-	// = transpose(keyM) * queryM
-	std::unique_ptr<float[]> tQxK;
+	// controls the exponential average decay speed of canddidate memory, the higher the faster.
+	float decay;
 
-
-	// Relative importance of output correction / angle to input of the potential memory vector. << 1
-	float K;
-
-	// Maybe = 1 / sqrt(kernelDim * InSize * OutSize)
+	// = 1 / sqrt(kernelDim * InSize)
 	float beta;
 
+	inline void setBeta() { beta = 1.0f / sqrtf((float) (inputSize * kernelDimension)); }
 
 	MemoryNode_G(MemoryNode_G* n);
 	MemoryNode_G(int inputSize, int outputSize, int kernelDimension);
@@ -52,18 +50,6 @@ struct MemoryNode_G {
 	}
 
 	~MemoryNode_G() {};
-
-	// Prepares inference time optimization, by precomputing what can be. Must be called between [any change to
-	// keyM or queryM ] and [forward()].
-	void precomputeUtils() {
-		compute_tQxK();
-		compute_beta();  
-	}
-
-	void compute_beta() {
-		beta = 1.0f / sqrtf((float)(inputSize * outputSize * kernelDimension));
-	}
-	void compute_tQxK();
 
 	void mutateFloats();
 

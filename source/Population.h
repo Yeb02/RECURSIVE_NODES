@@ -8,6 +8,7 @@
 #include "Network.h"
 #include "Trial.h"
 
+// Description
 /*
 The optimizer is a non canon version of the genetic algorithm, this is how the loop goes:
 
@@ -41,6 +42,9 @@ sure it is not a bug.)
 copied to be in the next generation. The selected specimens is not eliminated from the potential parents pool.
 The process is repeated as many times as their are specimens, we then proceed to the next iteration of the loop.
 */
+
+
+const enum SCORE_BATCH_TRANSFORMATION { NONE = 0, NORMALIZE = 1, RANK = 2};
 
 
 // Contains the parameters for population evolution. They can be changed at each step.
@@ -85,6 +89,10 @@ struct PopulationEvolutionParameters {
 	// does not influence the score "too much". See note in Network.postTrialUpdate.
 	float competitionFactor;
 
+	// Usually, raw scores as output from the trials are not very informative about how specimens compare. This
+	// parameter specifies a transformation of the scores of the whole population PER TRIAL. It is not redundant 
+	// with rankingFitness, it makes sense to have both enabled. 
+	SCORE_BATCH_TRANSFORMATION scoreBatchTransformation;
 
 	//defaults:
 	PopulationEvolutionParameters() {
@@ -94,9 +102,17 @@ struct PopulationEvolutionParameters {
 		saturationFactor = .05f;
 		rankingFitness = true;
 		competitionFactor = .1f;
+		scoreBatchTransformation = NONE;
 	}
 };
 
+
+struct PhylogenicNode 
+{
+	PhylogenicNode* parent;
+	int nChildren;
+	std::vector<PhylogenicNode*> children;
+};
 
 // A group of a fixed number of individuals, optimized with a genetic algorithm.
 class Population {
@@ -115,7 +131,7 @@ public:
 
 	// Exposed to the DLL interface:
 
-	Population(int IN_SIZE, int OUT_SIZE, int nSpecimens);
+	Population(int IN_SIZE, int OUT_SIZE, int nSpecimens, bool fromDLL = false);
 
 	// No requirement on avgScorePerSpecimen, other that a higher score = a better specimen.
 	void computeFitnesses(std::vector<float>& avgScorePerSpecimen);
@@ -130,6 +146,7 @@ public:
 		this->saturationFactor = params.saturationFactor;
 		this->rankingFitness = params.rankingFitness;
 		this->competitionFactor = params.competitionFactor;
+		this->scoreBatchTransformation = params.scoreBatchTransformation;
 	}
 
 
@@ -165,6 +182,8 @@ public:
 
 private:
 
+	bool fromDLL;
+
 	void threadLoop(const int i0, const int subArraySize);
 	void evaluate(const int i0, const int subArraySize, Trial* trial, float* scores);
 
@@ -184,8 +203,13 @@ private:
 	// Size nSpeciemns, subject to change at each step.
 	std::vector<float> fitnesses;
 
-	// Pointer to the score matrix (a vector local to step(), so make sure it is not out of scope). 
-	float* pScores;
+	// The scores of the specimens at this step, as output by the trials.
+	std::vector<float> rawScores;
+
+	// Raw scores after a transformation that depends on the whole population's performance. 
+	// Like ranking, or normalization.
+	std::vector<float> batchTransformedScores;
+
 
 	// EVOLUTION PARAMETERS: 
 	
@@ -197,6 +221,9 @@ private:
 
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
 	bool useSameTrialInit, rankingFitness;
+
+	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
+	SCORE_BATCH_TRANSFORMATION scoreBatchTransformation;
 
 
 

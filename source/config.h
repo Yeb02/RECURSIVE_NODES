@@ -17,11 +17,11 @@
 
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
 // These do not affect the DLL.
-//#define CARTPOLE_T
+#define CARTPOLE_T
 //#define XOR_T
 //#define TMAZE_T
 //#define N_LINKS_PENDULUM_T
-#define MEMORY_T
+//#define MEMORY_T
 
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
@@ -38,7 +38,7 @@
 // 1.0 or 2.0 in ComplexNode_G::mutateFloats()). Accumulators are reset to 0 after a call to mutate floats.
 // Adding a factor decreasing the effect over generations could be interesting, TODO .
 // TODO toggle zeroing of wLifetime at trial end. If off, the accumulation should only happen at lifetime's end.
-//#define GUIDED_MUTATIONS
+#define GUIDED_MUTATIONS
 
 
 // IN DEVELOPPEMENT
@@ -49,17 +49,18 @@
 // the corresponding value in the vector is substracted to the score in parallel of size and amplitude regularization terms
 // when computing fitness. The lower sum(F), the fitter.
 #define SATURATION_PENALIZING
-  
+
+// IN DEVELOPPEMENT
+// Instead of a discrete, finite set of memorized vectors and an attention mechanism, memory is programmed with
+// ordinary feedforward neural networks, that use backpropagation during lifetime to continuously learn. Learning 
+// signals are provided by neuromodulation.
+//#define DNN_MEMORY
 
 
 /*********************************************************************************************************
 		Various minor options, that appear here to avoid jumping from one file to another:
 **********************************************************************************************************/
 
-
-
-// Allows multiple same-direction connexions between two child nodes in a complex node.
-//#define ALLOW_DUPLICATE_CONNEXIONS
 
 	
 // Usually, when there are several aspects to a task, an average over performances on each task (here, trial) is used to 

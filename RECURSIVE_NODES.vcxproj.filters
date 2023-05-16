@@ -51,10 +51,10 @@
     <ClCompile Include="source\MemoryNode_G.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\GenotypeConnexion.cpp">
+    <ClCompile Include="source\InternalConnexion_G.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\PhenotypeConnexion.cpp">
+    <ClCompile Include="source\InternalConnexion_P.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\MemoryNode_P.cpp">
@@ -209,16 +209,13 @@
     <ClInclude Include="source\config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\SimpleNode_G.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="source\MemoryNode_G.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\GenotypeConnexion.h">
+    <ClInclude Include="source\InternalConnexion_G.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="source\PhenotypeConnexion.h">
+    <ClInclude Include="source\InternalConnexion_P.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\MemoryNode_P.h">

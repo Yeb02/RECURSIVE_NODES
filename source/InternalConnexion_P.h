@@ -1,11 +1,13 @@
 #pragma once
 
 #include <memory>
-
+#include <InternalConnexion_G.h>
 #include "config.h"
 
 
-struct PhenotypeConnexion {   // responsible of its pointers
+struct InternalConnexion_P {   // responsible of its pointers
+
+	InternalConnexion_G* type;
 
 	std::unique_ptr<float[]> H;
 	std::unique_ptr<float[]> E;
@@ -22,21 +24,22 @@ struct PhenotypeConnexion {   // responsible of its pointers
 
 
 	// Should not be called !
-	PhenotypeConnexion(const PhenotypeConnexion&) {};
+	InternalConnexion_P(const InternalConnexion_P&) {};
+	
 	// Should not be called !
-	PhenotypeConnexion() {};
+	InternalConnexion_P() {};
 
-	PhenotypeConnexion(int s);
+	InternalConnexion_P(InternalConnexion_G* type);
 
-	void zero(int s);
+	void zero();
 
 	// only called at construction.
-	void zeroWlifetime(int s);
+	void zeroWlifetime();
 
 #ifndef CONTINUOUS_LEARNING
 	// factor = 1/nInferencesP., wLifetime += alpha*avgH*factor
-	void updateWatTrialEnd(int s, float factor, float* alpha);
+	void updateWatTrialEnd(float factor);
 #endif
 
-	~PhenotypeConnexion() {};
+	~InternalConnexion_P() {};
 };

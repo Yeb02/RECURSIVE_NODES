@@ -22,12 +22,12 @@
     <ClCompile Include="source\dllMain.cpp" />
     <ClCompile Include="source\ComplexNode_G.cpp" />
     <ClCompile Include="source\Environment.cpp" />
-    <ClCompile Include="source\GenotypeConnexion.cpp" />
+    <ClCompile Include="source\InternalConnexion_G.cpp" />
     <ClCompile Include="source\MemoryNode_G.cpp" />
     <ClCompile Include="source\MemoryNode_P.cpp" />
     <ClCompile Include="source\Network.cpp" />
     <ClCompile Include="source\ComplexNode_P.cpp" />
-    <ClCompile Include="source\PhenotypeConnexion.cpp" />
+    <ClCompile Include="source\InternalConnexion_P.cpp" />
     <ClCompile Include="source\Population.cpp" />
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\Random.cpp" />
@@ -39,12 +39,12 @@
     <ClInclude Include="source\Drawer.h" />
     <ClInclude Include="source\ComplexNode_G.h" />
     <ClInclude Include="source\Environment.h" />
-    <ClInclude Include="source\GenotypeConnexion.h" />
+    <ClInclude Include="source\InternalConnexion_G.h" />
     <ClInclude Include="source\MemoryNode_G.h" />
     <ClInclude Include="source\MemoryNode_P.h" />
     <ClInclude Include="source\Network.h" />
     <ClInclude Include="source\ComplexNode_P.h" />
-    <ClInclude Include="source\PhenotypeConnexion.h" />
+    <ClInclude Include="source\InternalConnexion_P.h" />
     <ClInclude Include="source\Population.h" />
     <ClInclude Include="source\Random.h" />
     <ClInclude Include="source\sciplot\Canvas.hpp" />
@@ -86,7 +86,6 @@
     <ClInclude Include="source\sciplot\StringOrDouble.hpp" />
     <ClInclude Include="source\sciplot\Utils.hpp" />
     <ClInclude Include="source\sciplot\Vec.hpp" />
-    <ClInclude Include="source\SimpleNode_G.h" />
     <ClInclude Include="source\Trial.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -111,14 +110,14 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <EnableASAN>true</EnableASAN>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>

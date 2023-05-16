@@ -3,37 +3,41 @@
 #include <memory>
 
 #include "MemoryNode_G.h"
-#include "PhenotypeConnexion.h"
+#include "InternalConnexion_P.h"
 
 struct MemoryNode_P {
 	MemoryNode_G* type;
 
 	int nMemorizedVectors;
 
-	PhenotypeConnexion pLink;
+	InternalConnexion_P pLink;
 
-	// a set of vectors, each of size outputSize. Starts empty, vectors are added during lifetime / trial.
-	std::unique_ptr<float[]> memory;
+	// a set of vectors, each of size kernelDimension + outputSize. Size nMemorized vectors.
+	// Starts empty, vectors are added during inferences when a treshold is reached.
+	// For each vector, the first kernelDimension values are the stored key, and the  
+	// last outputSize values are the stored response.
+	std::vector<float> memory;
 
-	// a set of vector, each of size kernelDimension. transformedMemory[i] = t(queryM)*keyM*memory[i]. 
-	// Exists only for computational efficiency.
-	std::unique_ptr<float[]> transformedMemory;
+	// Size nMemorized vectors. Contains the inverses of the norms of the memorized keys, 
+	// for cosinus normalization.
+	std::vector<float> invNorms;
 
-	// a vector of size outputSize, eligible to be appended to memory.
+	// stores the unnormalized cosines. Size nMemorized vectors.
+	std::vector<float> unnormalizedCosines;
+
+	// stores QX. Size kernelDimension.
+	std::unique_ptr<float[]> QX;
+
+	// a vector of size kernelDimension + outputSize, eligible to be appended to memory.
 	std::unique_ptr<float[]> candidateMemory;
 
-	// stores the unnormalized cosinuses. Size nMemorized vectors.
-	std::unique_ptr<float[]> sigmas;
+	// These 3 pointers point towards memory that is shared between this node and its complex parent.
+	float* modulation;
+	float* input;
+	float* output;
 
-	float localM[MODULATION_VECTOR_SIZE];
-
-	// Runtime memory layout: inputSize-outputSize
-	float* previousPostSynAct;
-	float* currentPostSynAct;
-	float* preSynAct;
-#ifdef SATURATION_PENALIZING
-	float* averageActivation;
-#endif
+	// Size outputSize, used to hold temporary value during inference.
+	std::unique_ptr<float[]> outputBuffer;
 
 #ifdef GUIDED_MUTATIONS
 	void accumulateW(float factor);
@@ -59,7 +63,7 @@ struct MemoryNode_P {
 
 	void forward();
 
-	void setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa);
+	void setArrayPointers(float** cpsa, float** psa, float* globalModulation);
 
 	void preTrialReset();
 };

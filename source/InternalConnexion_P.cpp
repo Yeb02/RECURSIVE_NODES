@@ -1,7 +1,9 @@
-#include "PhenotypeConnexion.h"
+#include "InternalConnexion_P.h"
 
-PhenotypeConnexion::PhenotypeConnexion(int s)
+InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* type) : type(type)
 {
+	int s = type->nLines * type->nColumns;
+
 	H = std::make_unique<float[]>(s);
 	E = std::make_unique<float[]>(s);
 	wLifetime = std::make_unique<float[]>(s);
@@ -10,13 +12,16 @@ PhenotypeConnexion::PhenotypeConnexion(int s)
 	avgH = std::make_unique<float[]>(s);
 #endif
 
-	zeroWlifetime(s); // necessary because ComplexNode_P::preTrialReset() does not have to do it.
+	zeroWlifetime(); // necessary because ComplexNode_P::preTrialReset() does not have to do it.
 
 	// zero(s); not necessary, because ComplexNode_P::preTrialReset() should be called before any computation. 
 }
 
 #ifndef CONTINUOUS_LEARNING
-void PhenotypeConnexion::updateWatTrialEnd(int s, float factor, float* alpha) {
+void InternalConnexion_P::updateWatTrialEnd(float factor) {
+	int s = type->nLines * type->nColumns;
+	float* alpha = type->alpha.get();
+
 	for (int i = 0; i < s; i++) {
 		// When the following line is commented, there is no learning at all between trials. 
 		// Useful for benchmarking.
@@ -25,7 +30,9 @@ void PhenotypeConnexion::updateWatTrialEnd(int s, float factor, float* alpha) {
 }
 #endif
 
-void PhenotypeConnexion::zero(int s) {
+void InternalConnexion_P::zero() {
+	int s = type->nLines * type->nColumns;
+
 	for (int i = 0; i < s; i++) {
 		H[i] = 0.0f;
 		E[i] = 0.0f;
@@ -35,7 +42,9 @@ void PhenotypeConnexion::zero(int s) {
 	}
 }
 
-void PhenotypeConnexion::zeroWlifetime(int s) {
+void InternalConnexion_P::zeroWlifetime() {
+	int s = type->nLines * type->nColumns;
+
 	for (int i = 0; i < s; i++) {
 		wLifetime[i] = 0.0f;
 	}

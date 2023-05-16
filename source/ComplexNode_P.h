@@ -7,12 +7,11 @@
 #include "Random.h"
 #include "ComplexNode_G.h"
 #include "MemoryNode_P.h"
-#include "PhenotypeConnexion.h"
+#include "InternalConnexion_P.h"
 
 struct ComplexNode_P {
 	ComplexNode_G* type;
 
-	float localM[MODULATION_VECTOR_SIZE]; // computed in this node. 
 	float totalM[MODULATION_VECTOR_SIZE]; // parent's + local M.    
 
 #ifdef SATURATION_PENALIZING
@@ -24,16 +23,26 @@ struct ComplexNode_P {
 	std::vector<ComplexNode_P> complexChildren;
 	std::vector<MemoryNode_P>  memoryChildren;
 
-	// Vector of structs containing pointers to the dynamic connexion matrices linking children
-	std::vector<PhenotypeConnexion> internalConnexions;
+	InternalConnexion_P toComplex, toMemory, toModulation, toOutput;
 	
-	// Not managed by Complex node, but by network. Never call free or delete on these: 
+
+	// These arrays are not managed by Complex node, but by Network:
+	 
+
+	// Arranged in this order: input -> modulation.out -> complexChildren.out -> memoryChildren.out
 	float* previousPostSynAct; 
+
+	// Used as the multiplied vector in matrix operations.
+	// Arranged in this order: input -> modulation.out -> complexChildren.out -> memoryChildren.out
 	float* currentPostSynAct;
+
+	// Used as the result vector in matrix operations.
+	// Arranged in this order: output -> modulation.int -> complexChildren.in -> memoryChildren.in
 	float* preSynAct;
 #ifdef SATURATION_PENALIZING
 	float* averageActivation;
 #endif
+
 
 	ComplexNode_P(ComplexNode_G* type);
 	ComplexNode_P() {

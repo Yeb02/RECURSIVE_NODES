@@ -19,34 +19,35 @@ int nTerminated = 0;
 int nDoneProcessing = 0;
 
 
-// Util:
-void normalizeArray(float* v, int size) {
+// src is unchanged.
+void normalizeArray(float* src, float* dst, int size) {
 	float avg = 0.0f;
 	for (int i = 0; i < size; i++) {
-		avg += v[i];
+		avg += src[i];
 	}
 	avg /= (float)size;
 	float variance = 0.0f;
 	for (int i = 0; i < size; i++) {
-		v[i] -= avg;
-		variance += v[i] * v[i];
+		dst[i] = src[i] - avg;
+		variance += dst[i] * dst[i];
 	}
 	if (variance < .001f) return;
 	float InvStddev = 1.0f / sqrtf(variance / (float) size);
 	for (int i = 0; i < size; i++) {
-		v[i] *= InvStddev;
+		dst[i] *= InvStddev;
 	}
 }
 
-void convertRawToRank(float* v, int size) {
+// src is unchanged.
+void rankArray(float* src, float* dst, int size) {
 	std::vector<int> positions(size);
 	for (int i = 0; i < size; i++) {
 		positions[i] = i;
 	}
-	// sort position by ascending fitnesses.
-	std::sort(positions.begin(), positions.end(), [v](int a, int b) -> bool
+	// sort position by ascending value.
+	std::sort(positions.begin(), positions.end(), [src](int a, int b) -> bool
 		{
-			return v[a] < v[b];
+			return src[a] < src[b];
 		}
 	);
 	float invSize = 1.0f / (float)size;
@@ -56,16 +57,18 @@ void convertRawToRank(float* v, int size) {
 		// arbitrary, to make it a bit more selective. 
 		positionValue = 2.0f * powf(positionValue * .8f, 3.0f);
 
-		v[positions[i]] = positionValue;
+		dst[positions[i]] = positionValue;
 	}
 	return;
 }
 
-Population::Population(int IN_SIZE, int OUT_SIZE, int nSpecimens) :
-	nSpecimens(nSpecimens), N_THREADS(0), pScores(nullptr), threadIteration(0), mustTerminate(false)
+Population::Population(int IN_SIZE, int OUT_SIZE, int nSpecimens, bool fromDLL) :
+	nSpecimens(nSpecimens), N_THREADS(0), threadIteration(0), mustTerminate(false), fromDLL(fromDLL)
 {
 	threads.reserve(0);
 	globalTrials.reserve(0);
+	rawScores.reserve(0);
+	batchTransformedScores.reserve(0);
 	networks.resize(nSpecimens);
 	fitnesses.resize(nSpecimens);
 	for (int i = 0; i < nSpecimens; i++) {
@@ -168,12 +171,11 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 		
 
 		for (int i = 0; i < localTrials.size(); i++) {
-			float* localScorePtr = pScores + i * nSpecimens;
 
 			for (int j = i0; j < i0 + subArraySize; j++) {
 				networks[j]->preTrialReset();
 			}
-			evaluate(i0, subArraySize, localTrials[i].get(), localScorePtr);
+			evaluate(i0, subArraySize, localTrials[i].get(), rawScores.data() + i * nSpecimens);
 
 
 			ul.lock();
@@ -191,7 +193,7 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 			currentThreadIteration++;
 
 			for (int j = i0; j < i0 + subArraySize; j++) {
-				networks[j]->postTrialUpdate(localScorePtr[j], i);
+				networks[j]->postTrialUpdate(batchTransformedScores[i * nSpecimens + j], i);
 			}
 		}
 		
@@ -204,25 +206,30 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 	}
 }
 
-void Population::evaluate(const int i0, const int subArraySize, Trial* trial, float* scores) {
+void Population::evaluate(const int i0, const int subArraySize, Trial* trial, float* rawScores) {
 	for (int i = i0; i < i0 + subArraySize; i++) {
 		networks[i]->preTrialReset();
-		trial->reset(useSameTrialInit); // "true" to reduce (eliminate !) fitness function stochasticity
+		trial->reset(useSameTrialInit); 
 		while (!trial->isTrialOver) {
 			networks[i]->step(trial->observations);
 			trial->step(networks[i]->getOutput());
 		}
-		scores[i] = trial->score;		
+		rawScores[i] = trial->score;
 	}
 }
 
 void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEvaluated) {
 	// utils
 	nTrialsAtThisStep = (int)trials.size();
+	if (nSpecimens * nTrialsAtThisStep != rawScores.size()) {
+		rawScores.resize(nSpecimens * nTrialsAtThisStep);
+		batchTransformedScores.resize(nSpecimens * nTrialsAtThisStep);
+	}
+	// The indice of the first trial that will be used for fitness
 	int i0 = nTrialsAtThisStep - nTrialsEvaluated;
 
+
 	// Mutate, then evaluate the specimens on trials. Threaded operation if specified.
-	std::vector<float> scores(nTrialsAtThisStep * nSpecimens);
 	if (N_THREADS > 1) {
 
 		// acquire pointers to this step's trials.
@@ -231,7 +238,6 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			globalTrials[j] = trials[j].get();
 		}
 
-		pScores = scores.data();
 		for (int i = 0; i <nTrialsAtThisStep + 1; i++) {
 			
 			// send msg to workers to start processing
@@ -248,14 +254,21 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 				doneProcessing.wait(lg, [] {return nDoneProcessing == 0; });
 			}
 
-			// Non threaded operations on score array:
+			// Non threaded operations on the raw scores array:
 			if (i <nTrialsAtThisStep) {
-				if (rankingFitness) {
-					convertRawToRank(pScores + i * nSpecimens, nSpecimens);
-				}
-				else {
-					normalizeArray(pScores + i * nSpecimens, nSpecimens);
-				}
+				switch (scoreBatchTransformation) {
+				case NORMALIZE:
+					normalizeArray(rawScores.data() + i * nSpecimens, batchTransformedScores.data() + i * nSpecimens, nSpecimens);
+					break;
+				case RANK:
+					rankArray(rawScores.data() + i * nSpecimens, batchTransformedScores.data() + i * nSpecimens, nSpecimens);
+					break;
+				case NONE:
+					std::copy(rawScores.data() + i * nSpecimens,
+						rawScores.data() + (i + 1) * nSpecimens,
+						batchTransformedScores.data() + i * nSpecimens);
+					break;
+				}	
 			}
 		}
 	}
@@ -265,84 +278,77 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 			networks[i]->createPhenotype();
 		}
 
-		for (int i = 0; i <nTrialsAtThisStep; i++) {
-			pScores = &scores[i * nSpecimens];
-			evaluate(0, nSpecimens, trials[i].get(), pScores);
+		for (int i = 0; i < nTrialsAtThisStep; i++) {
+			evaluate(0, nSpecimens, trials[i].get(), rawScores.data() + i * nSpecimens);
 
-			if (rankingFitness) {
-				convertRawToRank(pScores, nSpecimens);
-			}
-			else {
-				normalizeArray(pScores, nSpecimens);
+			switch (scoreBatchTransformation) {
+			case NORMALIZE:
+				normalizeArray(rawScores.data() + i * nSpecimens, batchTransformedScores.data() + i * nSpecimens, nSpecimens);
+				break;
+			case RANK:
+				rankArray(rawScores.data() + i * nSpecimens, batchTransformedScores.data() + i * nSpecimens, nSpecimens);
+				break;
+			case NONE:
+				std::copy(rawScores.data() + i * nSpecimens,
+					rawScores.data() + (i + 1) * nSpecimens,
+					batchTransformedScores.data() + i * nSpecimens);
+				break;
 			}
 
 			for (int j = 0; j < nSpecimens; j++) {
-				networks[j]->postTrialUpdate(pScores[j], i);
+				networks[j]->postTrialUpdate(batchTransformedScores[j], i);
 			}
 		}
-		pScores = scores.data();
 	}
 
 
 	// logging scores. monitoring only, can be disabled.
 	if (true) {
-		if (rankingFitness) {
-			float maxScore = -1000000.0f, score;
-			int maxScoreID = -1;
-			for (int i = 0; i < nSpecimens; i++) {
-				score = 0;
-				for (int j = i0; j <nTrialsAtThisStep; j++) {
-					score += scores[i + j * nSpecimens];
-				}
-				if (score > maxScore) {
-					maxScore = score;
-					maxScoreID = i;
-				}
+	
+		std::vector<float> avgScoresPerTrial(nTrialsEvaluated);
+		float maxScore = -1000000.0f;
+		int maxScoreID = 0;
+		float score, avgFactor = 1.0f / (float)nTrialsEvaluated;
+		for (int i = 0; i < nSpecimens; i++) {
+			score = 0;
+			for (int j = i0; j <nTrialsAtThisStep; j++) {
+				score += rawScores[i + j * nSpecimens];
+				avgScoresPerTrial[j - i0] += rawScores[i + j * nSpecimens];
 			}
-			trials[0]->reset();
-			Network* n = networks[maxScoreID];
-			n->createPhenotype();
-			n->preTrialReset();
-			while (!trials[0]->isTrialOver) {
-				n->step(trials[0]->observations);
-				trials[0]->step(n->getOutput());
+			score *= avgFactor;
+			if (score > maxScore) {
+				maxScore = score;
+				maxScoreID = i;
 			}
-			std::cout << "At generation " << evolutionStep
-				<< ", best specimen's score on new trial = " << trials[0]->score << std::endl;
 		}
-		else {
-			std::vector<float> avgScoresPerTrial(nTrialsEvaluated);
-			float maxScore = -1000000.0f;
-			float score, avgFactor = 1.0f / (float)nTrialsEvaluated;
-			for (int i = 0; i < nSpecimens; i++) {
-				score = 0;
-				for (int j = i0; j <nTrialsAtThisStep; j++) {
-					score += scores[i + j * nSpecimens];
-					avgScoresPerTrial[j - i0] += scores[i + j * nSpecimens];
-				}
-				score *= avgFactor;
-				if (score > maxScore) {
-					maxScore = score;
-				}
-			}
-			for (int j = 0; j < nTrialsEvaluated; j++) avgScoresPerTrial[j] /= (float)nSpecimens;
-			float avgavgf = 0.0f;
-			for (float f : avgScoresPerTrial) avgavgf += f;
-			avgavgf /= nTrialsEvaluated;
-			std::cout << "At generation " << evolutionStep
-			<< ", max score = " << maxScore
-			<< ", average score per specimen per trial = " << avgavgf << ".\n";
+		for (int j = 0; j < nTrialsEvaluated; j++) avgScoresPerTrial[j] /= (float)nSpecimens;
+		float avgavgf = 0.0f;
+		for (float f : avgScoresPerTrial) avgavgf += f;
+		avgavgf /= nTrialsEvaluated;
+		std::cout << "At generation " << evolutionStep
+		<< ", max score = " << maxScore
+		<< ", average score per specimen per trial = " << avgavgf << ".\n";
 		//std::cout << maxScore << ", ";
+		trials[0]->reset();
+		Network* n = networks[maxScoreID];
+		n->createPhenotype(); // should be already created
+		n->preTrialReset();
+		while (!trials[0]->isTrialOver) {
+			n->step(trials[0]->observations);
+			trials[0]->step(n->getOutput());
 		}
+		std::cout << "Best specimen's score on new trial = " << trials[0]->score << std::endl;
+		
 	}
 
 	// Competition score adjustment. Assuming that either all networks have a valid parentData, or none has.
+	// Uses batchTransformed scores. Happens here and not in computeFitnesses because is specific for each trial.
 	if (competitionFactor != 0.0f && networks[0]->parentData.isAvailable) { 
 		for (int i = 0; i < nSpecimens; i++) {
 			for (int j = i0; j <nTrialsAtThisStep; j++) {
-				scores[i + j * nSpecimens] += competitionFactor *
+				batchTransformedScores[i + j * nSpecimens] += competitionFactor *
 					powf(
-						std::clamp(networks[i]->parentData.scores[j] - scores[i + j * nSpecimens], -1.0f, 1.0f),
+						std::clamp(networks[i]->parentData.scores[j] - batchTransformedScores[i + j * nSpecimens], -1.0f, 1.0f),
 						3.0f
 					);
 			}
@@ -357,14 +363,14 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	for (int i = 0; i < nSpecimens; i++) {
 		float s = 0.0f;
 		for (int j = i0; j <nTrialsAtThisStep; j++) {
-			s += powf(std::max( scores[i + j * nSpecimens], 0.0f) , SPECIALIZATION_INCENTIVE);
+			s += powf(std::max( batchTransformedScores[i + j * nSpecimens], 0.0f) , SPECIALIZATION_INCENTIVE);
 		}
 		avgScorePerSpecimen[i] = powf(s, invP);
 	}
 #else
 	for (int i = 0; i < nSpecimens; i++) {
 		for (int j = i0; j <nTrialsAtThisStep; j++) {
-			avgScorePerSpecimen[i] += scores[i + j * nSpecimens];
+			avgScorePerSpecimen[i] += batchTransformedScores[i + j * nSpecimens];
 		}
 	}
 #endif
@@ -379,12 +385,13 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 
 void Population::computeFitnesses(std::vector<float>& avgScorePerSpecimen) {
 
-	// compute and normalize the regularization term
+	// compute and rank the regularization term
 	std::vector<float> regularizationScore(nSpecimens);
 	for (int i = 0; i < nSpecimens; i++) {
 		regularizationScore[i] = networks[i]->getRegularizationLoss();
 	}
-	normalizeArray(regularizationScore.data(), nSpecimens);
+	//normalizeArray(regularizationScore.data(), regularizationScore.data(), nSpecimens);
+	rankArray(regularizationScore.data(), regularizationScore.data(), nSpecimens);
 
 
 #ifdef SATURATION_PENALIZING
@@ -393,22 +400,21 @@ void Population::computeFitnesses(std::vector<float>& avgScorePerSpecimen) {
 	for (int i = 0; i < nSpecimens; i++) {
 		saturationScore[i] = networks[i]->getSaturationPenalization();
 	}
-	normalizeArray(saturationScore.data(), nSpecimens);
+	//normalizeArray(saturationScore.data(), saturationScore.data(), nSpecimens);
+	rankArray(saturationScore.data(), saturationScore.data(), nSpecimens);
 #endif
 
 
-	// TODO these are only useful in the dll.
-	if (pScores == nullptr) {
-		if (rankingFitness) {
-			convertRawToRank(avgScorePerSpecimen.data(), nSpecimens);
-		}
-		else {
-			normalizeArray(avgScorePerSpecimen.data(), nSpecimens);
-		}
+	
+	if (rankingFitness) {
+		rankArray(avgScorePerSpecimen.data(), avgScorePerSpecimen.data(), nSpecimens);
 	}
+	/*else {
+		normalizeArray(avgScorePerSpecimen.data(), avgScorePerSpecimen.data(), nSpecimens);
+	}*/
 
 
-	// Then, the fitness is simply a weighted sum of the 2 intermediate measures, score and regularization.
+	// Then, the fitness is simply a weighted sum of score, regularization, and saturation if enabled.
 	float fMax = -10000.0f;
 	for (int i = 0; i < nSpecimens; i++) {
 		fitnesses[i] = avgScorePerSpecimen[i] - regularizationFactor * regularizationScore[i];
@@ -443,13 +449,11 @@ void Population::createOffsprings() {
 	}
 
 	auto setParentData = [this](int parentID, Network* offspring) {
-		if (pScores != nullptr) { // should be true if and only if running the exe and not the dll, for now. TODO
-			offspring->parentData.isAvailable = true;
-			offspring->parentData.scoreSize = nTrialsAtThisStep;
-			offspring->parentData.scores = new float[nTrialsAtThisStep];
-			for (int i = 0; i < nTrialsAtThisStep; i++) {
-				offspring->parentData.scores[i] = pScores[i * nSpecimens + parentID];
-			}
+		offspring->parentData.isAvailable = true;
+		offspring->parentData.scoreSize = nTrialsAtThisStep;
+		offspring->parentData.scores = new float[nTrialsAtThisStep];
+		for (int i = 0; i < nTrialsAtThisStep; i++) {
+			offspring->parentData.scores[i] = batchTransformedScores[i * nSpecimens + parentID];
 		}
 		return;
 	};
@@ -458,7 +462,9 @@ void Population::createOffsprings() {
 	for (int i = 0; i < nSpecimens; i++) {
 		if (UNIFORM_01 < probabilities[i]) {
 			tempNetworks[nReconductedSpecimens] = new Network(networks[i]);
-			setParentData(i, tempNetworks[nReconductedSpecimens]);
+			if (!fromDLL) {
+				setParentData(i, tempNetworks[nReconductedSpecimens]);
+			}
 			nReconductedSpecimens++;
 		}
 	}
@@ -479,10 +485,8 @@ void Population::createOffsprings() {
 	for (int i = nReconductedSpecimens; i < nSpecimens; i++) {
 		parentID = binarySearch(probabilities, UNIFORM_01);
 		tempNetworks[i] = new Network(networks[parentID]);
-		setParentData(parentID, tempNetworks[i]);
-
-		if (parentID == fittestSpecimen) {
-			fittestSpecimen = i; 
+		if (!fromDLL) {
+			setParentData(parentID, tempNetworks[i]);
 		}
 	}
 
