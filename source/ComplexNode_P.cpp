@@ -21,8 +21,8 @@ ComplexNode_P::ComplexNode_P(ComplexNode_G* _type) :
 		memoryChildren.emplace_back(type->memoryChildren[i]);
 	}
 
-	// TotalM is not initialized (zeroed) here because a call to preTrialReset() 
-	// must be made before any forward pass. (Or call to postTrialUpdate)
+	// TotalM is not initialized (i.e. zeroed) here because a call to preTrialReset() 
+	// must be made before any forward pass. 
 };
 
 #if defined GUIDED_MUTATIONS
@@ -252,12 +252,22 @@ void ComplexNode_P::forward() {
 			case GAUSSIAN:
 				dst[i] = 2.0f * expf(-src[i] * src[i]) - 1.0f; // technically the bias is not correctly put in. Does it matter ?
 				break;
+			case RELU:
+				dst[i] = std::max(src[i], 0.0f);
+				break;
+			case LOG2:
+				dst[i] = log2f(abs(src[i]));
+				break;
+			case EXP2:
+				dst[i] = exp2f(src[i]);
+				break;
 			case SINE:
 				dst[i] = sinf(src[i]);
 				break;
-			case CENTERED_SINE:
+			case CENTERED_TANH:
 				constexpr float z = 1.0f / .375261f; // to map to [-1, 1]
 				dst[i] = tanhf(src[i]) * expf(-powf(src[i], 2.0f)) * z;
+				break;
 			}
 		}
 	};

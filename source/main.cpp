@@ -49,13 +49,14 @@ int main()
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { -10.0f, .25f };
+    params.selectionPressure = { -1.0f, .25f };
     params.useSameTrialInit = true;
     params.rankingFitness = true;
     params.saturationFactor = 0.1f;
     params.regularizationFactor = 0.05f; 
     params.competitionFactor = 0.0f; 
     params.scoreBatchTransformation = NORMALIZE;
+    params.nParents = 10;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
     population.setEvolutionParameters(params); 
@@ -105,19 +106,3 @@ int main()
 
     return 0;
 }
-
-
-// scipy tests
-   /* Vec x = linspace(1, nSpecimens, nSpecimens);
-    Plot2D plot;
-
-    plot.xlabel("x");
-    plot.ylabel("y");
-    plot.xrange(0.0, nSpecimens);
-    plot.yrange(-2.0, 2.0);
-
-    plot.drawCurve(x, population.).label("sin(x)");
-
-    Figure fig = { {plot} };
-    Canvas canvas = { {fig} };
-    canvas.show();*/

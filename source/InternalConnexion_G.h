@@ -19,11 +19,13 @@ struct InternalConnexion_G {
 	std::unique_ptr<float[]> B;
 	std::unique_ptr<float[]> C;
 	std::unique_ptr<float[]> D;
-	std::unique_ptr<float[]> eta;
+	std::unique_ptr<float[]> eta;	// in [0, 1]
+	std::unique_ptr<float[]> storage_eta;   // in R
 	std::unique_ptr<float[]> alpha;
 	std::unique_ptr<float[]> w;
 #ifdef CONTINUOUS_LEARNING
-	std::unique_ptr<float[]> gamma;
+	std::unique_ptr<float[]> gamma; // in [0, 1]
+	std::unique_ptr<float[]> storage_gamma; // in R
 #endif
 
 #ifdef GUIDED_MUTATIONS
@@ -45,6 +47,11 @@ struct InternalConnexion_G {
 	InternalConnexion_G operator=(const InternalConnexion_G& gc);
 
 	~InternalConnexion_G() {};
+
+	// Maps stored_X to X for all parameters X that are used at runtime in the range [0,1]
+	// but stored in the range R. Typically exponential average decays. 
+	// To be called at phenotype creation.
+	void transform01Parameters();
 
 	void mutateFloats(float p);
 

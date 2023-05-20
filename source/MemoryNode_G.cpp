@@ -8,11 +8,13 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	inputSize = n->inputSize;
 	outputSize = n->outputSize;
 	mutationalDistance = n->mutationalDistance;
+	memoryNodeID = n->memoryNodeID;
 	closestNode = n->closestNode;
 	kernelDimension = n->kernelDimension;
 	phenotypicMultiplicity = n->phenotypicMultiplicity;
 	beta = n->beta;
 	decay = n->decay;
+	storage_decay = n->storage_decay;
 
 	link = n->link; // deep copy assignement using overloaded = operator of genotypeConnexion
 
@@ -29,11 +31,12 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
 	mutationalDistance = 0;
 	phenotypicMultiplicity = 0;
 	position = -1;
+	memoryNodeID = -1;
 	setBeta();
 
 	link = InternalConnexion_G(outputSize, inputSize, InternalConnexion_G::RANDOM);
 
-	decay = UNIFORM_01 * .3f;
+	storage_decay = NORMAL_01 * .2f;
 	
 	int s = inputSize * kernelDimension;
 	Q = std::make_unique<float[]>(s);
@@ -52,6 +55,8 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 	kernelDimension = n.kernelDimension;
 	beta = n.beta;
 	phenotypicMultiplicity = n.phenotypicMultiplicity;
+	decay = n.decay;
+	storage_decay = n.storage_decay;
 	
 	link = std::move(n.link);
 	Q = std::move(n.Q);
@@ -62,12 +67,11 @@ void MemoryNode_G::mutateFloats() {
 
 	link.mutateFloats(p);
 	
-	if (UNIFORM_01 > .05f) [[likely]] {
-		decay += decay * (1 - decay) * (UNIFORM_01 - .5f);
+	if (UNIFORM_01 < p) {
+		storage_decay *= .8f + NORMAL_01 * .2f;
+		storage_decay += NORMAL_01 * .1f;
 	}
-	else [[unlikely]] {
-		decay = decay * .6f + UNIFORM_01 * .4f;
-	}
+	
 
 	int s = inputSize * kernelDimension;
 	SET_BINOMIAL(s, p);

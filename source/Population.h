@@ -8,41 +8,6 @@
 #include "Network.h"
 #include "Trial.h"
 
-// Description
-/*
-The optimizer is a non canon version of the genetic algorithm, this is how the loop goes:
-
-- All specimen are mutated, which is handled by their own class. Topology and real-valued 
-parameters are subject to mutations, whose probabilities are fixed in Network.mutateFloats()
-(Mutations first in the loop makes more sense.)
-
-- Each individual is evaluated once on all trials of the set.
-For each trial, initialization is random, but the same values are kept within the step. It drastically
-diminishes noise and speeds up convergence. The scores are saved into a matrix, one axis corresponding 
-to the trials, the other to the specimens.
-
-- A simple artificial niching algorithm is applied, based on ressource sharing principles, and implicit novelty search. 
-In the matrix, the vectors of scores per trial are linearly transformed to have min = 0 and max = 1.  
-Score per specimen is then a p-norm of its score vector. p < 1 is allowed since all values are >=0 (in [0, 1]). 
-Increasing p beyond 1 fosters specialisation, p=inf being the extreme with only the best trial taken into consideration
-when computing fitnesses. p=1 encourages digging where other's do not. Decreasing p furthermore weakens the "outwards push".
-Which is better is up to the problem's setting and its hyperparameters. I recommend disabling it completely, 
-(nichingNorm = 0.0), when nTrials is small( < 8), AND the difference between trials is not especially meaningful,
-like running the same trial with slightly different random init.
-
-TODO experiment.
-
-- Regularization is a function of both sheer number of parameters (in the phenotype !!) and their amplitude. I have observed
-a strange phenomenon where increasing regularization strength INCREASES networks sizes... That was unexpected. (And I'm pretty
-sure it is not a bug.)
-
-- Fitness is computed as a linear combination of trial score and regularization score.
-
-- A roulettte wheel selection with parametrized pressure is applied to pick a specimen, which is simply 
-copied to be in the next generation. The selected specimens is not eliminated from the potential parents pool.
-The process is repeated as many times as their are specimens, we then proceed to the next iteration of the loop.
-*/
-
 
 const enum SCORE_BATCH_TRANSFORMATION { NONE = 0, NORMALIZE = 1, RANK = 2};
 
@@ -89,6 +54,11 @@ struct PopulationEvolutionParameters {
 	// does not influence the score "too much". See note in Network.postTrialUpdate.
 	float competitionFactor;
 
+
+	// Minimum at 1. If = 1, mutated clone of the parent. No explicit maximum, but bounded by nSpecimens, 
+	// and MAX_MATING_DEPTH implicitly. Cost O( n log(n) ).
+	int nParents;
+
 	// Usually, raw scores as output from the trials are not very informative about how specimens compare. This
 	// parameter specifies a transformation of the scores of the whole population PER TRIAL. It is not redundant 
 	// with rankingFitness, it makes sense to have both enabled. 
@@ -103,15 +73,61 @@ struct PopulationEvolutionParameters {
 		rankingFitness = true;
 		competitionFactor = .1f;
 		scoreBatchTransformation = NONE;
+		nParents = 10;
 	}
 };
 
 
-struct PhylogenicNode 
+struct PhylogeneticNode
 {
-	PhylogenicNode* parent;
-	int nChildren;
-	std::vector<PhylogenicNode*> children;
+	PhylogeneticNode* parent;
+	int networkIndice;
+	std::vector<PhylogeneticNode*> children;
+
+	// TODO be careful, it wont work as intended if there are multiple Population . 
+	// Should not happen. Set in Population::setEvolutionParameters.
+	static int maxListSize;
+
+	PhylogeneticNode() {};
+
+	PhylogeneticNode(PhylogeneticNode* parent, int networkIndice) :
+		networkIndice(networkIndice), parent(parent) {};
+
+	bool addToList(std::vector<int>& list, int depth) {
+		if (depth == 0) {
+			if (list.size() == maxListSize) {
+				return false;
+			}
+			list.push_back(networkIndice);
+			return true;
+		}
+		else {
+			for (int i = 0; i < children.size(); i++) {
+				if (!children[i]->addToList(list, depth - 1)) {
+					return false;
+				}
+			}
+			return true;
+		}
+	}
+
+	void erase(int depth) {
+		if (depth == MAX_MATING_DEPTH) return;
+
+		if (parent->children.size() == 1) {
+			parent->children.resize(0);
+			parent->erase(depth + 1);
+		}
+		else {
+			int s = (int) parent->children.size() - 1;
+			for (int i = 0; i < s; i++) {
+				if (parent->children[i] == this) {
+					parent->children[i] = parent->children[s];
+				}
+			}
+			parent->children.pop_back();
+		}
+	}
 };
 
 // A group of a fixed number of individuals, optimized with a genetic algorithm.
@@ -147,6 +163,9 @@ public:
 		this->rankingFitness = params.rankingFitness;
 		this->competitionFactor = params.competitionFactor;
 		this->scoreBatchTransformation = params.scoreBatchTransformation;
+		this->nParents = params.nParents;
+
+		PhylogeneticNode::maxListSize = params.nParents;
 	}
 
 
@@ -184,8 +203,14 @@ private:
 
 	bool fromDLL;
 
-	void threadLoop(const int i0, const int subArraySize);
+	// evaluates Networks[i0 -> i0 + subArraySize]
 	void evaluate(const int i0, const int subArraySize, Trial* trial, float* scores);
+
+	//  = PhylogeneticNode[MAX_N_PARENTS][nSpecimens]
+	PhylogeneticNode* phylogeneticTree;
+
+	// Finds the secondary parents, computes the coefficients, and creates the interpolated child.
+	Network* createChild(PhylogeneticNode* primaryParent);
 
 	// A util.
 	int nTrialsAtThisStep;
@@ -193,14 +218,13 @@ private:
 	// Current size of the networks and fitness arrays. Must be a multiple of N_THREADS.
 	int nSpecimens;
 		
-	// Constant, until call to destroy_threads !		
+	// Constant between startThreads and stopThreads 		
 	int N_THREADS;
 
-	// Size nSpeciemns, subject to change at each step.
+	// Size nSpeciemns
 	std::vector<Network*> networks;
 	
-	// The vector of fitness per specimen, >0. Fitness 0 = probability 0 of generating offspring.
-	// Size nSpeciemns, subject to change at each step.
+	// The vector of fitness per specimen.
 	std::vector<float> fitnesses;
 
 	// The scores of the specimens at this step, as output by the trials.
@@ -225,9 +249,15 @@ private:
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
 	SCORE_BATCH_TRANSFORMATION scoreBatchTransformation;
 
+	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
+	int nParents;
 
 
-	// Threading utils, used only if N_THREADS > 1 (i.e. multithreading enabled):
+	// THREADING UTILS:
+	// used only if N_THREADS > 1 (i.e. multithreading enabled):
+	
+	// Per thread evolution loop. As of now, handles evaluation and mutation.
+	void threadLoop(const int i0, const int subArraySize);
 
 	std::vector<std::thread> threads;
 	std::vector<Trial*> globalTrials;

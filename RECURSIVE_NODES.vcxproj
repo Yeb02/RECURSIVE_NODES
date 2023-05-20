@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -47,45 +47,6 @@
     <ClInclude Include="source\InternalConnexion_P.h" />
     <ClInclude Include="source\Population.h" />
     <ClInclude Include="source\Random.h" />
-    <ClInclude Include="source\sciplot\Canvas.hpp" />
-    <ClInclude Include="source\sciplot\ColumnIndex.hpp" />
-    <ClInclude Include="source\sciplot\Constants.hpp" />
-    <ClInclude Include="source\sciplot\Default.hpp" />
-    <ClInclude Include="source\sciplot\Enums.hpp" />
-    <ClInclude Include="source\sciplot\Figure.hpp" />
-    <ClInclude Include="source\sciplot\Palettes.hpp" />
-    <ClInclude Include="source\sciplot\Plot.hpp" />
-    <ClInclude Include="source\sciplot\Plot2D.hpp" />
-    <ClInclude Include="source\sciplot\sciplot.hpp" />
-    <ClInclude Include="source\sciplot\specs\AxisLabelSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\BorderSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\DepthSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\DrawSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\FilledCurvesSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\FillSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\FillStyleSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\FontSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\FrameSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\GridSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\GridSpecsBase.hpp" />
-    <ClInclude Include="source\sciplot\specs\HistogramStyleSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\LabelSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\LayoutSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\LegendSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\LineSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\OffsetSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\PointSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\ShowSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\Specs.hpp" />
-    <ClInclude Include="source\sciplot\specs\TextSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\TicsSpecs.hpp" />
-    <ClInclude Include="source\sciplot\specs\TicsSpecsBaseOf.hpp" />
-    <ClInclude Include="source\sciplot\specs\TicsSpecsMajor.hpp" />
-    <ClInclude Include="source\sciplot\specs\TicsSpecsMinor.hpp" />
-    <ClInclude Include="source\sciplot\specs\TitleSpecsOf.hpp" />
-    <ClInclude Include="source\sciplot\StringOrDouble.hpp" />
-    <ClInclude Include="source\sciplot\Utils.hpp" />
-    <ClInclude Include="source\sciplot\Vec.hpp" />
     <ClInclude Include="source\Trial.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -110,14 +71,14 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <EnableASAN>true</EnableASAN>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>

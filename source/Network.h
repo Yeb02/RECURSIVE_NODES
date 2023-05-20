@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <cmath>
+#include <unordered_map>
 
 #include "Random.h"
 #include "ComplexNode_P.h"
@@ -31,6 +32,8 @@ struct ParentData {
 	}
 };
 
+
+
 class Network {
 	friend class Drawer;
 public:
@@ -39,8 +42,19 @@ public:
 	Network(Network* n);
 	~Network() {};
 
-	// Since output returns a float*, application must either use it before any other call to step(),
-	// or to destroyPhenotype(), preTrialReset(), ... or Network destruction, either deep copy the
+
+	// TODO as of now, any topological difference in a node, between a secondary parent and 
+	// the primary parent, nullifies the contribution of the secondary parent to this node.
+	// For complex nodes, a topological difference is a difference in either of inputSize,
+	// outputSize, complexChild.inputSize, complexChild.outputSize, memoryChild.inputSize, 
+	// memoryChild.outputSize.
+	// For memory nodes, inputSize, outputSize, kernelDimension.
+	// This could happen too frequently as networks grow larger.
+	static Network* combine(std::vector<Network*>& parents, std::vector<float>& rawWeights);
+
+
+	// Since getOutput returns a float*, application must either use it before any other call to step(),
+	// destroyPhenotype(), preTrialReset(), ... or Network destruction, either deep copy the
 	// pointee immediatly when getOutput() returns. If unsure, deep copy.
 	float* getOutput();
 
@@ -74,6 +88,22 @@ public:
 	ParentData parentData;
 
 private:
+	// when a new node is created, node->nodeID = currentNodeID++;
+	int currentMemoryNodeID, currentComplexNodeID;
+
+	// Overkill for small network sizes. To be (re)created after network creation or topological mutation
+	// Maps valid complexNodeID s to their complexNode*, FOR PHENOTYPICALLY ACTIVE COMPLEX NODES. i.e. iff
+	// node->phenotypicMultiplicity = 0, complexIDmap[node->complexNodeID] = complexIDmap.end().
+	std::unordered_map<int, ComplexNode_G*> complexIDmap;
+
+	// Overkill for small network sizes. To be (re)created after network creation or topological mutation
+	// Maps valid memoryNodeID s to their memoryNode*, FOR PHENOTYPICALLY ACTIVE MEMORY NODES. i.e. iff
+	// node->phenotypicMultiplicity = 0, memoryIDmap[node->memoryNodeID] = memoryIDmap.end().
+	std::unordered_map<int, MemoryNode_G*> memoryIDmap;
+
+	// To be called after network creation or mutation. Requires up to date phenotypic multiplicities.
+	void createIDMaps();
+
 	std::unique_ptr<ComplexNode_G> topNodeG;
 
 	std::vector<std::unique_ptr<ComplexNode_G>> complexGenome;

@@ -7,6 +7,7 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 {
 	int s = nLines * nColumns;
 	eta = std::make_unique<float[]>(s);
+	storage_eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
@@ -15,13 +16,12 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 	w = std::make_unique<float[]>(s);
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
+	storage_gamma = std::make_unique<float[]>(s);
 #endif
 #ifdef GUIDED_MUTATIONS
 	accumulator = std::make_unique<float[]>(s);
 #endif
 
-	SET_BINOMIAL(s, .5f); // for gamma and eta.
-	float factor = .3f / (float)s;
 
 	if (init == ZERO) {
 		for (int i = 0; i < nLines * nColumns; i++) {
@@ -31,10 +31,10 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 			C[i] = NORMAL_01 * .2f;
 			D[i] = NORMAL_01 * .2f;
 			alpha[i] = 0.0f;
-			eta[i] = factor * (float)BINOMIAL + .1f;
+			storage_eta[i] = NORMAL_01 * .2f;
 			w[i] = 0.0f;
 #ifdef CONTINUOUS_LEARNING
-			gamma[i] = factor * (float)BINOMIAL + .1f;
+			storage_gamma[i] = NORMAL_01 * .2f;
 #endif
 #ifdef GUIDED_MUTATIONS
 			accumulator[i] = 0.0f;
@@ -48,10 +48,10 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 			C[i] = NORMAL_01 * .2f;
 			D[i] = NORMAL_01 * .2f;
 			alpha[i] = NORMAL_01 * .2f;
-			eta[i] = factor * (float)BINOMIAL + .1f;
+			storage_eta[i] = NORMAL_01 * .2f;
 			w[i] = NORMAL_01 * .2f;
 #ifdef CONTINUOUS_LEARNING
-			gamma[i] = factor * (float)BINOMIAL + .1f;
+			storage_gamma[i] = NORMAL_01 * .2f;
 #endif
 #ifdef GUIDED_MUTATIONS
 			accumulator[i] = 0.0f;
@@ -69,6 +69,7 @@ InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
 	int s = nLines * nColumns;
 
 	eta = std::make_unique<float[]>(s);
+	storage_eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
@@ -76,6 +77,7 @@ InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
 	alpha = std::make_unique<float[]>(s);
 	w = std::make_unique<float[]>(s);
 
+	std::copy(gc.storage_eta.get(), gc.storage_eta.get() + s, storage_eta.get());
 	std::copy(gc.eta.get(), gc.eta.get() + s, eta.get());
 	std::copy(gc.A.get(), gc.A.get() + s, A.get());
 	std::copy(gc.B.get(), gc.B.get() + s, B.get());
@@ -86,7 +88,9 @@ InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
 
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
+	storage_gamma = std::make_unique<float[]>(s);
 	std::copy(gc.gamma.get(), gc.gamma.get() + s, gamma.get());
+	std::copy(gc.storage_gamma.get(), gc.storage_gamma.get() + s, storage_gamma.get());
 #endif
 
 #ifdef GUIDED_MUTATIONS
@@ -103,6 +107,7 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	int s = nLines * nColumns;
 
 	eta = std::make_unique<float[]>(s);
+	storage_eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
@@ -111,6 +116,7 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	w = std::make_unique<float[]>(s);
 
 	std::copy(gc.eta.get(), gc.eta.get() + s, eta.get());
+	std::copy(gc.storage_eta.get(), gc.storage_eta.get() + s, storage_eta.get());
 	std::copy(gc.A.get(), gc.A.get() + s, A.get());
 	std::copy(gc.B.get(), gc.B.get() + s, B.get());
 	std::copy(gc.C.get(), gc.C.get() + s, C.get());
@@ -120,7 +126,9 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
+	storage_gamma = std::make_unique<float[]>(s);
 	std::copy(gc.gamma.get(), gc.gamma.get() + s, gamma.get());
+	std::copy(gc.storage_gamma.get(), gc.storage_gamma.get() + s, storage_gamma.get());
 #endif
 
 #ifdef GUIDED_MUTATIONS
@@ -139,14 +147,16 @@ void InternalConnexion_G::mutateFloats(float p) {
 #else 
 	constexpr int nArrays = 7;
 #endif
-	//param(t+1) = (.95+a*N1)*param(t) + b*N2
-	constexpr float a = .2f; // .5f ??
-	constexpr float b = .2f; // .5f ??
+	//param(t+1) = (b+a*N1)*param(t) + c*N2
+	const float sigma = powf(nColumns, -.5f);
+	const float a = .3f*sigma; 
+	const float b = 1.0f - .5f * a; 
+	const float c = a; 
 
 
 #ifdef GUIDED_MUTATIONS
 	// w += clip[-accumulatorClipRange,accumulatorClipRange](accumulator)
-	constexpr float accumulatorClipRange = .3f;
+	constexpr float accumulatorClipRange = 1.0f;
 #endif
 
 	int size = nLines * nColumns;
@@ -166,29 +176,19 @@ void InternalConnexion_G::mutateFloats(float p) {
 		case 3: aPtr = D.get(); break;
 		case 4: aPtr = alpha.get(); break;
 		case 5: aPtr = w.get(); break;
-		case 6:  aPtr = eta.get(); break;
+		case 6:  aPtr = storage_eta.get(); break;
 #ifdef CONTINUOUS_LEARNING
-		case 7:  aPtr = gamma.get(); break;
+		case 7:  aPtr = storage_gamma.get(); break;
 #endif
 		}
 
-		if (arrayN < 6) { // A, B, C, D, w, alpha
-			aPtr[matrixID] *= .9f + NORMAL_01 * a;
-			aPtr[matrixID] += NORMAL_01 * b;
-		}
-		else { // eta, gamma
-			if (UNIFORM_01 > .05f) [[likely]] {
-				aPtr[matrixID] += aPtr[matrixID] * (1 - aPtr[matrixID]) * (UNIFORM_01 - .5f);
-			}
-			else [[unlikely]] {
-				aPtr[matrixID] = aPtr[matrixID] * .6f + UNIFORM_01 * .4f;
-			}
-		}
+		aPtr[matrixID] *= b + NORMAL_01 * a;
+		aPtr[matrixID] += NORMAL_01 * c;
 	}
 
 #ifdef GUIDED_MUTATIONS
 	for (int k = 0; k < size; k++) {;
-		w[k] += std::max(std::min(accumulator[k], accumulatorClipRange), -accumulatorClipRange);
+		w[k] += std::max(std::min(accumulator[k], accumulatorClipRange), -accumulatorClipRange) * sigma;
 		accumulator[k] = 0.0f;
 	}
 	
@@ -213,7 +213,7 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 
 	float a = .2f * powf((float)nColumns, -.5f);
 
-	auto f_R = [_insertedOffset, _insertedSize, _matSize, a] (std::unique_ptr<float[]>& m)
+	auto f = [_insertedOffset, _insertedSize, _matSize, a] (std::unique_ptr<float[]>& m)
 	{
 		float* new_m = new float[_matSize + _insertedSize];
 		std::copy(&m[0], &m[_insertedOffset], new_m);
@@ -224,30 +224,32 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 		m.reset(new_m);
 	};
 
-	auto f_01 = [_insertedOffset, _insertedSize, _matSize](std::unique_ptr<float[]>& m)
+	auto f_0 = [_insertedOffset, _insertedSize, _matSize, a](std::unique_ptr<float[]>& m)
 	{
 		float* new_m = new float[_matSize + _insertedSize];
 		std::copy(&m[0], &m[_insertedOffset], new_m);
 		std::copy(&m[_insertedOffset], &m[_matSize], &new_m[_insertedOffset + _insertedSize]);
 		for (int i = _insertedOffset; i < _insertedOffset + _insertedSize; i++) {
-			new_m[i] = UNIFORM_01 * .35f + .05f;
+			new_m[i] = 0.0f;
 		}
 		m.reset(new_m);
 	};
 
 
-	f_R(A);
-	f_R(B);
-	f_R(C);
-	f_R(D);
-	f_R(w);
-	f_R(alpha);
-	f_01(eta);
+	f(A);
+	f(B);
+	f(C);
+	f(D);
+	f_0(w);
+	f_0(alpha);
+	f(storage_eta);
+	f_0(eta);
 #ifdef CONTINUOUS_LEARNING
-	f_01(gamma);
+	f(storage_gamma);
+	f_0(gamma);
 #endif
 #ifdef GUIDED_MUTATIONS
-	f_01(accumulator); // set to 0...
+	f_0(accumulator); // set to 0...
 #endif
 
 	nLines += s;
@@ -259,7 +261,7 @@ void InternalConnexion_G::insertColumnRange(int id, int s) {
 	float a = .2f * powf((float)(nColumns+s), -.5f);
 
 
-	auto f_R = [&](std::unique_ptr<float[]>& m)
+	auto f = [&](std::unique_ptr<float[]>& m)
 	{
 		float* new_m = new float[_newNColumns * nLines];
 		for (int i = 0; i < nLines; i++) {
@@ -272,13 +274,13 @@ void InternalConnexion_G::insertColumnRange(int id, int s) {
 		m.reset(new_m);
 	};
 
-	auto f_01 = [&](std::unique_ptr<float[]>& m)
+	auto f_0 = [&](std::unique_ptr<float[]>& m)
 	{
 		float* new_m = new float[_newNColumns * nLines];
 		for (int i = 0; i < nLines; i++) {
 			std::copy(&m[i * nColumns], &m[i * nColumns + id], &new_m[i * _newNColumns]);
 			for (int j = i * _newNColumns + id + s; j < (i + 1) * _newNColumns; j++) {
-				new_m[i] = UNIFORM_01 * .35f + .05f;
+				new_m[i] = 0.0f;
 			}
 			std::copy(&m[i * nColumns + id], &m[(i + 1) * nColumns], &new_m[i * _newNColumns + id + s]);
 		}
@@ -287,18 +289,20 @@ void InternalConnexion_G::insertColumnRange(int id, int s) {
 
 
 
-	f_R(A);
-	f_R(B);
-	f_R(C);
-	f_R(D);
-	f_R(w);
-	f_R(alpha);
-	f_01(eta);
+	f(A);
+	f(B);
+	f(C);
+	f(D);
+	f_0(w);
+	f_0(alpha);
+	f(storage_eta);
+	f_0(eta);
 #ifdef CONTINUOUS_LEARNING
-	f_01(gamma);
+	f(storage_gamma);
+	f_0(gamma);
 #endif
 #ifdef GUIDED_MUTATIONS
-	f_01(accumulator); // set to 0...
+	f_0(accumulator); // set to 0...
 #endif
 
 	nColumns += s;
@@ -320,8 +324,10 @@ void InternalConnexion_G::removeLineRange(int id, int s) {
 	f(w);
 	f(alpha);
 	f(eta);
+	f(storage_eta);
 #ifdef CONTINUOUS_LEARNING
 	f(gamma);
+	f(storage_gamma);
 #endif
 #ifdef GUIDED_MUTATIONS
 	f(accumulator); // set to 0...
@@ -350,12 +356,24 @@ void InternalConnexion_G::removeColumnRange(int id, int s) {
 	f(w);
 	f(alpha);
 	f(eta);
+	f(storage_eta);
 #ifdef CONTINUOUS_LEARNING
 	f(gamma);
+	f(storage_gamma);
 #endif
 #ifdef GUIDED_MUTATIONS
 	f(accumulator); // set to 0...
 #endif
 
 	nColumns -= s;
+}
+
+void InternalConnexion_G::transform01Parameters() {
+	int s = nLines * nColumns;
+	for (int i = 0; i < s; i++) {
+		eta[i] = (tanhf(storage_eta[i]) + 1.0f) * .5f;
+#ifdef GUIDED_MUTATIONS
+		gamma[i] = (tanhf(storage_gamma[i]) + 1.0f) * .5f;
+#endif
+	}
 }

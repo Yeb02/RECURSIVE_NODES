@@ -6,7 +6,8 @@
 Network::Network(Network* n) {
 	inputSize = n->inputSize;
 	outputSize = n->outputSize;
-
+	currentMemoryNodeID = n->currentMemoryNodeID;
+	currentComplexNodeID = n->currentComplexNodeID;
 
 	// The complex genome must be copied after the memory one, for its pointers to be valid..
 	
@@ -65,6 +66,7 @@ Network::Network(Network* n) {
 	nInferencesOverLifetime = n->nInferencesOverLifetime;
 	nExperiencedTrials = n->nExperiencedTrials;
 
+	createIDMaps();
 
 	topNodeP.reset(NULL);
 }
@@ -96,27 +98,283 @@ Network::Network(int inputSize, int outputSize) :
 		topNodeG->memoryChildren[0] = memoryGenome[0].get();
 	}
 
-
+	currentComplexNodeID = 0;
 	for (int i = 0; i < complexGenome.size(); i++) {
 		complexGenome[i]->position = i;
 		complexGenome[i]->computeBiasSizes();
 		complexGenome[i]->createInternalConnexions();
 		complexGenome[i]->computeMemoryPreSynOffset();
+		complexGenome[i]->complexNodeID = currentComplexNodeID++;
 	}
 	topNodeG->position = (int) complexGenome.size();
 	topNodeG->computeBiasSizes();
 	topNodeG->createInternalConnexions();
 	topNodeG->computeMemoryPreSynOffset();
 
-
+	currentMemoryNodeID = 0;
 	for (int i = 0; i < memoryGenome.size(); i++) {
 		memoryGenome[i]->position = i;
+		memoryGenome[i]->memoryNodeID = currentMemoryNodeID++;
 	}
 
 	topNodeP.reset(NULL);
 
 	updateDepths();
 	updatePhenotypicMultiplicities();
+	createIDMaps();
+}
+
+
+void Network::createIDMaps() {
+	complexIDmap.clear();
+	for (int i = 0; i < complexGenome.size(); i++) {
+		if (complexGenome[i]->phenotypicMultiplicity > 0) {
+			complexIDmap.insert({complexGenome[i]->complexNodeID, complexGenome[i].get()});
+		}
+	}
+
+	memoryIDmap.clear();
+	for (int i = 0; i < memoryGenome.size(); i++) {
+		if (memoryGenome[i]->phenotypicMultiplicity > 0) {
+			memoryIDmap.insert({ memoryGenome[i]->memoryNodeID, memoryGenome[i].get() });
+		}
+	}
+}
+
+// static
+Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& rawWeights) {
+	Network* child = new Network(parents[0]);
+
+
+	ComplexNode_G** complexPtrs = new ComplexNode_G*[(int)parents.size()];
+	MemoryNode_G** memoryPtrs = new MemoryNode_G*[(int)parents.size()];
+	InternalConnexion_G** connexions = new InternalConnexion_G*[(int)parents.size()];
+	float* weights = new float[(int)parents.size()];
+	float** mats = new float*[(int)parents.size()];
+	int nValidParents;
+
+	// accumulates in connexions[0]
+	auto addConnexions = [connexions, mats, weights, &nValidParents]()
+	{
+
+		int s = connexions[0]->nColumns * connexions[0]->nLines;
+
+		// accumulates in mats[0]
+		auto addMatrices = [mats, weights, &s, &nValidParents]()
+		{
+			for (int j = 0; j < s; j++) {
+				mats[0][j] *= weights[0];
+			}
+			for (int i = 1; i < nValidParents; i++) {
+				for (int j = 0; j < s; j++) {
+					mats[0][j] += weights[i] * mats[i][j];
+				}
+			}
+		};
+
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->A.get(); }
+		addMatrices();
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->storage_eta.get(); }
+		addMatrices();
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->B.get(); }
+		addMatrices();
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->C.get(); }
+		addMatrices();
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->D.get(); }
+		addMatrices();
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->alpha.get(); }
+		addMatrices();
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->w.get(); }
+		addMatrices();
+#ifdef CONTINUOUS_LEARNING
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->storage_gamma.get(); }
+		addMatrices();
+#endif
+#ifdef GUIDED_MUTATIONS
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->accumulator.get(); }
+		addMatrices();
+#endif
+	};
+
+	// complex nodes
+	for (int i = 0; i < child->complexGenome.size(); i++) {
+		if (child->complexGenome[i]->phenotypicMultiplicity == 0) continue;
+
+		ComplexNode_G * node = child->complexGenome[i].get();
+		int nodeID = node->complexNodeID;
+		complexPtrs[0] = node;
+
+		nValidParents = 1;
+		for (int j = 1; j < parents.size(); j++) {
+			ComplexNode_G* n;
+
+			// continue; if different topologies.
+			{
+				auto it = parents[j]->complexIDmap.find(nodeID);
+				if (it == parents[j]->complexIDmap.end()) continue;
+
+				n = it->second;
+				if (
+					n->inputSize != node->inputSize ||
+					n->outputSize != node->outputSize ||
+					n->complexChildren.size() != node->complexChildren.size() ||
+					n->memoryChildren.size() != node->memoryChildren.size())
+				{
+					continue;
+				}
+
+				bool valid = true;
+				for (int k = 0; k < n->complexChildren.size(); k++) {
+					if (
+						n->complexChildren[k]->inputSize != node->complexChildren[k]->inputSize ||
+						n->complexChildren[k]->outputSize != node->complexChildren[k]->outputSize
+						)
+					{
+						valid = false;
+						break;
+					}
+				}
+				if (!valid) continue;
+				for (int k = 0; k < n->memoryChildren.size(); k++) {
+					if (
+						n->memoryChildren[k]->inputSize != node->memoryChildren[k]->inputSize ||
+						n->memoryChildren[k]->outputSize != node->memoryChildren[k]->outputSize
+						)
+					{
+						valid = false;
+						break;
+					}
+				}
+				if (!valid) continue;
+			}
+
+			// same topology:
+			weights[nValidParents] = rawWeights[j];
+			complexPtrs[nValidParents] = n;
+			nValidParents++;
+		}
+
+		
+		if (nValidParents == 0) {
+			__debugbreak();
+		}
+		if (nValidParents <= 1) {
+			continue;
+		}
+		// transform weights[0] so that if every secondary parent is P0 + Di, p0 the primary parent,
+		// sum(Wi * (P0 + Di)) = 1 * P0 + sum(WiDi)
+		{
+			float s_positive = 0.0f, s_negative = 0.0f;
+			for (int j = 1; j < nValidParents; j++) {
+				// practicing branchless skills...
+				float w = std::max(weights[i], 0.0f);
+				s_positive += w;
+				s_negative += w - weights[i];
+			}
+			weights[0] = 1 - (s_positive - s_negative);
+		}
+
+		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toComplex;}
+		addConnexions();
+		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toMemory; }
+		addConnexions();
+		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toOutput; }
+		addConnexions();
+		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toModulation; }
+		addConnexions();
+		
+	}
+
+
+	// memory nodes
+	for (int i = 0; i < child->memoryGenome.size(); i++) {
+		if (child->memoryGenome[i]->phenotypicMultiplicity == 0) continue;
+
+		MemoryNode_G* node = child->memoryGenome[i].get();
+		int nodeID = node->memoryNodeID;
+		memoryPtrs[0] = node;
+
+		nValidParents = 1;
+		for (int j = 1; j < parents.size(); j++) {
+			MemoryNode_G* n;
+
+			// continue; if different topologies.
+			{
+				auto it = parents[j]->memoryIDmap.find(nodeID);
+				if (it == parents[j]->memoryIDmap.end()) continue;
+
+				n = it->second;
+				if (
+					n->inputSize != node->inputSize ||
+					n->outputSize != node->outputSize ||
+					n->kernelDimension != node->kernelDimension
+					)
+				{
+					continue;
+				}
+			}
+
+			// same topology:
+			weights[nValidParents] = rawWeights[j];
+			memoryPtrs[nValidParents] = n;
+			nValidParents++;
+		}
+
+		if (nValidParents == 0) {
+			__debugbreak();
+		}
+		if (nValidParents <= 1) {
+			continue;
+		}
+		// transform weights[0] so that if every secondary parent is P0 + Di, p0 the primary parent,
+		// sum(Wi * (P0 + Di)) = 1 * P0 + sum(WiDi)
+		{
+			float s_positive = 0.0f, s_negative = 0.0f;
+			for (int j = 1; j < nValidParents; j++) {
+				// practicing branchless skills...
+				float w = std::max(weights[i], 0.0f);
+				s_positive += w;
+				s_negative += w - weights[i];
+			}
+			weights[0] = 1 - (s_positive - s_negative);
+		}
+
+		
+		// decay and link
+		float storage_decay = memoryPtrs[0]->storage_decay * weights[0];
+		connexions[0] = &memoryPtrs[0]->link;
+		for (int j = 1; j < nValidParents; j++) {
+			storage_decay += weights[j] * memoryPtrs[j]->storage_decay;
+			connexions[j] = &memoryPtrs[j]->link;
+		}
+		child->memoryGenome[i]->storage_decay = storage_decay;
+		addConnexions();
+
+
+		//  Q
+		for (int j = 0; j < nValidParents; j++) {
+			mats[j] = child->memoryGenome[i]->Q.get();
+		}
+		int s = child->memoryGenome[i]->inputSize * child->memoryGenome[i]->kernelDimension;
+		for (int j = 0; j < s; j++) {
+			mats[0][j] *= weights[0];
+		}
+		for (int j = 1; j < nValidParents; j++) {
+			for (int k = 0; k < s; k++) {
+				mats[0][k] += weights[j] * mats[j][k];
+			}
+		}
+
+	}
+
+
+	delete[] complexPtrs;
+	delete[] memoryPtrs;
+	delete[] weights;
+	delete[] mats;
+	delete[] connexions;
+
+	return child;
 }
 
 
@@ -214,6 +472,28 @@ void Network::createPhenotype() {
 	if (topNodeP.get() == NULL) {
 		topNodeP.reset(new ComplexNode_P(topNodeG.get()));
 
+		// transform [0, 1] range parameters
+		{
+			for (int i = 0; i < complexGenome.size(); i++) {
+				if (complexGenome[i]->phenotypicMultiplicity > 0) {
+					complexGenome[i]->toComplex.transform01Parameters();
+					complexGenome[i]->toMemory.transform01Parameters();
+					complexGenome[i]->toModulation.transform01Parameters();
+					complexGenome[i]->toOutput.transform01Parameters();
+				}
+			}
+			topNodeG->toComplex.transform01Parameters();
+			topNodeG->toMemory.transform01Parameters();
+			topNodeG->toModulation.transform01Parameters();
+			topNodeG->toOutput.transform01Parameters();
+			for (int i = 0; i < memoryGenome.size(); i++) {
+				if (memoryGenome[i]->phenotypicMultiplicity > 0) {
+					memoryGenome[i]->link.transform01Parameters();
+					memoryGenome[i]->decay = (tanhf(memoryGenome[i]->storage_decay) + 1.0f) *.5f;
+				}
+			}
+		}
+
 		std::vector<int> genomeState(complexGenome.size() + 1);
 		topNodeG->position = (int)complexGenome.size();
 
@@ -292,12 +572,22 @@ void Network::step(const std::vector<float>& obs) {
 			case GAUSSIAN:
 				dst[i] = 2.0f * expf(-src[i] * src[i]) - 1.0f; // technically the bias is not correctly put in. Does it matter ?
 				break;
+			case RELU:
+				dst[i] = std::max(src[i], 0.0f);
+				break;
+			case LOG2:
+				dst[i] = log2f(abs(src[i]));
+				break;
+			case EXP2:
+				dst[i] = exp2f(src[i]);
+				break;
 			case SINE:
 				dst[i] = sinf(src[i]);
 				break;
-			case CENTERED_SINE:
+			case CENTERED_TANH:
 				constexpr float z = 1.0f / .375261f; // to map to [-1, 1]
 				dst[i] = tanhf(src[i]) * expf(-powf(src[i], 2.0f)) * z;
+				break;
 			}
 		}
 	};
@@ -957,6 +1247,7 @@ void Network::mutate() {
 
 				n->closestNode = clonedNode;
 				n->mutationalDistance = 0;
+				n->complexNodeID = currentComplexNodeID++;
 				
 				complexGenome.emplace(complexGenome.begin() + clonedNode->position + 1, n);
 
@@ -1012,6 +1303,7 @@ void Network::mutate() {
 
 				n->closestNode = clonedNode;
 				n->mutationalDistance = 0;
+				n->memoryNodeID = currentMemoryNodeID++;
 
 				memoryGenome.emplace_back(n);
 				n->position = (int)memoryGenome.size() - 1;
@@ -1058,6 +1350,7 @@ void Network::mutate() {
 		}
 	}
 
+	createIDMaps();
 
 	// Phenotype is destroyed, as it may have become outdated. It will have to be recreated
 	// before next inference. (The phenotype should not exist at this stage anyway)

@@ -18,6 +18,7 @@ bool bStartProcessing = false;
 int nTerminated = 0;
 int nDoneProcessing = 0;
 
+int PhylogeneticNode::maxListSize = 0;
 
 // src is unchanged.
 void normalizeArray(float* src, float* dst, int size) {
@@ -63,7 +64,8 @@ void rankArray(float* src, float* dst, int size) {
 }
 
 Population::Population(int IN_SIZE, int OUT_SIZE, int nSpecimens, bool fromDLL) :
-	nSpecimens(nSpecimens), N_THREADS(0), threadIteration(0), mustTerminate(false), fromDLL(fromDLL)
+	nSpecimens(nSpecimens), fromDLL(fromDLL),
+	N_THREADS(0), threadIteration(0), mustTerminate(false)
 {
 	threads.reserve(0);
 	globalTrials.reserve(0);
@@ -78,8 +80,15 @@ Population::Population(int IN_SIZE, int OUT_SIZE, int nSpecimens, bool fromDLL) 
 	PopulationEvolutionParameters defaultParams;
 	setEvolutionParameters(defaultParams);
 
+	phylogeneticTree = new PhylogeneticNode[MAX_MATING_DEPTH * nSpecimens];
+	for (int i = 0; i < nSpecimens; i++) {
+		phylogeneticTree[i].children.resize(0);
+		phylogeneticTree[i].networkIndice = i;
+		phylogeneticTree[i].parent = nullptr;
+	}
+
 	fittestSpecimen = 0;
-	evolutionStep = 0;
+	evolutionStep = 1; // starting at 1 is important for the phylogeneticTree.
 	nTrialsAtThisStep = -1;
 }
 
@@ -128,6 +137,7 @@ Population::~Population() {
 	for (const Network* n : networks) {
 		delete n;
 	}
+	delete[] phylogeneticTree;
 }
 
 void Population::threadLoop(const int i0, const int subArraySize) {
@@ -347,10 +357,7 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 		for (int i = 0; i < nSpecimens; i++) {
 			for (int j = i0; j <nTrialsAtThisStep; j++) {
 				batchTransformedScores[i + j * nSpecimens] += competitionFactor *
-					powf(
-						std::clamp(networks[i]->parentData.scores[j] - batchTransformedScores[i + j * nSpecimens], -1.0f, 1.0f),
-						3.0f
-					);
+						(batchTransformedScores[i + j * nSpecimens] - networks[i]->parentData.scores[j]);
 			}
 		}
 	}
@@ -379,8 +386,6 @@ void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEv
 	computeFitnesses(avgScorePerSpecimen);
 
 	createOffsprings();
-	
-	evolutionStep++;
 }
 
 void Population::computeFitnesses(std::vector<float>& avgScorePerSpecimen) {
@@ -429,9 +434,76 @@ void Population::computeFitnesses(std::vector<float>& avgScorePerSpecimen) {
 	}
 }
 
+Network* Population::createChild(PhylogeneticNode* primaryParent) {
+
+	std::vector<int> parents;
+	parents.push_back(primaryParent->networkIndice);
+	
+	std::vector<float> rawWeights;
+	rawWeights.resize(nParents);
+
+	// fill parents, and weights are set to 1/(1+d), where d is the phylogenetic distances.
+	// If this function is called, nParents > 1.
+	{
+		PhylogeneticNode* previousRoot = primaryParent;
+		PhylogeneticNode* root = primaryParent->parent;
+		bool listFilled = false;
+
+		for (int depth = 1; depth < MAX_MATING_DEPTH; depth++) {
+			float w = 1.0f / (1.0f + (float)depth);
+			std::fill(rawWeights.begin() + (int)parents.size(), rawWeights.end(), w);
+
+			int i0 = INT_0X((int)root->children.size());
+
+			for (int i = i0; i < root->children.size(); i++) {
+				if (root->children[i] != previousRoot) {
+					if (!root->children[i]->addToList(parents, depth-1)) {
+						listFilled = true;
+						break;
+					}
+				}
+			}
+			if (listFilled) break;
+			for (int i = 0; i < i0; i++) {
+				if (root->children[i] != previousRoot) {
+					if (!root->children[i]->addToList(parents, depth-1)) {
+						listFilled = true;
+						break;
+					}
+				}
+			}
+
+			// second case can happen if there were exactly as many parents 
+			// as there was room in the array at this depth.
+			if (listFilled || parents.size() == nParents) break; 
+
+			previousRoot = root;
+			root = root->parent;
+		}
+	}
+
+	// weights are also an increasing function of the fitness.
+	{
+		rawWeights[0] = 1.0f;
+		float f0 = fitnesses[primaryParent->networkIndice];
+		float invf0 = 1.0f/f0;
+		for (int i = 1; i < parents.size(); i++) {
+			rawWeights[i] *= (fitnesses[parents[i]] - f0); // TODO better
+		}
+	}
+
+	std::vector<Network*> parentNetworks;
+	parentNetworks.resize(parents.size());
+	for (int i = 0; i < parents.size(); i++) {
+		parentNetworks[i] = networks[parents[i]];
+	}
+	return Network::combine(parentNetworks, rawWeights);
+}
+
 void Population::createOffsprings() {
-	std::vector<float> probabilities(nSpecimens);
-	std::vector<Network*> tempNetworks(nSpecimens);
+	float* phase1Probabilities = new float[nSpecimens];
+	float* phase2Probabilities = new float[nSpecimens];
+	Network** tempNetworks = new Network* [nSpecimens];
 
 	// already happens in computeFitnesses...
 	float fMax = -10000.0f;
@@ -443,51 +515,70 @@ void Population::createOffsprings() {
 
 	float normalizationFactor = 1.0f / (fMax - selectionPressure.first);
 	for (int i = 0; i < nSpecimens; i++) {
-		probabilities[i] = (fitnesses[i] - selectionPressure.first)*normalizationFactor;
-		if (fitnesses[i] < selectionPressure.second) fitnesses[i] = 0.0f;
-		else fitnesses[i] -= selectionPressure.second;
+		phase1Probabilities[i] = (fitnesses[i] - selectionPressure.first)*normalizationFactor;
+		if (fitnesses[i] < selectionPressure.second) phase2Probabilities[i] = 0.0f;
+		else phase2Probabilities[i] -= selectionPressure.second;
 	}
 
-	auto setParentData = [this](int parentID, Network* offspring) {
-		offspring->parentData.isAvailable = true;
-		offspring->parentData.scoreSize = nTrialsAtThisStep;
-		offspring->parentData.scores = new float[nTrialsAtThisStep];
-		for (int i = 0; i < nTrialsAtThisStep; i++) {
-			offspring->parentData.scores[i] = batchTransformedScores[i * nSpecimens + parentID];
+	
+
+	int parentPhylogeneticTreeID = ((evolutionStep-1) % MAX_MATING_DEPTH) * nSpecimens;
+	int phylogeneticTreeID = (evolutionStep % MAX_MATING_DEPTH) * nSpecimens;
+	int nReconductedSpecimens = 0;
+
+	// lambda just not to write this twice.
+	auto doEverything = [&](int parentID, int childID) {
+
+		PhylogeneticNode* childNode = &phylogeneticTree[phylogeneticTreeID + childID];
+		childNode->children.resize(0);
+		childNode->parent = &phylogeneticTree[parentPhylogeneticTreeID + parentID];
+		childNode->networkIndice = childID;
+		childNode->parent->children.push_back(childNode);
+
+		if (evolutionStep < MAX_MATING_DEPTH || nParents == 1) {
+			tempNetworks[childID] = new Network(networks[parentID]);
 		}
+		else {
+			tempNetworks[childID] = createChild(childNode->parent);
+		}
+
+		if (!fromDLL) {
+			tempNetworks[childID]->parentData.isAvailable = true;
+			tempNetworks[childID]->parentData.scoreSize = nTrialsAtThisStep;
+			tempNetworks[childID]->parentData.scores = new float[nTrialsAtThisStep];
+			for (int i = 0; i < nTrialsAtThisStep; i++) {
+				tempNetworks[childID]->parentData.scores[i] = batchTransformedScores[i * nSpecimens + parentID];
+			}
+		}
+
 		return;
 	};
 
-	int nReconductedSpecimens = 0;
 	for (int i = 0; i < nSpecimens; i++) {
-		if (UNIFORM_01 < probabilities[i]) {
-			tempNetworks[nReconductedSpecimens] = new Network(networks[i]);
-			if (!fromDLL) {
-				setParentData(i, tempNetworks[nReconductedSpecimens]);
-			}
+		if (UNIFORM_01 < phase1Probabilities[i]) {
+
+			doEverything(i, nReconductedSpecimens);
 			nReconductedSpecimens++;
 		}
 	}
 	//std::cout << "reconducted fraction : " << (float)nReconductedSpecimens / (float)nSpecimens << std::endl;
 
 	// Compute probabilities for roulette wheel selection.
-	float fitnessSum = 0.0f;
+	float invProbaSum = 0.0f;
 	for (int i = 0; i < nSpecimens; i++) {
-		fitnessSum += fitnesses[i];
+		invProbaSum += phase2Probabilities[i];
 	}
-	
-	probabilities[0] = fitnesses[0] / fitnessSum;
+	invProbaSum = 1.0f / invProbaSum;
+
+	phase2Probabilities[0] = phase2Probabilities[0] * invProbaSum;
 	for (int i = 1; i < nSpecimens; i++) {
-		probabilities[i] = probabilities[i - 1] + fitnesses[i] / fitnessSum;
+		phase2Probabilities[i] = phase2Probabilities[i - 1] + phase2Probabilities[i] * invProbaSum;
 	}
 
 	int parentID;
 	for (int i = nReconductedSpecimens; i < nSpecimens; i++) {
-		parentID = binarySearch(probabilities, UNIFORM_01);
-		tempNetworks[i] = new Network(networks[parentID]);
-		if (!fromDLL) {
-			setParentData(parentID, tempNetworks[i]);
-		}
+		parentID = binarySearch(phase2Probabilities, UNIFORM_01, nSpecimens);
+		doEverything(parentID, i);
 	}
 
 
@@ -499,4 +590,19 @@ void Population::createOffsprings() {
 	for (int i = 0; i < nSpecimens; i++) {
 		networks[i] = tempNetworks[i];
 	}
+
+	// d is used because for the MAX_MATING_DEPTH-1 first steps we cant traverse the deeper layers
+	// of the tree. 2 is the stable value.
+	int d = 2 + std::max(0, MAX_MATING_DEPTH - evolutionStep - 1);
+	for (int i = parentPhylogeneticTreeID; i < parentPhylogeneticTreeID + nSpecimens; i++) {
+		if (phylogeneticTree[i].children.size() == 0) {
+			phylogeneticTree[i].erase(d);
+		}
+	}
+
+	delete[] tempNetworks;
+	delete[] phase1Probabilities;
+	delete[] phase2Probabilities;
+	
+	evolutionStep++;
 }

@@ -22,6 +22,9 @@ struct MemoryNode_G {
 
 	MemoryNode_G* closestNode;
 
+	// unique to each node of the network, used to match them when mating
+	int memoryNodeID;
+
 	int mutationalDistance;
 
 	// the connexion linking input and output
@@ -33,7 +36,7 @@ struct MemoryNode_G {
 	std::unique_ptr<float[]> Q;
 
 	// controls the exponential average decay speed of canddidate memory, the higher the faster.
-	float decay;
+	float decay, storage_decay;
 
 	// = 1 / sqrt(kernelDim * InSize)
 	float beta;

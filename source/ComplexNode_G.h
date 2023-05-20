@@ -20,13 +20,13 @@
 
 
 // TODO : implement DERIVATOR, that outputs the difference between INPUT_NODE at this step and INPUT_NODE at the previous step.
-// CENTERED_SINE(x) = tanhf(x) * expf(-x*x) * 1/.375261
-// I dont really know what to expect from SINE and CENTERED_SINE when it comes to applying 
+// CENTERED_TANH(x) = tanhf(x) * expf(-x*x) * 1/.375261
+// I dont really know what to expect from non-monotonous functions when it comes to applying 
 // hebbian updates... It does not make much sense. But I plan to add cases where activations
 // do not use hebbian rules.
 
 #define N_ACTIVATIONS  2 // only using TANH and GAUSSIAN for now
-const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, SINE = 2, CENTERED_SINE = 3 };
+const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, RELU = 2, LOG2 = 3, EXP2 = 4, SINE = 5, CENTERED_TANH = 6 };
 
 
 // Util:
@@ -56,6 +56,31 @@ inline int binarySearch(std::vector<float>& proba, float value) {
 	//throw "Binary search failure !";
 }
 
+inline int binarySearch(float* proba, float value, int size) {
+	int inf = 0;
+	int sup = size - 1;
+
+	if (proba[inf] > value) {
+		return inf;
+	}
+
+	int mid;
+	int max_iter = 15;
+	while (sup - inf >= 1 && max_iter--) {
+		mid = (sup + inf) / 2;
+		if (proba[mid] < value && value <= proba[mid + 1]) {
+			return mid + 1;
+		}
+		else if (proba[mid] < value) {
+			inf = mid;
+		}
+		else {
+			sup = mid;
+		}
+	}
+	return 0; // not necessarily a failure, since floating point approximation prevents the sum from reaching 1.
+	//throw "Binary search failure !";
+}
 
 struct ComplexNode_G {
 	
@@ -72,6 +97,8 @@ struct ComplexNode_G {
 	// nColumns = this.inputSize + MODULATION_VECTOR_SIZE + sum(complexChild.inputSize) + sum(memoryChild.inputSize)
 	InternalConnexion_G toComplex, toMemory, toModulation, toOutput;
 
+	// unique for each node of the network, used to match nodes when mating.
+	int complexNodeID;
 	
 	float modulationBias[MODULATION_VECTOR_SIZE];
 

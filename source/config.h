@@ -70,3 +70,8 @@
 // influence on selection, TODO figure a better way to do it.
 // The higher p, the more specialists are incentivized. And the lower p, the more generalists strive. 
 //#define SPECIALIZATION_INCENTIVE .8f	// = p. Recommended range: [0.6, 10.0]
+
+
+// Maximum number of generations since last common ancestor of two  (of the) specimens combined to form a new specimen. >= 2.
+#define MAX_MATING_DEPTH 10
+

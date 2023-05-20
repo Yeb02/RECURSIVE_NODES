@@ -31,8 +31,58 @@ ComplexNode_G::ComplexNode_G(int inputSize, int outputSize) :
 		position = -1;
 		phenotypicMultiplicity = -1;
 		memoryPreSynOffset = -1;
+		complexNodeID = -1;
 	}
 };
+
+ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
+
+	inputSize = n->inputSize;
+	outputSize = n->outputSize;
+	complexNodeID = n->complexNodeID;
+
+	toComplex = n->toComplex;
+	toMemory = n->toMemory;
+	toModulation = n->toModulation;
+	toOutput = n->toOutput;
+
+
+	outputBias.assign(n->outputBias.begin(), n->outputBias.end());
+	complexBias.assign(n->complexBias.begin(), n->complexBias.end());
+	memoryBias.assign(n->memoryBias.begin(), n->memoryBias.end());
+
+	outputActivations.assign(n->outputActivations.begin(), n->outputActivations.end());
+	complexActivations.assign(n->complexActivations.begin(), n->complexActivations.end());
+	memoryActivations.assign(n->memoryActivations.begin(), n->memoryActivations.end());
+
+	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
+		modulationBias[i] = n->modulationBias[i];
+	}
+
+	complexBiasSize = n->complexBiasSize;
+	memoryBiasSize = n->memoryBiasSize;
+	depth = n->depth;
+	position = n->position;
+	mutationalDistance = n->mutationalDistance;
+	phenotypicMultiplicity = n->phenotypicMultiplicity;
+	memoryPreSynOffset = n->memoryPreSynOffset;
+
+	// The following enclosed section is useless if n is not part of the same network as "this", 
+	// and it must be repeated where this function was called.
+	{
+
+		complexChildren.reserve((int)((float)n->complexChildren.size() * 1.5f));
+		for (int j = 0; j < n->complexChildren.size(); j++) {
+			complexChildren.emplace_back(n->complexChildren[j]);
+		}
+		memoryChildren.reserve((int)((float)n->memoryChildren.size() * 1.5f));
+		for (int j = 0; j < n->memoryChildren.size(); j++) {
+			memoryChildren.emplace_back(n->memoryChildren[j]);
+		}
+		closestNode = n->closestNode;
+	}
+}
+
 
 void ComplexNode_G::createInternalConnexions() {
 
@@ -530,49 +580,4 @@ void ComplexNode_G::computeSaturationArraySize(std::vector<int>& genomeState) {
 }
 #endif 
 
-ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 
-	inputSize = n->inputSize;
-	outputSize = n->outputSize;
-
-	toComplex = n->toComplex;
-	toMemory = n->toMemory;
-	toModulation = n->toModulation;
-	toOutput = n->toOutput;
-
-
-	outputBias.assign(n->outputBias.begin(), n->outputBias.end());
-	complexBias.assign(n->complexBias.begin(), n->complexBias.end());
-	memoryBias.assign(n->memoryBias.begin(), n->memoryBias.end());
-
-	outputActivations.assign(n->outputActivations.begin(), n->outputActivations.end());
-	complexActivations.assign(n->complexActivations.begin(), n->complexActivations.end());
-	memoryActivations.assign(n->memoryActivations.begin(), n->memoryActivations.end());
-
-	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-		modulationBias[i] = n->modulationBias[i];
-	}
-	
-	complexBiasSize = n->complexBiasSize;
-	memoryBiasSize = n->memoryBiasSize;
-	depth = n->depth;
-	position = n->position;
-	mutationalDistance = n->mutationalDistance;
-	phenotypicMultiplicity = n->phenotypicMultiplicity;
-	memoryPreSynOffset = n->memoryPreSynOffset;
-
-	// The following enclosed section is useless if n is not part of the same network as "this", 
-	// and it must be repeated where this function was called.
-	{
-		
-		complexChildren.reserve((int)((float)n->complexChildren.size() * 1.5f));
-		for (int j = 0; j < n->complexChildren.size(); j++) {
-			complexChildren.emplace_back(n->complexChildren[j]);
-		}
-		memoryChildren.reserve((int)((float)n->memoryChildren.size() * 1.5f));
-		for (int j = 0; j < n->memoryChildren.size(); j++) {
-			memoryChildren.emplace_back(n->memoryChildren[j]);
-		}
-		closestNode = n->closestNode;
-	}
-}

@@ -25,9 +25,9 @@ void MemoryNode_P::forward() {
 
 	// vars defined for readability:
 	
-	float ksi1 = (modulation[2] + 1.0f) * .5f; // from [-1, 1] to [0, 1]
+	float ksi1 = (tanhf(modulation[2]) + 1.0f) * .5f; // from R to [0, 1]
 	float ksi2 = modulation[3];
-	float ksi3 = (modulation[4] + 1.0f) * .5f; // from [-1, 1] to [0, 1]
+	float ksi3 = (tanhf(modulation[4]) + 1.0f) * .5f; // from R to [0, 1]
 
 	//float ksi1 = .5f; 
 	//float ksi2 = .2f;
