@@ -1,7 +1,12 @@
 #pragma once
+
 #include <iostream>
 #include "Population.h"
 #include "Random.h"
+
+#ifdef ROCKET_SIM_T
+#include "RocketSim.h"
+#endif
 
 
 #ifdef DRAWING
@@ -16,6 +21,11 @@ using namespace std;
 
 int main()
 {
+
+#ifdef ROCKET_SIM_T
+    RocketSim::Init((std::filesystem::path)"C:/Users/alpha/Bureau/RLRL/collisionDumper/x64/Release/collision_meshes");
+#endif
+
 #ifdef DRAWING
     Drawer drawer(1080, 480);
 #endif
@@ -25,9 +35,9 @@ int main()
 #ifdef _DEBUG
     nThreads = 1;
 #endif
-    int nSpecimens = nThreads * 128; //16 -> 512
+    int nSpecimens = nThreads * 4; //16 -> 512
     int nDifferentTrials = 4;
-    int nSteps = 10000;
+    int nSteps = 1;
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
     // different kinds of trials can be put in the vector.
@@ -43,6 +53,8 @@ int main()
         trials.emplace_back(new NLinksPendulumTrial(false, 2));
 #elif defined MEMORY_T
         trials.emplace_back(new MemoryTrial(1, 2, 2, true)); // int nMotifs, int motifSize, int responseSize, bool binary = true
+#elif defined ROCKET_SIM_T
+        trials.emplace_back(new RocketSimTrial());
 #endif
     }
 
@@ -52,10 +64,10 @@ int main()
     params.selectionPressure = { -1.0f, .25f };
     params.useSameTrialInit = true;
     params.rankingFitness = true;
-    params.saturationFactor = 0.1f;
-    params.regularizationFactor = 0.05f; 
+    params.saturationFactor = 0.0f;
+    params.regularizationFactor = 0.0f; 
     params.competitionFactor = 0.0f; 
-    params.scoreBatchTransformation = NORMALIZE;
+    params.scoreBatchTransformation = NONE;
     params.nParents = 10;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
@@ -103,6 +115,31 @@ int main()
         //if ((i + 1) % 10000 == 0) population.defragmentate(); // Defragmentate. Not implemented yet.
     }
     population.stopThreads();
+
+    trials[0]->reset(false);
+    Network* n = population.getSpecimenPointer(population.fittestSpecimen);
+    n->createPhenotype(); 
+    n->preTrialReset();
+    while (!trials[0]->isTrialOver) {
+        n->step(trials[0]->observations);
+        trials[0]->step(n->getOutput());
+    }
+    LOG("Best specimen's score on new trial = " << trials[0]->score);
+
+    population.saveFittestSpecimen();
+
+    std::ifstream is("topNet.renon", std::ios::binary);
+    trials[0]->reset(true);
+    n = new Network(is);
+    LOG("Loaded.")
+    n->createPhenotype();
+    n->preTrialReset();
+    while (!trials[0]->isTrialOver) {
+        n->step(trials[0]->observations);
+        trials[0]->step(n->getOutput());
+    }
+    delete n;
+    LOG("Reloaded best specimen's score on the same trial = " << trials[0]->score);
 
     return 0;
 }

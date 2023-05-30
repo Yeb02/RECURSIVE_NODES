@@ -17,11 +17,12 @@
 
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
 // These do not affect the DLL.
-#define CARTPOLE_T
+//#define CARTPOLE_T
 //#define XOR_T
 //#define TMAZE_T
 //#define N_LINKS_PENDULUM_T
 //#define MEMORY_T
+#define ROCKET_SIM_T // for now, path are hardcoded in the project properties (linker->input), in main.cpp and in RocketSim.h.
 
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
@@ -38,7 +39,7 @@
 // 1.0 or 2.0 in ComplexNode_G::mutateFloats()). Accumulators are reset to 0 after a call to mutate floats.
 // Adding a factor decreasing the effect over generations could be interesting, TODO .
 // TODO toggle zeroing of wLifetime at trial end. If off, the accumulation should only happen at lifetime's end.
-#define GUIDED_MUTATIONS
+//#define GUIDED_MUTATIONS
 
 
 // IN DEVELOPPEMENT

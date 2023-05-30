@@ -62,6 +62,45 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 	Q = std::move(n.Q);
 }
 
+
+MemoryNode_G::MemoryNode_G(std::ifstream& is)
+{
+	READ_4B(inputSize, is);
+	READ_4B(outputSize, is);
+
+	READ_4B(mutationalDistance, is);
+	READ_4B(memoryNodeID, is);
+
+	READ_4B(kernelDimension, is);
+	READ_4B(storage_decay, is);
+
+	setBeta();
+
+	link = InternalConnexion_G(is);
+
+	int s = inputSize * kernelDimension;
+	Q = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(Q.get()), s * sizeof(float));
+}
+
+
+void MemoryNode_G::save(std::ofstream& os)
+{
+	WRITE_4B(inputSize, os);
+	WRITE_4B(outputSize, os);
+
+	WRITE_4B(mutationalDistance, os);
+	WRITE_4B(memoryNodeID, os);
+	
+	WRITE_4B(kernelDimension, os);
+	WRITE_4B(storage_decay, os);
+	
+	link.save(os);
+
+	int s = inputSize * kernelDimension;
+	os.write(reinterpret_cast<const char*>(Q.get()), s * sizeof(float));
+}
+
 void MemoryNode_G::mutateFloats() {
 	constexpr float p = .2f;
 

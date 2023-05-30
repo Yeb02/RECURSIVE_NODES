@@ -139,6 +139,56 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	return *this;
 }
 
+InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
+{
+	READ_4B(nLines, is);
+	READ_4B(nColumns, is);
+
+	int s = nLines * nColumns;
+
+	eta = std::make_unique<float[]>(s);
+	storage_eta = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(storage_eta.get()), s * sizeof(float));
+	A = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(A.get()), s * sizeof(float));
+	B = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(B.get()), s * sizeof(float));
+	C = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(C.get()), s * sizeof(float));
+	D = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(D.get()), s * sizeof(float));
+	alpha = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(alpha.get()), s * sizeof(float));
+	w = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(w.get()), s * sizeof(float));
+#ifdef CONTINUOUS_LEARNING
+	gamma = std::make_unique<float[]>(s);
+	storage_gamma = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(storage_gamma.get()), s * sizeof(float));
+#endif
+#ifdef GUIDED_MUTATIONS
+	accumulator = std::make_unique<float[]>(s);
+#endif
+}
+
+void InternalConnexion_G::save(std::ofstream& os) 
+{
+	WRITE_4B(nLines, os);
+	WRITE_4B(nColumns, os);
+
+	int s = nLines * nColumns;
+
+	os.write(reinterpret_cast<const char*>(storage_eta.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(A.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(B.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(C.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(D.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(alpha.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(w.get()), s * sizeof(float));
+#ifdef CONTINUOUS_LEARNING
+	os.write(reinterpret_cast<const char*>(storage_gamma.get()), s * sizeof(float));
+#endif
+}
 
 void InternalConnexion_G::mutateFloats(float p) {
 
@@ -148,7 +198,7 @@ void InternalConnexion_G::mutateFloats(float p) {
 	constexpr int nArrays = 7;
 #endif
 	//param(t+1) = (b+a*N1)*param(t) + c*N2
-	const float sigma = powf(nColumns, -.5f);
+	const float sigma = powf((float)nColumns, -.5f);
 	const float a = .3f*sigma; 
 	const float b = 1.0f - .5f * a; 
 	const float c = a; 

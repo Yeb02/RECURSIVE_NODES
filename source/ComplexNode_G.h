@@ -5,6 +5,7 @@
 #include <cmath>
 #include <iostream>
 #include <tuple>
+#include <fstream>
 
 #include "Random.h"
 #include "Config.h"
@@ -83,7 +84,19 @@ inline int binarySearch(float* proba, float value, int size) {
 }
 
 struct ComplexNode_G {
-	
+	// Does not do much, because most attributes are set by the network owning this.
+	ComplexNode_G(int inputSize, int outputSize);
+
+	// WARNING ! "this" node is now a deep copy of n, but the pointers towards the children 
+	// must be updated manually if "this" and n do not belong to the same Network !
+	// (typically in Network(Network * n))
+	ComplexNode_G(ComplexNode_G* n);
+
+	~ComplexNode_G() {};
+
+	ComplexNode_G(std::ifstream& is);
+	void save(std::ofstream& os);
+
 	int inputSize, outputSize; // >= 1
 
 	
@@ -129,6 +142,7 @@ struct ComplexNode_G {
 
 	// Precomputed for efficiency, = outputSize + MODULATION_VECTOR_SIZE + sum(complexChildren.inputSize)
 	int memoryPreSynOffset;
+	// to be called after creation and mutations
 	void computeMemoryPreSynOffset() {
 		int s = outputSize + MODULATION_VECTOR_SIZE;
 		for (int i = 0; i < complexChildren.size(); i++) {
@@ -137,19 +151,10 @@ struct ComplexNode_G {
 		memoryPreSynOffset = s;
 	}
 
-	// Does not do much, because most attributes are set by the network owning this.
-	ComplexNode_G(int inputSize, int outputSize);
-
-	// WARNING ! "this" node is now a deep copy of n, but the pointers towards the children 
-	// must be updated manually if "this" and n do not belong to the same Network !
-	// (typically in Network(Network * n))
-	ComplexNode_G(ComplexNode_G* n);
-
-	~ComplexNode_G() {};
-
+	// Allocates and randomly initializes internal connexions.
 	void createInternalConnexions();
 
-	// Sets complexBiasSize, memoryBiasSize
+	// Sets complexBiasSize, memoryBiasSize. To be called after creation and mutations
 	void computeBiasSizes();
 
 	// genomeState is an array of the size of the genome, which has 1s where the node's depth is known and 0s elsewhere

@@ -84,6 +84,90 @@ ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 }
 
 
+ComplexNode_G::ComplexNode_G(std::ifstream& is) {
+	// These must be set by the network in its Network(std::ifstream& is) constructor.
+	{
+		depth = -1;
+		position = -1;
+		phenotypicMultiplicity = -1;
+	}
+
+	READ_4B(inputSize, is);
+	READ_4B(outputSize, is);
+
+	int _s;
+	READ_4B(_s, is);
+	complexChildren.resize(_s);
+	READ_4B(_s, is);
+	memoryChildren.resize(_s);
+
+	READ_4B(complexNodeID, is);
+	READ_4B(mutationalDistance, is);
+
+	outputBias.resize(outputSize);
+	outputActivations.resize(outputSize);
+	is.read(reinterpret_cast<char*>(outputBias.data()), outputSize * sizeof(float));
+	is.read(reinterpret_cast<char*>(outputActivations.data()), outputSize * sizeof(ACTIVATION));
+
+	is.read(reinterpret_cast<char*>(modulationBias), MODULATION_VECTOR_SIZE * sizeof(float));
+	is.read(reinterpret_cast<char*>(modulationActivations), MODULATION_VECTOR_SIZE * sizeof(ACTIVATION));
+
+	READ_4B(complexBiasSize, is);
+	complexBias.resize(complexBiasSize);
+	complexActivations.resize(complexBiasSize);
+	is.read(reinterpret_cast<char*>(complexBias.data()), complexBiasSize * sizeof(float));
+	is.read(reinterpret_cast<char*>(complexActivations.data()), complexBiasSize * sizeof(ACTIVATION));
+
+	READ_4B(memoryBiasSize, is);
+	memoryBias.resize(memoryBiasSize);
+	memoryActivations.resize(memoryBiasSize);
+	is.read(reinterpret_cast<char*>(memoryBias.data()), memoryBiasSize * sizeof(float));
+	is.read(reinterpret_cast<char*>(memoryActivations.data()), memoryBiasSize * sizeof(ACTIVATION));
+
+	toComplex = InternalConnexion_G(is);
+	toMemory = InternalConnexion_G(is);
+	toModulation = InternalConnexion_G(is);
+	toOutput = InternalConnexion_G(is);
+
+
+	computeMemoryPreSynOffset();
+}
+
+void ComplexNode_G::save(std::ofstream& os) {
+	WRITE_4B(inputSize, os);
+	WRITE_4B(outputSize, os);
+
+	int _s;
+	_s = (int)complexChildren.size();
+	WRITE_4B(_s, os);
+	_s = (int)memoryChildren.size();
+	WRITE_4B(_s, os);
+
+
+	WRITE_4B(complexNodeID, os);
+	WRITE_4B(mutationalDistance, os);
+
+	os.write(reinterpret_cast<const char*>(outputBias.data()), outputSize * sizeof(float));
+	os.write(reinterpret_cast<const char*>(outputActivations.data()), outputSize * sizeof(ACTIVATION));
+
+	os.write(reinterpret_cast<const char*>(modulationBias), MODULATION_VECTOR_SIZE * sizeof(float));
+	os.write(reinterpret_cast<const char*>(modulationActivations), MODULATION_VECTOR_SIZE * sizeof(ACTIVATION));
+
+	WRITE_4B(complexBiasSize, os);
+	os.write(reinterpret_cast<const char*>(complexBias.data()), complexBiasSize * sizeof(float));
+	os.write(reinterpret_cast<const char*>(complexActivations.data()), complexBiasSize * sizeof(ACTIVATION));
+	
+	WRITE_4B(memoryBiasSize, os);
+	os.write(reinterpret_cast<const char*>(memoryBias.data()), memoryBiasSize * sizeof(float));
+	os.write(reinterpret_cast<const char*>(memoryActivations.data()), memoryBiasSize * sizeof(ACTIVATION));
+
+	toComplex.save(os);
+	toMemory.save(os);
+	toModulation.save(os);
+	toOutput.save(os);
+}
+
+
 void ComplexNode_G::createInternalConnexions() {
 
 	int nColumns = inputSize + MODULATION_VECTOR_SIZE;

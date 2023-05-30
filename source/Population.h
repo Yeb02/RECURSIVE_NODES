@@ -8,6 +8,8 @@
 #include "Network.h"
 #include "Trial.h"
 
+#include <fstream>
+#include <chrono> // time since 1970
 
 const enum SCORE_BATCH_TRANSFORMATION { NONE = 0, NORMALIZE = 1, RANK = 2};
 
@@ -144,7 +146,6 @@ public:
 	void step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEvaluated);
 
 
-
 	// Exposed to the DLL interface:
 
 	Population(int IN_SIZE, int OUT_SIZE, int nSpecimens, bool fromDLL = false);
@@ -168,18 +169,56 @@ public:
 		PhylogeneticNode::maxListSize = params.nParents;
 	}
 
+	
+	void saveFittestSpecimen() const 
+	{
+		using namespace std::chrono;
+		uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+			system_clock::now().time_since_epoch()).count();
 
-	// TODO (exposed):
-	std::string save() {
-		return std::string("");
-	};
-	void destroyThenLoad(std::string fileName) {};
-	void defragmentate() {
-		std::string fileName = save();
-		// delete population
-		destroyThenLoad(fileName);
-		// delete file
+		//std::ofstream os("topNet_" + std::to_string(ms) + ".renon", std::ios::binary);
+		std::ofstream os("topNet.renon", std::ios::binary);
+		networks[fittestSpecimen]->save(os);
 	}
+
+	
+	/*
+	template <class Archive>
+	void save(Archive& ar) const
+	{
+		ar(networks);
+	}
+
+	template <class Archive>
+	void load(Archive& ar) 
+	{
+		ar(networks);
+	}
+
+	void defragmentate() {
+		
+		{
+			std::ofstream os("temp_networks.cereal", std::ios::binary); 
+			cereal::BinaryOutputArchive archive(os);
+
+			archive(networks);
+
+			for (int i = 0; i < nSpecimens; i++)
+			{
+				delete networks[i];
+			}
+		}
+
+		{
+			std::ifstream os("temp_networks.cereal", std::ios::binary);
+			cereal::BinaryInputArchive archive(os);
+
+			archive(networks);
+		}
+
+		std::remove("temp_networks.cereal");
+	}
+	*/
 
 	// DLL util only:
 	void mutatePopulation() {

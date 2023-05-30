@@ -1,6 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <fstream>
+
+
 #include "InternalConnexion_G.h"
 
 #define MAX_KERNEL_DIMENSION 100
@@ -35,12 +38,13 @@ struct MemoryNode_G {
 	// *   V * M is replaced by a set of memorized output vectors.
 	std::unique_ptr<float[]> Q;
 
-	// controls the exponential average decay speed of canddidate memory, the higher the faster.
+	// controls the exponential average decay speed of candidate memory, the higher the faster.
 	float decay, storage_decay;
 
-	// = 1 / sqrt(kernelDim * InSize)
+	// = 1 / sqrt(kernelDim * InSize) ?
 	float beta;
 
+	// to be called after creation and mutations
 	inline void setBeta() { beta = 1.0f / sqrtf((float) (inputSize * kernelDimension)); }
 
 	MemoryNode_G(MemoryNode_G* n);
@@ -53,6 +57,9 @@ struct MemoryNode_G {
 	}
 
 	~MemoryNode_G() {};
+
+	MemoryNode_G(std::ifstream& is);
+	void save(std::ofstream& os);
 
 	void mutateFloats();
 

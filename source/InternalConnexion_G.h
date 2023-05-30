@@ -1,6 +1,10 @@
 #pragma once
 
 #include <memory>
+#include <fstream>
+
+#define WRITE_4B(i, os) os.write(reinterpret_cast<const char*>(&i), 4);
+#define READ_4B(i, is) is.read(reinterpret_cast<char*>(&i), 4);
 
 #include "Random.h"
 
@@ -47,6 +51,9 @@ struct InternalConnexion_G {
 	InternalConnexion_G operator=(const InternalConnexion_G& gc);
 
 	~InternalConnexion_G() {};
+
+	InternalConnexion_G(std::ifstream& is);
+	void save(std::ofstream& os);
 
 	// Maps stored_X to X for all parameters X that are used at runtime in the range [0,1]
 	// but stored in the range R. Typically exponential average decays. 

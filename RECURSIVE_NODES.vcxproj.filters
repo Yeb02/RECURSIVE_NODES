@@ -13,12 +13,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Header Files\sciplot">
-      <UniqueIdentifier>{404717e5-2260-452b-b656-89cffa1cecc1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\sciplot\specs">
-      <UniqueIdentifier>{f31b28d3-118b-4e38-8608-1c46fcacd3d4}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\Network.cpp">
@@ -60,6 +54,9 @@
     <ClCompile Include="source\MemoryNode_P.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="source\RocketSim.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="source\Network.h">
@@ -79,123 +76,6 @@
     </ClInclude>
     <ClInclude Include="source\ComplexNode_P.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Canvas.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\ColumnIndex.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Constants.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Default.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Enums.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Figure.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Palettes.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Plot.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Plot2D.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\sciplot.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\StringOrDouble.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Utils.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\Vec.hpp">
-      <Filter>Header Files\sciplot</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\AxisLabelSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\BorderSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\DepthSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\DrawSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\FilledCurvesSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\FillSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\FillStyleSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\FontSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\FrameSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\GridSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\GridSpecsBase.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\HistogramStyleSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\LabelSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\LayoutSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\LegendSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\LineSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\OffsetSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\PointSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\ShowSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\Specs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\TextSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\TicsSpecs.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\TicsSpecsBaseOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\TicsSpecsMajor.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\TicsSpecsMinor.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
-    </ClInclude>
-    <ClInclude Include="source\sciplot\specs\TitleSpecsOf.hpp">
-      <Filter>Header Files\sciplot\specs</Filter>
     </ClInclude>
     <ClInclude Include="source\dllMain.h">
       <Filter>Header Files</Filter>
@@ -219,6 +99,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="source\MemoryNode_P.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="source\RocketSim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

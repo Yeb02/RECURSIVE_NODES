@@ -4,12 +4,12 @@
 #include <memory>
 #include <cmath>
 #include <unordered_map>
+#include <fstream>
 
 #include "Random.h"
 #include "ComplexNode_P.h"
 #include "ComplexNode_G.h"
 
-//#include <boost/archive/text_iarchive.hpp>
 
 // Stores data on the parent's performances, for use in the selection process and potentially 
 // in GUIDED_MUTATIONS. Is not used (for now) in the dll, only the exe.
@@ -42,6 +42,9 @@ public:
 	Network(Network* n);
 	~Network() {};
 
+	Network(std::ifstream& is);
+	
+	void save(std::ofstream& os);
 
 	// TODO as of now, any topological difference in a node, between a secondary parent and 
 	// the primary parent, nullifies the contribution of the secondary parent to this node.

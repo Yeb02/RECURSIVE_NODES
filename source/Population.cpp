@@ -554,14 +554,15 @@ void Population::createOffsprings() {
 		return;
 	};
 
+	
 	for (int i = 0; i < nSpecimens; i++) {
 		if (UNIFORM_01 < phase1Probabilities[i]) {
-
+			if (i == fittestSpecimen) fittestSpecimen = nReconductedSpecimens; // happens once and only once
 			doEverything(i, nReconductedSpecimens);
 			nReconductedSpecimens++;
 		}
 	}
-	//std::cout << "reconducted fraction : " << (float)nReconductedSpecimens / (float)nSpecimens << std::endl;
+	std::cout << "reconducted fraction : " << (float)nReconductedSpecimens / (float)nSpecimens << std::endl;
 
 	// Compute probabilities for roulette wheel selection.
 	float invProbaSum = 0.0f;

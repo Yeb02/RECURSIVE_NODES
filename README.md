@@ -12,8 +12,8 @@ Implements a 3 loops optimization algorithm to tackle reinforcement learning cha
 
 &nbsp;
 ##### KNOWN BUGS: None, but partial evaluation and gradient guided mutations are for now incompatible and will cause a crash.
-##### IN PROGRESS: feed forward DNN memory with inline gradient descent, (generalized) mating.
-##### TODO: New visuals. Save a model or a population, with boost.serialize. And use it for heap defragmentation.
+##### IN PROGRESS: feed forward DNN memory with inline gradient descent.
+##### TODO: New visuals. Heap defragmentation. GPU port only when sufficient gains.
 &nbsp;
 
 ## USER GUIDE

@@ -1624,3 +1624,128 @@ float Network::getRegularizationLoss() {
 	float b = logf(inputSize + outputSize + (float)nParams[complexGenome.size()]);						// size term
 	return 0.0f*a + .5f * a * b + .5f*b; // normalized / ranked, so multiplying by a constant does nothing.
 }
+
+
+void Network::save(std::ofstream& os)
+{
+	int version = 0;
+	WRITE_4B(version, os); // version
+
+	WRITE_4B(inputSize, os);
+	WRITE_4B(outputSize, os);
+	WRITE_4B(currentMemoryNodeID, os);
+	WRITE_4B(currentComplexNodeID, os);
+
+	topNodeG->save(os);
+
+	int _s = (int)complexGenome.size();
+	WRITE_4B(_s, os);
+	for (int i = 0; i < complexGenome.size(); i++) {
+		complexGenome[i]->save(os);
+	}
+
+	for (int i = 0; i < topNodeG->complexChildren.size(); i++) {
+		WRITE_4B(topNodeG->complexChildren[i]->position, os);
+	}
+	for (int i = 0; i < topNodeG->memoryChildren.size(); i++) {
+		WRITE_4B(topNodeG->memoryChildren[i]->position, os);
+	}
+	for (int i = 0; i < complexGenome.size(); i++) {
+		int closestNode = complexGenome[i]->closestNode == NULL ?
+			-1 :
+			complexGenome[i]->closestNode->position;
+		WRITE_4B(closestNode, os);
+
+		for (int j = 0; j < complexGenome[i]->complexChildren.size(); j++) {
+			WRITE_4B(complexGenome[i]->complexChildren[j]->position, os);
+		}
+		for (int j = 0; j < complexGenome[i]->memoryChildren.size(); j++) {
+			WRITE_4B(complexGenome[i]->memoryChildren[j]->position, os);
+		}
+	}
+
+
+
+	_s = (int)memoryGenome.size();
+	WRITE_4B(_s, os);
+	for (int i = 0; i < memoryGenome.size(); i++) {
+		memoryGenome[i]->save(os);
+	}
+	for (int i = 0; i < memoryGenome.size(); i++) {
+		int closestNode = memoryGenome[i]->closestNode == NULL ?
+			-1 :
+			memoryGenome[i]->closestNode->position;
+		WRITE_4B(closestNode, os);
+	}
+}
+
+Network::Network(std::ifstream& is)
+{
+	int version;
+	READ_4B(version, is);
+	
+	READ_4B(inputSize, is);
+	READ_4B(outputSize, is);
+	READ_4B(currentMemoryNodeID, is);
+	READ_4B(currentComplexNodeID, is);
+
+	topNodeG = std::make_unique<ComplexNode_G>(is);
+
+	int _s;
+	READ_4B(_s, is);
+	complexGenome.resize(_s);
+	for (int i = 0; i < complexGenome.size(); i++) {
+		complexGenome[i] = std::make_unique<ComplexNode_G>(is);
+		complexGenome[i]->position = i;
+	}
+
+	topNodeG->position = (int)complexGenome.size();
+
+	for (int i = 0; i < topNodeG->complexChildren.size(); i++) {
+		READ_4B(_s, is);
+		topNodeG->complexChildren[i] = complexGenome[_s].get();
+	}
+	for (int i = 0; i < topNodeG->memoryChildren.size(); i++) {
+		READ_4B(_s, is);
+		topNodeG->memoryChildren[i] = memoryGenome[_s].get();
+	}
+
+	for (int i = 0; i < complexGenome.size(); i++) {
+		int closestNode;
+		READ_4B(closestNode, is);
+
+		complexGenome[i]->closestNode = closestNode == -1 ?
+			NULL :
+			complexGenome[closestNode].get();
+
+		for (int j = 0; j < complexGenome[i]->complexChildren.size(); j++) {
+			READ_4B(_s, is);
+			complexGenome[i]->complexChildren[j] = complexGenome[_s].get();
+		}
+		for (int j = 0; j < complexGenome[i]->memoryChildren.size(); j++) {
+			READ_4B(_s, is);
+			complexGenome[i]->memoryChildren[j] = memoryGenome[_s].get();
+		}
+	}
+
+	READ_4B(_s, is);
+	memoryGenome.resize(_s);
+	for (int i = 0; i < memoryGenome.size(); i++) {
+		memoryGenome[i] = std::make_unique<MemoryNode_G>(is);
+		memoryGenome[i]->position = i;
+	}
+	for (int i = 0; i < memoryGenome.size(); i++) {
+		int closestNode;
+		READ_4B(closestNode, is);
+		memoryGenome[i]->closestNode = closestNode == -1 ?
+			NULL :
+			memoryGenome[closestNode].get();
+	}
+
+
+	topNodeP.reset(NULL);
+
+	updateDepths();
+	updatePhenotypicMultiplicities();
+	createIDMaps();
+}
