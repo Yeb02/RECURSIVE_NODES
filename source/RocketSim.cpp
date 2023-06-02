@@ -6,7 +6,7 @@
 
 RocketSimTrial::RocketSimTrial(Arena* _arena, Car* _car)
 {
-	netInSize = 25; 
+	netInSize = 24; 
 	netOutSize = 8;
 	observations.resize(netInSize);
 
@@ -36,6 +36,8 @@ void RocketSimTrial::reset(bool sameSeed) {
 		initialCarState.vel = { 200.0f * UNIFORM_01, 200.0f * UNIFORM_01, 0.f };
 		Angle carAng = Angle(M_PI * 2.0f * (UNIFORM_01 - .5f), 0.0f, 0.0f);
 		initialCarState.rotMat = carAng.ToRotMat();
+
+		initialCarState.boost = 100.0f * UNIFORM_01;
 
 		initialBallState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), 92.75f};
 		//initialBallState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), 92.75f + UNIFORM_01  * 1900.0f};
@@ -128,7 +130,6 @@ void RocketSimTrial::setObservations() {
 	observations[i++] = carPitch2Ball * .6f; // raw in -pi/2, pi/2
 
 	observations[i++] = (currentCarState.isOnGround * 2.0f) - 1.0f;
-	observations[i++] = (currentCarState.isJumping * 2.0f) - 1.0f;
 	observations[i++] = (currentCarState.hasJumped * 2.0f) - 1.0f;
 }
 
@@ -138,7 +139,7 @@ void RocketSimTrial::step(const float* actions) {
 
 
 	if (currentNStep * tickStride >= TICK_LIMIT) {
-		score /= (currentNStep + 1) * 10000.0f; // 0 < score < 1.0f if this is how it ends.
+		score = 1.0f - score / ((float)currentNStep * 20000.0f); // 0 < score < 1.0f if this is how it ends. 20000.0f is above max dist.
 		isTrialOver = true;
 		return;
 	}
@@ -162,7 +163,7 @@ void RocketSimTrial::step(const float* actions) {
 
 	if (arena->tickCount - car->GetState().lastHitBallTick < tickStride) // ball was hit at this step
 	{
-		score = 1.0f + (float)(1 - currentNStep * tickStride) / TICK_LIMIT; 
+		score = 1.0f + 2.0f * (1.0f - (float)(currentNStep * tickStride) / (float)TICK_LIMIT);
 		isTrialOver = true;
 	}
 	currentNStep++;

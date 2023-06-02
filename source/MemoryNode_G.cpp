@@ -74,6 +74,14 @@ MemoryNode_G::MemoryNode_G(std::ifstream& is)
 	READ_4B(kernelDimension, is);
 	READ_4B(storage_decay, is);
 
+
+#ifdef STDP
+	READ_4B(STDP_decay_storage, is);
+#else
+	float _unused;
+	READ_4B(_unused, is);
+#endif
+
 	setBeta();
 
 	link = InternalConnexion_G(is);
@@ -94,6 +102,13 @@ void MemoryNode_G::save(std::ofstream& os)
 	
 	WRITE_4B(kernelDimension, os);
 	WRITE_4B(storage_decay, os);
+
+#ifdef STDP
+	WRITE_4B(STDP_decay_storage, os);
+#else
+	float unused = 0.0f;
+	WRITE_4B(unused, os);
+#endif
 	
 	link.save(os);
 
@@ -101,15 +116,21 @@ void MemoryNode_G::save(std::ofstream& os)
 	os.write(reinterpret_cast<const char*>(Q.get()), s * sizeof(float));
 }
 
-void MemoryNode_G::mutateFloats() {
-	constexpr float p = .2f;
+void MemoryNode_G::mutateFloats(float adjustedFMutationP) {
+	float p = adjustedFMutationP * log2f((float)phenotypicMultiplicity + 1.0f) / (float)phenotypicMultiplicity;
 
 	link.mutateFloats(p);
 	
 	if (UNIFORM_01 < p) {
-		storage_decay *= .8f + NORMAL_01 * .2f;
+		storage_decay *= .9f + NORMAL_01 * .1f;
 		storage_decay += NORMAL_01 * .1f;
 	}
+#ifdef STDP
+	if (UNIFORM_01 < p) {
+		STDP_decay_storage *= .9f + NORMAL_01 * .1f;
+		STDP_decay_storage += NORMAL_01 * .1f;
+	}
+#endif
 	
 
 	int s = inputSize * kernelDimension;

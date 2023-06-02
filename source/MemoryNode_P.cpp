@@ -22,7 +22,7 @@ MemoryNode_P::MemoryNode_P(MemoryNode_G* _type) :
 
 
 void MemoryNode_P::forward() {
-
+	
 	// vars defined for readability:
 	
 	float ksi1 = (tanhf(modulation[2]) + 1.0f) * .5f; // from R to [0, 1]
@@ -81,7 +81,7 @@ void MemoryNode_P::forward() {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * alpha[matID] * H[matID] * modulation[1];
+				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * E[matID] * modulation[1];
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
 					(A[matID] * outputBuffer[i] * input[j] + 
@@ -192,10 +192,22 @@ void MemoryNode_P::forward() {
 	}
 }
 
-void MemoryNode_P::setArrayPointers(float** cpsa, float** psa, float* globalModulation) {
-	output = *cpsa;
-	input = *psa;
+void MemoryNode_P::setArrayPointers(float* post_syn_acts, float* pre_syn_acts, float* globalModulation, float** aa, float** acc_pre_syn_acts) {
+	output = post_syn_acts;
+	input = pre_syn_acts;
 	modulation = globalModulation;
+
+
+#ifdef SATURATION_PENALIZING
+	saturationArray = *aa;
+	*aa += type->inputSize + type->outputSize;
+#endif
+	
+
+#ifdef STDP
+	accumulatedInput = *acc_pre_syn_acts;
+	*acc_pre_syn_acts += type->inputSize;
+#endif
 }
 
 void MemoryNode_P::preTrialReset() {

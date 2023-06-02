@@ -2,7 +2,7 @@ import os
 from ctypes import *
 
 MODE  = r"Release" # "Debug" or "Release"
-
+print(os.getcwd())
 try:
     dll_path = os.path.normpath(os.getcwd() + os.sep + os.pardir) + \
            r"\\x64\\" + MODE + r"\\RECURSIVE_NODES.dll"
@@ -12,8 +12,16 @@ except:
         dll_path = "RECURSIVE_NODES.dll"
         libc = cdll.LoadLibrary(dll_path)
     except:
-        dll_path = os.getcwd() + r"\\x64\\" + MODE + r"\\RECURSIVE_NODES.dll"
-        libc = cdll.LoadLibrary(dll_path)
+        try:
+            dll_path = os.getcwd() + r"\\x64\\" + MODE + r"\\RECURSIVE_NODES.dll"
+            libc = cdll.LoadLibrary(dll_path)
+        except:
+            try:
+                dll_path = os.getcwd() + r"\\src\\RECURSIVE_NODES.dll"
+                libc = cdll.LoadLibrary(dll_path)
+            except:
+                dll_path = r"src\\RECURSIVE_NODES.dll"
+                libc = cdll.LoadLibrary(dll_path)
 
 
 create_population = libc.create_population
@@ -27,6 +35,10 @@ mutate_population.restype = None
 get_network_handle = libc.get_network_handle
 get_network_handle.argtypes = [c_void_p, c_int]
 get_network_handle.restype = c_void_p
+
+load_existing_network = libc.load_existing_network
+load_existing_network.argtypes = [c_char_p]
+load_existing_network.restype = c_void_p
 
 get_fittest_network_handle = libc.get_fittest_network_handle
 get_fittest_network_handle.argtypes = [c_void_p]
@@ -60,13 +72,26 @@ destroy_population = libc.destroy_population
 destroy_population.argtypes = [c_void_p]
 destroy_population.restype = None
 
-initialize_drawer = libc.initialize_drawer
-initialize_drawer.argtypes = [c_int, c_int]
-initialize_drawer.restype = c_void_p
+is_drawing_enabled = libc.is_drawing_enabled
+is_drawing_enabled.argtypes = []
+is_drawing_enabled.restype = c_int
 
-draw_network = libc.draw_network
-draw_network.argtypes = [c_void_p, c_void_p, c_int]
-draw_network.restype = None
+get_observations_size = libc.get_observations_size
+get_observations_size.argtypes = [c_void_p]
+get_observations_size.restype = int
+
+get_actions_size = libc.get_actions_size
+get_actions_size.argtypes = [c_void_p]
+get_actions_size.restype = int
+
+if is_drawing_enabled() != 0:
+    initialize_drawer = libc.initialize_drawer
+    initialize_drawer.argtypes = [c_int, c_int]
+    initialize_drawer.restype = c_void_p
+
+    draw_network = libc.draw_network
+    draw_network.argtypes = [c_void_p, c_void_p, c_int]
+    draw_network.restype = None
 
 
 #utils:

@@ -63,7 +63,36 @@ extern "C" {
 		std::copy(actionsTemp, actionsTemp+n->outputSize, actions);
 	}
 
+	RECURSIVE_NODES_API Network* load_existing_network(const char* path) {
+		std::ifstream is(path, std::ios::binary);
+		if (!is.is_open()) {
+			std::string path_s(path);
+			std::cout << "SPECIFIED NETWORK WAS NOT FOUND. PATH WAS : \n" 
+				<< path_s << std::endl;
+			return nullptr;
+		}
+		return new Network(is);
+	}
+
+	RECURSIVE_NODES_API int get_observations_size(Network* n) {
+		return n->inputSize;
+	}
+
+	RECURSIVE_NODES_API int get_actions_size(Network* n) {
+		return n->outputSize;
+	}
+
+	RECURSIVE_NODES_API int is_drawing_enabled() {
 #ifdef DRAWING
+		return 1;
+#else
+		return 0;
+#endif
+	}
+
+#ifdef DRAWING
+	const int drawing_enabled = 1;
+
 	RECURSIVE_NODES_API Drawer* initialize_drawer(int w, int h) {
 		return new Drawer(w, h);
 	}

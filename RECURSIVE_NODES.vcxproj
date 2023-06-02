@@ -21,7 +21,6 @@
   <ItemGroup>
     <ClCompile Include="source\dllMain.cpp" />
     <ClCompile Include="source\ComplexNode_G.cpp" />
-    <ClCompile Include="source\Environment.cpp" />
     <ClCompile Include="source\InternalConnexion_G.cpp" />
     <ClCompile Include="source\MemoryNode_G.cpp" />
     <ClCompile Include="source\MemoryNode_P.cpp" />
@@ -31,7 +30,6 @@
     <ClCompile Include="source\Population.cpp" />
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\Random.cpp" />
-    <ClCompile Include="source\RocketSim.cpp" />
     <ClCompile Include="source\Trial.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -39,7 +37,6 @@
     <ClInclude Include="source\dllMain.h" />
     <ClInclude Include="source\Drawer.h" />
     <ClInclude Include="source\ComplexNode_G.h" />
-    <ClInclude Include="source\Environment.h" />
     <ClInclude Include="source\InternalConnexion_G.h" />
     <ClInclude Include="source\MemoryNode_G.h" />
     <ClInclude Include="source\MemoryNode_P.h" />
@@ -48,7 +45,6 @@
     <ClInclude Include="source\InternalConnexion_P.h" />
     <ClInclude Include="source\Population.h" />
     <ClInclude Include="source\Random.h" />
-    <ClInclude Include="source\RocketSim.h" />
     <ClInclude Include="source\Trial.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -77,7 +73,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
-    <EnableASAN>false</EnableASAN>
+    <EnableASAN>true</EnableASAN>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>

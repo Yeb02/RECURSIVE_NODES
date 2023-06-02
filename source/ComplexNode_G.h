@@ -13,21 +13,6 @@
 #include "MemoryNode_G.h"
 #include "InternalConnexion_G.h"
 
-// Constants:
-#define MAX_COMPLEX_CHILDREN_PER_COMPLEX  10
-#define MAX_MEMORY_CHILDREN_PER_COMPLEX  5
-#define MAX_COMPLEX_INPUT_NODE_SIZE  10          // Does not apply to the top node
-#define MAX_COMPLEX_OUTPUT_SIZE  10         // Does not apply to the top node
-
-
-// TODO : implement DERIVATOR, that outputs the difference between INPUT_NODE at this step and INPUT_NODE at the previous step.
-// CENTERED_TANH(x) = tanhf(x) * expf(-x*x) * 1/.375261
-// I dont really know what to expect from non-monotonous functions when it comes to applying 
-// hebbian updates... It does not make much sense. But I plan to add cases where activations
-// do not use hebbian rules.
-
-#define N_ACTIVATIONS  2 // only using TANH and GAUSSIAN for now
-const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, RELU = 2, LOG2 = 3, EXP2 = 4, SINE = 5, CENTERED_TANH = 6 };
 
 
 // Util:
@@ -140,15 +125,32 @@ struct ComplexNode_G {
 	// arrays indicating the activation function to use on each presynaptic input.
 	std::vector<ACTIVATION> complexActivations, memoryActivations, outputActivations;
 
-	// Precomputed for efficiency, = outputSize + MODULATION_VECTOR_SIZE + sum(complexChildren.inputSize)
-	int memoryPreSynOffset;
-	// to be called after creation and mutations
-	void computeMemoryPreSynOffset() {
-		int s = outputSize + MODULATION_VECTOR_SIZE;
-		for (int i = 0; i < complexChildren.size(); i++) {
-			s += complexChildren[i]->inputSize;
-		}
-		memoryPreSynOffset = s;
+#ifdef STDP
+	// [0] used in forward by its phenotypic parent for this node's input
+	// [1] used in forward by its phenotypic parent for this node's output
+	// [2] used by its phenotypic version for the modulation
+	float STDP_decays[3], STDP_decay_storage[3];
+#endif
+
+	// to be called only by network::createPhenotype
+	void transform01Parameters() {
+		toComplex.transform01Parameters();
+		toMemory.transform01Parameters();
+		toModulation.transform01Parameters();
+		toOutput.transform01Parameters();
+
+#ifdef STDP
+		STDP_decays[0] = .5f * (tanhf(STDP_decay_storage[0]) + 1.0f);
+		STDP_decays[1] = .5f * (tanhf(STDP_decay_storage[1]) + 1.0f);
+		STDP_decays[2] = .5f * (tanhf(STDP_decay_storage[2]) + 1.0f);
+#endif
+	}
+
+	// returns the number of evolved floating point parameters. As of now, the toX matrices sets and the biases.
+	int getNParameters() 
+	{
+		return  toComplex.getNParameters() + toModulation.getNParameters() + toMemory.getNParameters() + toOutput.getNParameters()
+			+ complexBiasSize + memoryBiasSize + outputSize + MODULATION_VECTOR_SIZE; // biases
 	}
 
 	// Allocates and randomly initializes internal connexions.
@@ -160,11 +162,10 @@ struct ComplexNode_G {
 	// genomeState is an array of the size of the genome, which has 1s where the node's depth is known and 0s elsewhere
 	void updateDepth(std::vector<int>& genomeState);
 
-	// Compute the size of the array containing the pre synaptic activations of the phenotype.
+	// Compute the size of the array containing the pre synaptic activations of the phenotype, preSynActs
 	void computePreSynActArraySize(std::vector<int>& genomeState);
 
-	// Compute the size of the 2 arrays containing the post synaptic activations of the phenotype,
-	// previousPostSynAct and currentPostSynAct.
+	// Compute the size of the array containing the post synaptic activations of the phenotype, postSynAct.
 	void computePostSynActArraySize(std::vector<int>& genomeState);
 
 
@@ -175,10 +176,10 @@ struct ComplexNode_G {
 #endif 
 
 	// Mutate real-valued floating point parameters.
-	void mutateFloats();
+	void mutateFloats(float adjustedFMutationP);
 
 	// Mutate the non linearities entering the modulation, complex and memory children, and output.
-	void mutateActivations();
+	void mutateActivations(float adjustedFMutationP);
 
 	// Add the specified child to the node. After the call to this function, depths, genome order, and 
 	// phenotypic multiplicities must be manually updated.

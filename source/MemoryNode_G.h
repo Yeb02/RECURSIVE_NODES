@@ -40,6 +40,9 @@ struct MemoryNode_G {
 
 	// controls the exponential average decay speed of candidate memory, the higher the faster.
 	float decay, storage_decay;
+#ifdef STDP
+	float STDP_decay, STDP_decay_storage;
+#endif
 
 	// = 1 / sqrt(kernelDim * InSize) ?
 	float beta;
@@ -61,7 +64,22 @@ struct MemoryNode_G {
 	MemoryNode_G(std::ifstream& is);
 	void save(std::ofstream& os);
 
-	void mutateFloats();
+	void transform01Parameters() {
+		link.transform01Parameters();
+
+		decay = (tanhf(storage_decay) + 1.0f) * .5f;
+#ifdef STDP
+		STDP_decay = (tanhf(STDP_decay_storage) + 1.0f) * .5f;
+#endif
+	}
+
+	int getNParameters() {
+
+		return kernelDimension * inputSize + // Q
+			link.getNParameters();
+	}
+
+	void mutateFloats(float adjustedFMutationP);
 
 	bool incrementInputSize();
 	bool incrementOutputSize();

@@ -29,16 +29,21 @@ struct ComplexNode_P {
 	// These arrays are not managed by Complex node, but by Network:
 	 
 
-	// Arranged in this order: input -> modulation.out -> complexChildren.out -> memoryChildren.out
-	float* previousPostSynAct; 
 
 	// Used as the multiplied vector in matrix operations.
 	// Arranged in this order: input -> modulation.out -> complexChildren.out -> memoryChildren.out
-	float* currentPostSynAct;
+	float* postSynActs;
 
 	// Used as the result vector in matrix operations.
-	// Arranged in this order: output -> modulation.int -> complexChildren.in -> memoryChildren.in
-	float* preSynAct;
+	// Arranged in this order: output -> modulation.in -> complexChildren.in -> memoryChildren.in
+	float* preSynActs;
+
+#ifdef STDP
+	// Same layout as PreSynActs, i.e.
+	// output -> modulation.in -> complexChildren.in -> memoryChildren.in
+	float* accumulatedPreSynActs;
+#endif
+
 #ifdef SATURATION_PENALIZING
 	float* averageActivation;
 #endif
@@ -66,8 +71,10 @@ struct ComplexNode_P {
 	void accumulateW(float factor);
 #endif
 
-	// The last parameters is optional and only used when SATURATION_PENALIZING is defined.
-	void setArrayPointers(float** ppsa, float** cpsa, float** psa, float** aa = nullptr);
+	// The last 2 parameters are optional :
+	// - aa only used when SATURATION_PENALIZING is defined
+	// - acc_pre_syn_acts only used when STDP is defined
+	void setArrayPointers(float** pre_syn_acts, float** post_syn_acts, float** aa, float** acc_pre_syn_acts);
 
 #ifdef SATURATION_PENALIZING
 	void setglobalSaturationAccumulator(float* globalSaturationAccumulator);

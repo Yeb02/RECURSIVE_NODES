@@ -10,6 +10,11 @@
 
 #include "config.h"
 
+#ifdef CONTINUOUS_LEARNING
+#define N_EVOLVED_ARRAYS 8
+#else
+#define N_EVOLVED_ARRAYS 7
+#endif
 
 
 struct InternalConnexion_G {
@@ -54,6 +59,10 @@ struct InternalConnexion_G {
 
 	InternalConnexion_G(std::ifstream& is);
 	void save(std::ofstream& os);
+
+	int getNParameters() {
+		return N_EVOLVED_ARRAYS * nLines * nColumns;
+	}
 
 	// Maps stored_X to X for all parameters X that are used at runtime in the range [0,1]
 	// but stored in the range R. Typically exponential average decays. 

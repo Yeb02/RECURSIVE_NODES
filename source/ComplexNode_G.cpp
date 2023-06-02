@@ -25,12 +25,17 @@ ComplexNode_G::ComplexNode_G(int inputSize, int outputSize) :
 	complexBiasSize = 0;
 	memoryBiasSize = 0;
 
+#ifdef STDP
+	STDP_decay_storage[0] = NORMAL_01 * .2f;
+	STDP_decay_storage[1] = NORMAL_01 * .2f;
+	STDP_decay_storage[2] = NORMAL_01 * .2f;
+#endif
+
 	// The following initializations MUST be done outside.
 	{
 		depth = -1;
 		position = -1;
 		phenotypicMultiplicity = -1;
-		memoryPreSynOffset = -1;
 		complexNodeID = -1;
 	}
 };
@@ -46,6 +51,11 @@ ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 	toModulation = n->toModulation;
 	toOutput = n->toOutput;
 
+#ifdef STDP
+	STDP_decay_storage[0] = n->STDP_decay_storage[0];
+	STDP_decay_storage[1] = n->STDP_decay_storage[1];
+	STDP_decay_storage[2] = n->STDP_decay_storage[2];
+#endif
 
 	outputBias.assign(n->outputBias.begin(), n->outputBias.end());
 	complexBias.assign(n->complexBias.begin(), n->complexBias.end());
@@ -65,7 +75,6 @@ ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 	position = n->position;
 	mutationalDistance = n->mutationalDistance;
 	phenotypicMultiplicity = n->phenotypicMultiplicity;
-	memoryPreSynOffset = n->memoryPreSynOffset;
 
 	// The following enclosed section is useless if n is not part of the same network as "this", 
 	// and it must be repeated where this function was called.
@@ -104,6 +113,17 @@ ComplexNode_G::ComplexNode_G(std::ifstream& is) {
 	READ_4B(complexNodeID, is);
 	READ_4B(mutationalDistance, is);
 
+#ifdef STDP
+	READ_4B(STDP_decay_storage[0], is);
+	READ_4B(STDP_decay_storage[1], is);
+	READ_4B(STDP_decay_storage[2], is);
+#else
+	float _unused;
+	READ_4B(_unused, is);
+	READ_4B(_unused, is);
+	READ_4B(_unused, is);
+#endif
+
 	outputBias.resize(outputSize);
 	outputActivations.resize(outputSize);
 	is.read(reinterpret_cast<char*>(outputBias.data()), outputSize * sizeof(float));
@@ -129,8 +149,6 @@ ComplexNode_G::ComplexNode_G(std::ifstream& is) {
 	toModulation = InternalConnexion_G(is);
 	toOutput = InternalConnexion_G(is);
 
-
-	computeMemoryPreSynOffset();
 }
 
 void ComplexNode_G::save(std::ofstream& os) {
@@ -146,6 +164,17 @@ void ComplexNode_G::save(std::ofstream& os) {
 
 	WRITE_4B(complexNodeID, os);
 	WRITE_4B(mutationalDistance, os);
+
+#ifdef STDP
+	WRITE_4B(STDP_decay_storage[0], os);
+	WRITE_4B(STDP_decay_storage[1], os);
+	WRITE_4B(STDP_decay_storage[2], os);
+#else
+	float unused = 0.0f;
+	WRITE_4B(unused, os);
+	WRITE_4B(unused, os);
+	WRITE_4B(unused, os);
+#endif
 
 	os.write(reinterpret_cast<const char*>(outputBias.data()), outputSize * sizeof(float));
 	os.write(reinterpret_cast<const char*>(outputActivations.data()), outputSize * sizeof(ACTIVATION));
@@ -213,8 +242,8 @@ void ComplexNode_G::computeBiasSizes() {
 	memoryBiasSize = _s;
 }
 
-void ComplexNode_G::mutateFloats() {
-	constexpr float p = .4f;
+void ComplexNode_G::mutateFloats(float adjustedFMutationP) {
+	float p = adjustedFMutationP * log2f((float)phenotypicMultiplicity + 1.0f) / (float)phenotypicMultiplicity;
 
 	toComplex.mutateFloats(p);
 	toMemory.mutateFloats(p);
@@ -222,13 +251,13 @@ void ComplexNode_G::mutateFloats() {
 	toOutput.mutateFloats(p);
 
 	
-	auto mutateBiasArray =  [] (float* v, int size)
+	auto mutateBiasArray =  [p] (float* v, int size)
 	{
 		SET_BINOMIAL(size, p);
 		int _nMutations = BINOMIAL;
 		for (int i = 0; i < _nMutations; i++) {
 			int id = INT_0X(size);
-			v[id] *= .8f + NORMAL_01 * .2f; // .8 < 1 to drive the weight towards 0.
+			v[id] *= .9f + NORMAL_01 * .1f; // .9 < 1 to drive the weight towards 0.
 			v[id] += NORMAL_01 * .2f;
 		}
 	};
@@ -237,13 +266,18 @@ void ComplexNode_G::mutateFloats() {
 	mutateBiasArray(outputBias.data(), outputSize);
 	mutateBiasArray(complexBias.data(), complexBiasSize);
 	mutateBiasArray(memoryBias.data(), memoryBiasSize);
+
+#ifdef STDP
+	// not really biases, but it will do
+	mutateBiasArray(STDP_decay_storage, 3);
+#endif
 		
 }
 
-void ComplexNode_G::mutateActivations() {
-	constexpr float p = .05f;
+void ComplexNode_G::mutateActivations(float adjustedFMutationP) {
+	float p = adjustedFMutationP * log2f((float)phenotypicMultiplicity + 1.0f) / (float)phenotypicMultiplicity;
 
-	auto mutateActivationsArray = [](ACTIVATION* v, int size)
+	auto mutateActivationsArray = [p](ACTIVATION* v, int size)
 	{
 		SET_BINOMIAL(size, p);
 		int _nMutations = BINOMIAL;
@@ -625,8 +659,7 @@ void ComplexNode_G::computePreSynActArraySize(std::vector<int>& genomeState) {
 		s += genomeState[complexChildren[i]->position];
 	}
 	for (int i = 0; i < memoryChildren.size(); i++) {
-		s += memoryChildren[i]->inputSize; // this node's phenotype only uses the memory child's preSyn input
-		s += memoryChildren[i]->outputSize; // while the child itself only uses its preSyn output.
+		s += memoryChildren[i]->inputSize; 
 	}
 	genomeState[position] = s;
 }
@@ -641,8 +674,7 @@ void ComplexNode_G::computePostSynActArraySize(std::vector<int>& genomeState) {
 		s += genomeState[complexChildren[i]->position];
 	}
 	for (int i = 0; i < memoryChildren.size(); i++) {
-		s += memoryChildren[i]->outputSize; // this node's phenotype only uses the memory child's postSyn output
-		s += memoryChildren[i]->outputSize + memoryChildren[i]->outputSize; // while the child itself uses its postSyn input and output.
+		s += memoryChildren[i]->outputSize;
 	}
 	genomeState[position] = s;
 }
@@ -658,10 +690,11 @@ void ComplexNode_G::computeSaturationArraySize(std::vector<int>& genomeState) {
 		s += genomeState[complexChildren[i]->position];
 	}
 	for (int i = 0; i < memoryChildren.size(); i++) {
-		s += memoryChildren[i]->inputSize;
+		s += memoryChildren[i]->inputSize + memoryChildren[i]->outputSize;
 	}
 	genomeState[position] = s;
 }
 #endif 
+
 
 

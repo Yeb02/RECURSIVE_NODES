@@ -5,24 +5,27 @@
 ///// USER COMPILATION CHOICES /////
 ////////////////////////////////////
 
-// Comment or uncomment the preprocessor directives to compile versions of the code
+
+
+
+// Comment or uncomment the preprocessor directives to compile different versions of the code
 // Or use the -D flag.
 
 
 
 // Draws one of the fittest specimens at each step, using SFML. Requires the appropriate DLLs 
 // alongside the generated executable, details on setup in readme.md .
-#define DRAWING 
+//#define DRAWING 
 
 
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
 // These do not affect the DLL.
-//#define CARTPOLE_T
+#define CARTPOLE_T
 //#define XOR_T
 //#define TMAZE_T
 //#define N_LINKS_PENDULUM_T
 //#define MEMORY_T
-#define ROCKET_SIM_T // for now, path are hardcoded in the project properties (linker->input), in main.cpp and in RocketSim.h.
+//#define ROCKET_SIM_T // for now, path are hardcoded in the project properties (linker->input), in main.cpp and in RocketSim.h.
 
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
@@ -34,15 +37,11 @@
 
 // IN DEVELOPPEMENT
 // When defined, tries to deduce information on the desirable mutation direction from weights learned over lifetime.
-// WIP. On continuous cartpole, CONTINUOUS_LEARNING + GUIDED_MUTATIONS drastically improve convergence speed. (You 
-// may need to increase the value fed to accumulateW in Network::postTrialUpdate(), to 10 or 50., and accumulatorClipRange to
-// 1.0 or 2.0 in ComplexNode_G::mutateFloats()). Accumulators are reset to 0 after a call to mutate floats.
 // Adding a factor decreasing the effect over generations could be interesting, TODO .
 // TODO toggle zeroing of wLifetime at trial end. If off, the accumulation should only happen at lifetime's end.
-//#define GUIDED_MUTATIONS
+#define GUIDED_MUTATIONS
 
 
-// IN DEVELOPPEMENT
 // When defined, for each network, float sp = sum of a function F of each activation of the network, at each step.
 // F is of the kind pow(activation, 2*k), so that its symmetric around 0 and decreasing in [-1,0]. (=> increasing in [0, -1])
 // At the end of the lifetime, sp is divided by the numer of steps and the number of activations, as both may differ from
@@ -58,10 +57,21 @@
 //#define DNN_MEMORY
 
 
-/*********************************************************************************************************
-		Various minor options, that appear here to avoid jumping from one file to another:
-**********************************************************************************************************/
 
+// Constants:
+#define MAX_COMPLEX_CHILDREN_PER_COMPLEX  10
+#define MAX_MEMORY_CHILDREN_PER_COMPLEX  5
+#define MAX_COMPLEX_INPUT_NODE_SIZE  10          // Does not apply to the top node
+#define MAX_COMPLEX_OUTPUT_SIZE  10				 // Does not apply to the top node
+
+
+// TODO : implement DERIVATOR, that outputs the difference between INPUT_NODE at this step and INPUT_NODE at the previous step.
+// CENTERED_TANH(x) = tanhf(x) * expf(-x*x) * 1/.375261
+// I dont really know what to expect from non-monotonous functions when it comes to applying 
+// hebbian updates... It does not make much sense. But I plan to add cases where activations
+// do not use hebbian rules.
+#define N_ACTIVATIONS  1 // only activation functions < N_ACTIVATIONS are used
+const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, LOG2 = 2, EXP2 = 3, RELU = 4, SINE = 5, CENTERED_TANH = 6 };
 
 	
 // Usually, when there are several aspects to a task, an average over performances on each task (here, trial) is used to 
@@ -76,3 +86,11 @@
 // Maximum number of generations since last common ancestor of two  (of the) specimens combined to form a new specimen. >= 2.
 #define MAX_MATING_DEPTH 10
 
+
+// When defined, presynaptic activities of complexNodes (topNode excepted) are an exponential moving average. Each complex node
+// has a parameter used by its parent
+#define STDP
+
+#define RANDOM_W
+
+#define OJA

@@ -121,13 +121,19 @@ private:
 	// Must be : - reset to all 0s at the start of each trial;
 	//			 - created alongside ComplexNode_P creation; 
 	//           - freed alongside ComplexNode_P deletion.
+	// Layout detailed in the Phenotype structs.
+	std::unique_ptr<float[]> postSynActs, preSynActs;
 
-	std::unique_ptr<float[]> previousPostSynActs;
-	std::unique_ptr<float[]> currentPostSynActs;
-	std::unique_ptr<float[]> preSynActs;
+#ifdef STDP
+	// same size and layout that of preSynActs.
+	std::unique_ptr<float[]> accumulatedPreSynActs;
+#endif
 
-	// size of previousPostSynActs and currentPostSynActs
+	// size of postSynActs
 	int postSynActArraySize;
+
+	// size of preSynActs
+	int preSynActsArraySize;
 
 	// How many inferences were performed since last call to preTrialReset by the phenotype.
 	int nInferencesOverTrial;

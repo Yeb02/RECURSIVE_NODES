@@ -35,9 +35,9 @@ int main()
 #ifdef _DEBUG
     nThreads = 1;
 #endif
-    int nSpecimens = nThreads * 4; //16 -> 512
-    int nDifferentTrials = 4;
-    int nSteps = 1;
+    int nSpecimens = nThreads * 128; //16 -> 512
+    int nDifferentTrials = 1;
+    int nSteps = 2000;
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
     // different kinds of trials can be put in the vector.
@@ -61,14 +61,14 @@ int main()
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { -1.0f, .25f };
+    params.selectionPressure = { -2.0f, .25f };
     params.useSameTrialInit = true;
     params.rankingFitness = true;
-    params.saturationFactor = 0.0f;
-    params.regularizationFactor = 0.0f; 
+    params.saturationFactor = 0.03f;
+    params.regularizationFactor = 0.03f; 
     params.competitionFactor = 0.0f; 
-    params.scoreBatchTransformation = NONE;
-    params.nParents = 10;
+    params.scoreBatchTransformation = RANK;
+    params.nParents = 20;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
     population.setEvolutionParameters(params); 
@@ -107,39 +107,44 @@ int main()
         }
 #endif
 
-        // params.selectionPressure = sinf((float)i / 2.0f) - .5f;
+        // params.selectionPressure.second = sinf((float)i / 2.0f) - .5f;
         //population.setEvolutionParameters(params); // parameters can be changed at each step.
         population.step(trials, _nTrialsEvaluated);
 
-
-        //if ((i + 1) % 10000 == 0) population.defragmentate(); // Defragmentate. Not implemented yet.
+        if ((i + 1) % 100 == 0) {
+            population.saveFittestSpecimen();
+        }
     }
+
     population.stopThreads();
 
-    trials[0]->reset(false);
-    Network* n = population.getSpecimenPointer(population.fittestSpecimen);
-    n->createPhenotype(); 
-    n->preTrialReset();
-    while (!trials[0]->isTrialOver) {
-        n->step(trials[0]->observations);
-        trials[0]->step(n->getOutput());
-    }
-    LOG("Best specimen's score on new trial = " << trials[0]->score);
+    // Tests.
+    /*{
+        trials[0]->reset(false);
+        Network* n = population.getSpecimenPointer(population.fittestSpecimen);
+        n->createPhenotype();
+        n->preTrialReset();
+        while (!trials[0]->isTrialOver) {
+            n->step(trials[0]->observations);
+            trials[0]->step(n->getOutput());
+        }
+        LOG("Best specimen's score on new trial = " << trials[0]->score);
 
-    population.saveFittestSpecimen();
+        population.saveFittestSpecimen();
 
-    std::ifstream is("topNet.renon", std::ios::binary);
-    trials[0]->reset(true);
-    n = new Network(is);
-    LOG("Loaded.")
-    n->createPhenotype();
-    n->preTrialReset();
-    while (!trials[0]->isTrialOver) {
-        n->step(trials[0]->observations);
-        trials[0]->step(n->getOutput());
-    }
-    delete n;
-    LOG("Reloaded best specimen's score on the same trial = " << trials[0]->score);
+        std::ifstream is("topNet.renon", std::ios::binary);
+        trials[0]->reset(true);
+        n = new Network(is);
+        LOG("Loaded.")
+            n->createPhenotype();
+        n->preTrialReset();
+        while (!trials[0]->isTrialOver) {
+            n->step(trials[0]->observations);
+            trials[0]->step(n->getOutput());
+        }
+        delete n;
+        LOG("Reloaded best specimen's score on the same trial = " << trials[0]->score);
+    }*/ 
 
     return 0;
 }

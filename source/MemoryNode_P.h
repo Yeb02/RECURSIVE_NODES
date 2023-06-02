@@ -35,6 +35,13 @@ struct MemoryNode_P {
 	float* modulation;
 	float* input;
 	float* output;
+#ifdef SATURATION_PENALIZING
+	float* saturationArray;
+#endif
+#ifdef STDP
+	// used by its complex parent.
+	float* accumulatedInput;
+#endif
 
 	// Size outputSize, used to hold temporary value during inference.
 	std::unique_ptr<float[]> outputBuffer;
@@ -63,7 +70,7 @@ struct MemoryNode_P {
 
 	void forward();
 
-	void setArrayPointers(float** cpsa, float** psa, float* globalModulation);
+	void setArrayPointers(float* post_syn_acts, float* pre_syn_acts, float* globalModulation, float** aa, float** acc_pre_syn_acts);
 
 	void preTrialReset();
 };
