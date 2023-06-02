@@ -35,11 +35,11 @@
 #define CONTINUOUS_LEARNING
 
 
-// IN DEVELOPPEMENT
+// IN DEVELOPPEMENT. Incompatible with RANDOM_W.
 // When defined, tries to deduce information on the desirable mutation direction from weights learned over lifetime.
 // Adding a factor decreasing the effect over generations could be interesting, TODO .
 // TODO toggle zeroing of wLifetime at trial end. If off, the accumulation should only happen at lifetime's end.
-#define GUIDED_MUTATIONS
+//#define GUIDED_MUTATIONS
 
 
 // When defined, for each network, float sp = sum of a function F of each activation of the network, at each step.
@@ -91,6 +91,13 @@ const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, LOG2 = 2, EXP2 = 3, RELU = 4, SI
 // has a parameter used by its parent
 #define STDP
 
+// The fixed weights w are not evolved anymore, but set randomly (uniform(-.1,.1)) at the beginning of each trial. This also means
+// that it is now InternalConnexion_P and not InternalConnexion_G that handles the w matrix. Incompatible with GUIDED_MUTATIONS.
+#ifndef GUIDED_MUTATIONS
 #define RANDOM_W
+#endif
 
+// Adds Oja's rule to the ABCD rule. This requires the addition of the matrices delta and storage_delta to InternalConnexion_G, 
+// deltas being in the [0, 1] range. The update of E is now :  E = (1-eta)E + eta(ABCD... - delta*yj*yj*w_eff),  where w_eff is the 
+// effective weight, something like w_eff = w + alpha * H + wL.    Delta_storage are initialized centered on -1.
 #define OJA

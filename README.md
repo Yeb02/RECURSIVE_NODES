@@ -8,10 +8,10 @@ Implements a 3 loops optimization algorithm to tackle reinforcement learning cha
 <p align="center">
   <img src="Capture.PNG">
 </p>
-<em>Visualization of one network. The numbers inside circles correspond to the node 'Node n°X'.</em>
+<em>Obsolete visual</em>
 
 &nbsp;
-##### KNOWN BUGS: None, but partial evaluation and gradient guided mutations are for now incompatible and will cause a crash.
+##### KNOWN BUGS: Stable, BUT   partial evaluation and gradient guided mutations are for now incompatible and will cause a crash. If you do not have a rocketSim install you may want to exclude rocketSim.h and rocketSim.cpp from the solution. And Release and Debug have wildly different performance, to be investigated.
 ##### IN PROGRESS: feed forward DNN memory with inline gradient descent.
 ##### TODO: New visuals. Heap defragmentation. GPU port only when sufficient gains.
 &nbsp;
@@ -21,7 +21,7 @@ Implements a 3 loops optimization algorithm to tackle reinforcement learning cha
 #### Several variations of the algorithm are implemented, change the active preprocessor directives in config.h to compile a custom version. More info in the file. The project can be compiled into an executable or a dll.
 &nbsp;
 
-With the executable, one can experiment with the algorithm, and use all of its features. It can be tested on the implemented c++ trials. As of now, 5 trials are implemented: XoR with memorization, gym's cartpole, T-Maze, N-Links pendulum, and Key-value memorization. More to come !
+With the executable, one can experiment with the algorithm, and use all of its features. It can be tested or on rocketSim and then in Rocket league with RLBot, or on the some simple c++ trials. As of now, 5 trials are implemented: XoR with memorization, gym's cartpole, T-Maze, N-Links pendulum, and Key-value memorization. More to come !
 
 The dll has limited features, especially when it comes to the evolutionary algorithm. It is meant to be used in python with ctypes, for benchmarking on openAI's gym's (now gymnasium) for instance. A demo can be found in python\gym_cartpole.py. 
 

@@ -21,6 +21,7 @@ using namespace std;
 
 int main()
 {
+    LOG("Seed : " << seed);
 
 #ifdef ROCKET_SIM_T
     RocketSim::Init((std::filesystem::path)"C:/Users/alpha/Bureau/RLRL/collisionDumper/x64/Release/collision_meshes");

@@ -21,6 +21,20 @@ struct InternalConnexion_P {   // responsible of its pointers
 	std::unique_ptr<float[]> avgH;
 #endif
 
+#ifdef RANDOM_W
+	// Reset to random values at the beginning of each trial
+	std::unique_ptr<float[]> w;
+
+	void randomInitW() 
+	{
+		float normalizator = powf((float)type->nColumns, -.5f);
+		int s = type->nLines * type->nColumns;
+
+		for (int i = 0; i < s; i++) {
+			w[i] = NORMAL_01 * normalizator;
+		}
+	}
+#endif
 
 
 	// Should not be called !

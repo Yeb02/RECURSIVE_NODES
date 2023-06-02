@@ -41,7 +41,7 @@ struct MemoryNode_G {
 	// controls the exponential average decay speed of candidate memory, the higher the faster.
 	float decay, storage_decay;
 #ifdef STDP
-	float STDP_decay, STDP_decay_storage;
+	float STDP_decay, STDP_storage_decay;
 #endif
 
 	// = 1 / sqrt(kernelDim * InSize) ?
@@ -69,7 +69,7 @@ struct MemoryNode_G {
 
 		decay = (tanhf(storage_decay) + 1.0f) * .5f;
 #ifdef STDP
-		STDP_decay = (tanhf(STDP_decay_storage) + 1.0f) * .5f;
+		STDP_decay = (tanhf(STDP_storage_decay) + 1.0f) * .5f;
 #endif
 	}
 

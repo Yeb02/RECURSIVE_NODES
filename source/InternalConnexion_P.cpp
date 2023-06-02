@@ -12,6 +12,10 @@ InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* type) : type(type)
 	avgH = std::make_unique<float[]>(s);
 #endif
 
+#ifdef RANDOM_W
+	w = std::make_unique<float[]>(s);
+#endif
+
 	zeroWlifetime(); // necessary because ComplexNode_P::preTrialReset() does not have to do it.
 
 	// zero(s); not necessary, because ComplexNode_P::preTrialReset() should be called before any computation. 

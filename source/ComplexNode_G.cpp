@@ -26,9 +26,9 @@ ComplexNode_G::ComplexNode_G(int inputSize, int outputSize) :
 	memoryBiasSize = 0;
 
 #ifdef STDP
-	STDP_decay_storage[0] = NORMAL_01 * .2f;
-	STDP_decay_storage[1] = NORMAL_01 * .2f;
-	STDP_decay_storage[2] = NORMAL_01 * .2f;
+	STDP_storage_decay[0] = NORMAL_01 * .2f;
+	STDP_storage_decay[1] = NORMAL_01 * .2f;
+	STDP_storage_decay[2] = NORMAL_01 * .2f;
 #endif
 
 	// The following initializations MUST be done outside.
@@ -52,9 +52,9 @@ ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 	toOutput = n->toOutput;
 
 #ifdef STDP
-	STDP_decay_storage[0] = n->STDP_decay_storage[0];
-	STDP_decay_storage[1] = n->STDP_decay_storage[1];
-	STDP_decay_storage[2] = n->STDP_decay_storage[2];
+	STDP_storage_decay[0] = n->STDP_storage_decay[0];
+	STDP_storage_decay[1] = n->STDP_storage_decay[1];
+	STDP_storage_decay[2] = n->STDP_storage_decay[2];
 #endif
 
 	outputBias.assign(n->outputBias.begin(), n->outputBias.end());
@@ -114,9 +114,9 @@ ComplexNode_G::ComplexNode_G(std::ifstream& is) {
 	READ_4B(mutationalDistance, is);
 
 #ifdef STDP
-	READ_4B(STDP_decay_storage[0], is);
-	READ_4B(STDP_decay_storage[1], is);
-	READ_4B(STDP_decay_storage[2], is);
+	READ_4B(STDP_storage_decay[0], is);
+	READ_4B(STDP_storage_decay[1], is);
+	READ_4B(STDP_storage_decay[2], is);
 #else
 	float _unused;
 	READ_4B(_unused, is);
@@ -166,9 +166,9 @@ void ComplexNode_G::save(std::ofstream& os) {
 	WRITE_4B(mutationalDistance, os);
 
 #ifdef STDP
-	WRITE_4B(STDP_decay_storage[0], os);
-	WRITE_4B(STDP_decay_storage[1], os);
-	WRITE_4B(STDP_decay_storage[2], os);
+	WRITE_4B(STDP_storage_decay[0], os);
+	WRITE_4B(STDP_storage_decay[1], os);
+	WRITE_4B(STDP_storage_decay[2], os);
 #else
 	float unused = 0.0f;
 	WRITE_4B(unused, os);
@@ -269,7 +269,7 @@ void ComplexNode_G::mutateFloats(float adjustedFMutationP) {
 
 #ifdef STDP
 	// not really biases, but it will do
-	mutateBiasArray(STDP_decay_storage, 3);
+	mutateBiasArray(STDP_storage_decay, 3);
 #endif
 		
 }

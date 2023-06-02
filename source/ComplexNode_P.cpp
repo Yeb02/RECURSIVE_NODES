@@ -117,6 +117,15 @@ void ComplexNode_P::preTrialReset() {
 	toMemory.zero();
 	toModulation.zero();
 	toOutput.zero();
+
+
+#ifdef RANDOM_W
+	toComplex.randomInitW();
+	toMemory.randomInitW();
+	toModulation.randomInitW();
+	toOutput.randomInitW();
+#endif
+	
 }
 
 
@@ -194,12 +203,18 @@ void ComplexNode_P::forward() {
 		float* H = icp.H.get();
 		float* wLifetime = icp.wLifetime.get();
 		float* alpha = icp.type->alpha.get();
+
+#ifdef RANDOM_W
+		float* w = icp.w.get();
+#else
 		float* w = icp.type->w.get();
+#endif
+		
 
 			
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
-				// += (H * alpha + w) * prevAct
+				// += (H * alpha + w + wL) * prevAct
 				destinationArray[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * postSynActs[j];
 				matID++;
 			}
@@ -228,6 +243,16 @@ void ComplexNode_P::forward() {
 #endif
 
 
+#ifdef OJA
+		float* delta = icp.type->delta.get();
+#ifdef RANDOM_W
+		float* w = icp.w.get();
+#else
+		float* w = icp.type->delta.get();
+#endif
+#endif
+
+
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
@@ -235,6 +260,10 @@ void ComplexNode_P::forward() {
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
 					(A[matID] * destinationArray[i] * postSynActs[j] + B[matID] * destinationArray[i] + C[matID] * postSynActs[j] + D[matID]);
+
+#ifdef OJA
+				E[matID] -= eta[matID] * destinationArray[i] * destinationArray[i] * delta[matID] * (w[matID] + alpha[matID]*H[matID] + wLifetime[matID]);
+#endif
 
 				H[matID] += E[matID] * totalM[0];
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));

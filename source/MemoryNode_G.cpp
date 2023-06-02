@@ -76,7 +76,7 @@ MemoryNode_G::MemoryNode_G(std::ifstream& is)
 
 
 #ifdef STDP
-	READ_4B(STDP_decay_storage, is);
+	READ_4B(STDP_storage_decay, is);
 #else
 	float _unused;
 	READ_4B(_unused, is);
@@ -104,7 +104,7 @@ void MemoryNode_G::save(std::ofstream& os)
 	WRITE_4B(storage_decay, os);
 
 #ifdef STDP
-	WRITE_4B(STDP_decay_storage, os);
+	WRITE_4B(STDP_storage_decay, os);
 #else
 	float unused = 0.0f;
 	WRITE_4B(unused, os);
@@ -127,8 +127,8 @@ void MemoryNode_G::mutateFloats(float adjustedFMutationP) {
 	}
 #ifdef STDP
 	if (UNIFORM_01 < p) {
-		STDP_decay_storage *= .9f + NORMAL_01 * .1f;
-		STDP_decay_storage += NORMAL_01 * .1f;
+		STDP_storage_decay *= .9f + NORMAL_01 * .1f;
+		STDP_storage_decay += NORMAL_01 * .1f;
 	}
 #endif
 	

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <random>
+#include <chrono>
 
+extern std::chrono::system_clock::rep seed;
 extern thread_local std::default_random_engine generator;
 extern thread_local std::uniform_real_distribution<float> Udistribution;
 extern thread_local std::uniform_int_distribution<uint32_t> UIdistribution;

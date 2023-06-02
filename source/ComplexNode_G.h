@@ -129,7 +129,7 @@ struct ComplexNode_G {
 	// [0] used in forward by its phenotypic parent for this node's input
 	// [1] used in forward by its phenotypic parent for this node's output
 	// [2] used by its phenotypic version for the modulation
-	float STDP_decays[3], STDP_decay_storage[3];
+	float STDP_decays[3], STDP_storage_decay[3];
 #endif
 
 	// to be called only by network::createPhenotype
@@ -140,9 +140,9 @@ struct ComplexNode_G {
 		toOutput.transform01Parameters();
 
 #ifdef STDP
-		STDP_decays[0] = .5f * (tanhf(STDP_decay_storage[0]) + 1.0f);
-		STDP_decays[1] = .5f * (tanhf(STDP_decay_storage[1]) + 1.0f);
-		STDP_decays[2] = .5f * (tanhf(STDP_decay_storage[2]) + 1.0f);
+		STDP_decays[0] = .5f * (tanhf(STDP_storage_decay[0]) + 1.0f);
+		STDP_decays[1] = .5f * (tanhf(STDP_storage_decay[1]) + 1.0f);
+		STDP_decays[2] = .5f * (tanhf(STDP_storage_decay[2]) + 1.0f);
 #endif
 	}
 

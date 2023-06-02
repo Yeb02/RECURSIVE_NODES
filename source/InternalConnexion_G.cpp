@@ -2,6 +2,35 @@
 
 #include "InternalConnexion_G.h"
 
+
+
+// Not very clean, but I dont want to create an initialization function.
+#ifdef CONTINUOUS_LEARNING
+#define CONTINUOUS_LEARNING_GAMMA 1
+#else
+#define CONTINUOUS_LEARNING_GAMMA 0
+#endif 
+
+#ifdef RANDOM_W
+#define RANDOM_W_W -1
+#else
+#define RANDOM_W_W 0
+#endif 
+
+
+#ifdef OJA
+#define OJA_DELTA 1
+#else
+#define OJA_DELTA 0
+#endif 
+
+int InternalConnexion_G::nEvolvedArrays =   7 + 
+											CONTINUOUS_LEARNING_GAMMA +
+											RANDOM_W_W +
+											OJA_DELTA;
+
+
+
 InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATION init) :
 	nLines(nLines), nColumns(nColumns)
 {
@@ -13,50 +42,68 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 	C = std::make_unique<float[]>(s);
 	D = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
+
+#ifndef RANDOM_W
 	w = std::make_unique<float[]>(s);
+#endif
+
+#ifdef OJA
+	delta = std::make_unique<float[]>(s);
+	storage_delta = std::make_unique<float[]>(s);
+#endif
+	
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
 	storage_gamma = std::make_unique<float[]>(s);
 #endif
+
 #ifdef GUIDED_MUTATIONS
 	accumulator = std::make_unique<float[]>(s);
 #endif
 
+	auto zero = [s](float* vec) {
+		for (int i = 0; i < s; i++) {
+			vec[i] = 0.0f;
+		}
+	};
+
+	auto rand = [s](float* vec, float b) {
+		for (int i = 0; i < s; i++) {
+			vec[i] = NORMAL_01 * .2f + b;
+		}
+	};
+
+	rand(A.get(), 0.0f);
+	rand(B.get(), 0.0f);
+	rand(C.get(), 0.0f);
+	rand(D.get(), 0.0f);
+	rand(storage_eta.get(), -1.0f);
+
+#ifdef CONTINUOUS_LEARNING
+	rand(storage_gamma.get(), -1.0f);
+#endif
+
+#ifdef GUIDED_MUTATIONS
+	zero(accumulator.get());
+#endif
+
+#ifdef OJA
+	rand(storage_delta.get(), -1.0f);
+#endif
 
 	if (init == ZERO) {
-		for (int i = 0; i < nLines * nColumns; i++) {
-
-			A[i] = NORMAL_01 * .2f;
-			B[i] = NORMAL_01 * .2f;
-			C[i] = NORMAL_01 * .2f;
-			D[i] = NORMAL_01 * .2f;
-			alpha[i] = 0.0f;
-			storage_eta[i] = NORMAL_01 * .2f;
-			w[i] = 0.0f;
-#ifdef CONTINUOUS_LEARNING
-			storage_gamma[i] = NORMAL_01 * .2f;
+		zero(alpha.get());
+		
+#ifndef RANDOM_W
+		zero(w.get());
 #endif
-#ifdef GUIDED_MUTATIONS
-			accumulator[i] = 0.0f;
-#endif
-		}
 	}
 	else if (init == RANDOM) {
-		for (int i = 0; i < nLines * nColumns; i++) {
-			A[i] = NORMAL_01 * .2f;
-			B[i] = NORMAL_01 * .2f;
-			C[i] = NORMAL_01 * .2f;
-			D[i] = NORMAL_01 * .2f;
-			alpha[i] = NORMAL_01 * .2f;
-			storage_eta[i] = NORMAL_01 * .2f;
-			w[i] = NORMAL_01 * .2f;
-#ifdef CONTINUOUS_LEARNING
-			storage_gamma[i] = NORMAL_01 * .2f;
+		rand(alpha.get(), 0.0f);
+
+#ifndef RANDOM_W
+		rand(w.get(), 0.0f);
 #endif
-#ifdef GUIDED_MUTATIONS
-			accumulator[i] = 0.0f;
-#endif
-		}
 	}
 }
 
@@ -75,7 +122,7 @@ InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
 	C = std::make_unique<float[]>(s);
 	D = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
-	w = std::make_unique<float[]>(s);
+	
 
 	std::copy(gc.storage_eta.get(), gc.storage_eta.get() + s, storage_eta.get());
 	std::copy(gc.eta.get(), gc.eta.get() + s, eta.get());
@@ -83,8 +130,20 @@ InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
 	std::copy(gc.B.get(), gc.B.get() + s, B.get());
 	std::copy(gc.C.get(), gc.C.get() + s, C.get());
 	std::copy(gc.D.get(), gc.D.get() + s, D.get());
-	std::copy(gc.w.get(), gc.w.get() + s, w.get());
 	std::copy(gc.alpha.get(), gc.alpha.get() + s, alpha.get());
+
+#ifndef RANDOM_W
+	w = std::make_unique<float[]>(s);
+	std::copy(gc.w.get(), gc.w.get() + s, w.get());
+#endif
+
+#ifdef OJA
+	delta = std::make_unique<float[]>(s);
+	storage_delta = std::make_unique<float[]>(s);
+	std::copy(gc.delta.get(), gc.delta.get() + s, delta.get());
+	std::copy(gc.storage_delta.get(), gc.storage_delta.get() + s, storage_delta.get());
+#endif
+
 
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
@@ -113,7 +172,6 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	C = std::make_unique<float[]>(s);
 	D = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
-	w = std::make_unique<float[]>(s);
 
 	std::copy(gc.eta.get(), gc.eta.get() + s, eta.get());
 	std::copy(gc.storage_eta.get(), gc.storage_eta.get() + s, storage_eta.get());
@@ -121,8 +179,19 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	std::copy(gc.B.get(), gc.B.get() + s, B.get());
 	std::copy(gc.C.get(), gc.C.get() + s, C.get());
 	std::copy(gc.D.get(), gc.D.get() + s, D.get());
-	std::copy(gc.w.get(), gc.w.get() + s, w.get());
 	std::copy(gc.alpha.get(), gc.alpha.get() + s, alpha.get());
+
+#ifndef RANDOM_W
+	w = std::make_unique<float[]>(s);
+	std::copy(gc.w.get(), gc.w.get() + s, w.get());
+#endif
+
+#ifdef OJA
+	delta = std::make_unique<float[]>(s);
+	storage_delta = std::make_unique<float[]>(s);
+	std::copy(gc.delta.get(), gc.delta.get() + s, delta.get());
+	std::copy(gc.storage_delta.get(), gc.storage_delta.get() + s, storage_delta.get());
+#endif
 
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
@@ -159,13 +228,25 @@ InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
 	is.read(reinterpret_cast<char*>(D.get()), s * sizeof(float));
 	alpha = std::make_unique<float[]>(s);
 	is.read(reinterpret_cast<char*>(alpha.get()), s * sizeof(float));
+
+#ifndef RANDOM_W
 	w = std::make_unique<float[]>(s);
 	is.read(reinterpret_cast<char*>(w.get()), s * sizeof(float));
+#endif
+
+#ifdef OJA
+	delta = std::make_unique<float[]>(s);
+	storage_delta = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(storage_delta.get()), s * sizeof(float));
+#endif
+
+
 #ifdef CONTINUOUS_LEARNING
 	gamma = std::make_unique<float[]>(s);
 	storage_gamma = std::make_unique<float[]>(s);
 	is.read(reinterpret_cast<char*>(storage_gamma.get()), s * sizeof(float));
 #endif
+
 #ifdef GUIDED_MUTATIONS
 	accumulator = std::make_unique<float[]>(s);
 #endif
@@ -184,7 +265,15 @@ void InternalConnexion_G::save(std::ofstream& os)
 	os.write(reinterpret_cast<const char*>(C.get()), s * sizeof(float));
 	os.write(reinterpret_cast<const char*>(D.get()), s * sizeof(float));
 	os.write(reinterpret_cast<const char*>(alpha.get()), s * sizeof(float));
-	os.write(reinterpret_cast<const char*>(w.get()), s * sizeof(float));
+	
+#ifndef RANDOM_W
+	os.write(reinterpret_cast<char*>(w.get()), s * sizeof(float));
+#endif
+
+#ifdef OJA
+	os.write(reinterpret_cast<char*>(storage_delta.get()), s * sizeof(float));
+#endif
+
 #ifdef CONTINUOUS_LEARNING
 	os.write(reinterpret_cast<const char*>(storage_gamma.get()), s * sizeof(float));
 #endif
@@ -192,16 +281,8 @@ void InternalConnexion_G::save(std::ofstream& os)
 
 void InternalConnexion_G::mutateFloats(float p) {
 
-#ifdef CONTINUOUS_LEARNING
-	constexpr int nArrays = 8;  // 7+gamma
-#else 
-	constexpr int nArrays = 7;
-#endif
 	//param(t+1) = (b+a*N1)*param(t) + c*N2
 	const float sigma = powf((float)nColumns, -.5f);
-	const float a = .3f*sigma; 
-	const float b = 1.0f - .5f * a; 
-	const float c = a; 
 
 
 #ifdef GUIDED_MUTATIONS
@@ -210,38 +291,48 @@ void InternalConnexion_G::mutateFloats(float p) {
 #endif
 
 	int size = nLines * nColumns;
-	SET_BINOMIAL(size * nArrays, p);
-	int _nMutations = BINOMIAL;
+	SET_BINOMIAL(size, p);
 
-	float* aPtr = nullptr;
-	for (int k = 0; k < _nMutations; k++) {
+	auto mutateMatrix = [size, p, sigma](float* matrix)
+	{
+		const float a = .3f * sigma;
+		const float b = 1.0f - .5f * a;
+		const float c = a;
 
-		int arrayN = INT_0X(nArrays);
-		int matrixID = INT_0X(size);
+		int _nMutations = BINOMIAL;
+		for (int k = 0; k < _nMutations; k++) {
+			int matrixID = INT_0X(size);
 
-		switch (arrayN) {
-		case 0: aPtr = A.get(); break;
-		case 1: aPtr = B.get(); break;
-		case 2: aPtr = C.get(); break;
-		case 3: aPtr = D.get(); break;
-		case 4: aPtr = alpha.get(); break;
-		case 5: aPtr = w.get(); break;
-		case 6:  aPtr = storage_eta.get(); break;
-#ifdef CONTINUOUS_LEARNING
-		case 7:  aPtr = storage_gamma.get(); break;
-#endif
+
+			matrix[matrixID] *= b + NORMAL_01 * a;
+			matrix[matrixID] += NORMAL_01 * c;
 		}
+	};
+	
+	mutateMatrix(A.get());
+	mutateMatrix(B.get());
+	mutateMatrix(C.get());
+	mutateMatrix(D.get());
+	mutateMatrix(alpha.get());
+	mutateMatrix(storage_eta.get());
+		
+#ifndef RANDOM_W
+	mutateMatrix(w.get());
+#endif
 
-		aPtr[matrixID] *= b + NORMAL_01 * a;
-		aPtr[matrixID] += NORMAL_01 * c;
-	}
+#ifdef CONTINUOUS_LEARNING
+	mutateMatrix(storage_gamma.get());
+#endif
+
+#ifdef OJA
+	mutateMatrix(storage_delta.get());
+#endif
 
 #ifdef GUIDED_MUTATIONS
 	for (int k = 0; k < size; k++) {;
 		w[k] += std::max(std::min(accumulator[k], accumulatorClipRange), -accumulatorClipRange) * sigma;
 		accumulator[k] = 0.0f;
 	}
-	
 #endif
 }
 
@@ -263,13 +354,13 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 
 	float a = .2f * powf((float)nColumns, -.5f);
 
-	auto f = [_insertedOffset, _insertedSize, _matSize, a] (std::unique_ptr<float[]>& m)
+	auto f = [_insertedOffset, _insertedSize, _matSize, a] (std::unique_ptr<float[]>& m, float b)
 	{
 		float* new_m = new float[_matSize + _insertedSize];
 		std::copy(&m[0], &m[_insertedOffset], new_m);
 		std::copy(&m[_insertedOffset], &m[_matSize], &new_m[_insertedOffset+_insertedSize]);
 		for (int i = _insertedOffset; i < _insertedOffset + _insertedSize; i++) {
-			new_m[i] = NORMAL_01 * a;
+			new_m[i] = NORMAL_01 * a + b;
 		}
 		m.reset(new_m);
 	};
@@ -286,18 +377,30 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 	};
 
 
-	f(A);
-	f(B);
-	f(C);
-	f(D);
-	f_0(w);
+	f(A, 0.0f);
+	f(B, 0.0f);
+	f(C, 0.0f);
+	f(D, 0.0f);
+
 	f_0(alpha);
-	f(storage_eta);
+
+	f(storage_eta,-1.0f);
 	f_0(eta);
+
 #ifdef CONTINUOUS_LEARNING
-	f(storage_gamma);
+	f(storage_gamma, -1.0f);
 	f_0(gamma);
 #endif
+
+#ifdef OJA
+	f(storage_delta, -1.0f);
+	f_0(delta);
+#endif
+
+#ifndef RANDOM_W
+	f_0(w);
+#endif
+
 #ifdef GUIDED_MUTATIONS
 	f_0(accumulator); // set to 0...
 #endif
@@ -311,13 +414,13 @@ void InternalConnexion_G::insertColumnRange(int id, int s) {
 	float a = .2f * powf((float)(nColumns+s), -.5f);
 
 
-	auto f = [&](std::unique_ptr<float[]>& m)
+	auto f = [&](std::unique_ptr<float[]>& m, float b)
 	{
 		float* new_m = new float[_newNColumns * nLines];
 		for (int i = 0; i < nLines; i++) {
 			std::copy(&m[i * nColumns], &m[i * nColumns + id], &new_m[i * _newNColumns]);
 			for (int j = i * _newNColumns + id + s; j < (i + 1) * _newNColumns; j++) {
-				new_m[i] = NORMAL_01 * a;
+				new_m[i] = NORMAL_01 * a + b;
 			}
 			std::copy(&m[i * nColumns + id], &m[(i + 1) * nColumns], &new_m[i * _newNColumns + id + s]);
 		}
@@ -339,18 +442,30 @@ void InternalConnexion_G::insertColumnRange(int id, int s) {
 
 
 
-	f(A);
-	f(B);
-	f(C);
-	f(D);
-	f_0(w);
+	f(A, 0.0f);
+	f(B, 0.0f);
+	f(C, 0.0f);
+	f(D, 0.0f);
+
 	f_0(alpha);
-	f(storage_eta);
+
+	f(storage_eta, -1.0f);
 	f_0(eta);
+
 #ifdef CONTINUOUS_LEARNING
-	f(storage_gamma);
+	f(storage_gamma, -1.0f);
 	f_0(gamma);
 #endif
+
+#ifdef OJA
+	f(storage_delta, -1.0f);
+	f_0(delta);
+#endif
+
+#ifndef RANDOM_W
+	f_0(w);
+#endif
+
 #ifdef GUIDED_MUTATIONS
 	f_0(accumulator); // set to 0...
 #endif
@@ -371,14 +486,24 @@ void InternalConnexion_G::removeLineRange(int id, int s) {
 	f(B);
 	f(C);
 	f(D);
-	f(w);
 	f(alpha);
 	f(eta);
 	f(storage_eta);
+
 #ifdef CONTINUOUS_LEARNING
 	f(gamma);
 	f(storage_gamma);
 #endif
+
+#ifndef RANDOM_W
+	f(w);
+#endif
+
+#ifdef OJA
+	f(delta);
+	f(storage_delta);
+#endif
+
 #ifdef GUIDED_MUTATIONS
 	f(accumulator); // set to 0...
 #endif
@@ -403,14 +528,24 @@ void InternalConnexion_G::removeColumnRange(int id, int s) {
 	f(B);
 	f(C);
 	f(D);
-	f(w);
 	f(alpha);
 	f(eta);
 	f(storage_eta);
+
 #ifdef CONTINUOUS_LEARNING
 	f(gamma);
 	f(storage_gamma);
 #endif
+
+#ifndef RANDOM_W
+	f(w);
+#endif
+
+#ifdef OJA
+	f(delta);
+	f(storage_delta);
+#endif
+
 #ifdef GUIDED_MUTATIONS
 	f(accumulator); // set to 0...
 #endif
@@ -424,6 +559,9 @@ void InternalConnexion_G::transform01Parameters() {
 		eta[i] = (tanhf(storage_eta[i]) + 1.0f) * .5f;
 #ifdef GUIDED_MUTATIONS
 		gamma[i] = (tanhf(storage_gamma[i]) + 1.0f) * .5f;
+#endif
+#ifdef OJA
+		delta[i] = (tanhf(storage_delta[i]) + 1.0f) * .5f;
 #endif
 	}
 }

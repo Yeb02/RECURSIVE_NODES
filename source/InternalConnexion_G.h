@@ -10,17 +10,15 @@
 
 #include "config.h"
 
-#ifdef CONTINUOUS_LEARNING
-#define N_EVOLVED_ARRAYS 8
-#else
-#define N_EVOLVED_ARRAYS 7
-#endif
 
 
 struct InternalConnexion_G {
 
 	const enum INITIALIZATION { ZERO, RANDOM };
 
+	// Depends on which preprocessor directives are active. Parameters that have a storage version and a
+	// runtime version are not counted twice.
+	static int nEvolvedArrays;
 
 	int nLines, nColumns;
 
@@ -31,7 +29,16 @@ struct InternalConnexion_G {
 	std::unique_ptr<float[]> eta;	// in [0, 1]
 	std::unique_ptr<float[]> storage_eta;   // in R
 	std::unique_ptr<float[]> alpha;
+
+#ifndef RANDOM_W
 	std::unique_ptr<float[]> w;
+#endif
+
+#ifdef OJA
+	std::unique_ptr<float[]> delta; // in [0, 1]
+	std::unique_ptr<float[]> storage_delta; // in R
+#endif
+
 #ifdef CONTINUOUS_LEARNING
 	std::unique_ptr<float[]> gamma; // in [0, 1]
 	std::unique_ptr<float[]> storage_gamma; // in R
@@ -61,7 +68,7 @@ struct InternalConnexion_G {
 	void save(std::ofstream& os);
 
 	int getNParameters() {
-		return N_EVOLVED_ARRAYS * nLines * nColumns;
+		return nEvolvedArrays * nLines * nColumns;
 	}
 
 	// Maps stored_X to X for all parameters X that are used at runtime in the range [0,1]

@@ -1,9 +1,9 @@
 #include "Random.h"
-#include <chrono>
+
 
 
 // I am unsure of the correctness of this process...
-thread_local auto seed = std::chrono::system_clock::now().time_since_epoch().count();
+std::chrono::system_clock::rep seed = std::chrono::system_clock::now().time_since_epoch().count();
 thread_local std::default_random_engine generator((unsigned int)seed);
 
 thread_local std::uniform_real_distribution<float> Udistribution(0.0f, 1.0f);

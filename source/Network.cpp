@@ -147,7 +147,8 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 	float** mats = new float*[(int)parents.size()];
 	int nValidParents;
 
-	// accumulates in connexions[0]
+	// accumulates in connexions[0], which must therefore be set to a child's element 
+	// (and not an element of parents[0], ie the primary parent.)
 	auto addConnexions = [connexions, mats, weights, &nValidParents]()
 	{
 
@@ -178,8 +179,14 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 		addMatrices();
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->alpha.get(); }
 		addMatrices();
+#ifndef RANDOM_W
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->w.get(); }
 		addMatrices();
+#endif
+#ifndef OJA
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->storage_delta.get(); }
+		addMatrices();
+#endif
 #ifdef CONTINUOUS_LEARNING
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->storage_gamma.get(); }
 		addMatrices();
@@ -267,13 +274,20 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 			weights[0] = 1 - (s_positive - s_negative);
 		}
 
-		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toComplex;}
+		for (int j = 1; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toComplex;}
+		connexions[0] = &node->toComplex;
 		addConnexions();
-		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toMemory; }
+
+		for (int j = 1; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toMemory; }
+		connexions[0] = &node->toMemory;
 		addConnexions();
-		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toOutput; }
+
+		for (int j = 1; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toOutput; }
+		connexions[0] = &node->toOutput;
 		addConnexions();
-		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toModulation; }
+
+		for (int j = 1; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toModulation; }
+		connexions[0] = &node->toModulation;
 		addConnexions();
 		
 		// biases
@@ -314,6 +328,15 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 				}
 			}
 		}
+
+#ifdef STDP
+		for (int j = 0; j < 3; j++) {
+			node->STDP_storage_decay[j] = 0.0f;
+			for (int k = 0; k < nValidParents; k++) {
+				node->STDP_storage_decay[j] += complexPtrs[k]->STDP_storage_decay[j] * weights[k];
+			}
+		}
+#endif
 	}
 
 
@@ -357,6 +380,7 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 		if (nValidParents <= 1) {
 			continue;
 		}
+
 		// transform weights[0] so that if every secondary parent is P0 + Di, p0 the primary parent,
 		// sum(Wi * (P0 + Di)) = 1 * P0 + sum(WiDi)
 		{
@@ -372,13 +396,22 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 
 		
 		// decay and link
-		float storage_decay = memoryPtrs[0]->storage_decay * weights[0];
+		child->memoryGenome[i]->storage_decay = 0.0f;
+#ifdef STDP
+		child->memoryGenome[i]->STDP_storage_decay = 0.0f;
+#endif
 		connexions[0] = &memoryPtrs[0]->link;
-		for (int j = 1; j < nValidParents; j++) {
-			storage_decay += weights[j] * memoryPtrs[j]->storage_decay;
+		for (int j = 0; j < nValidParents; j++) {
+			child->memoryGenome[i]->storage_decay += weights[j] * memoryPtrs[j]->storage_decay;
+#ifdef STDP
+			child->memoryGenome[i]->STDP_storage_decay += weights[j] * memoryPtrs[j]->STDP_storage_decay;
+#endif
 			connexions[j] = &memoryPtrs[j]->link;
 		}
-		child->memoryGenome[i]->storage_decay = storage_decay;
+		connexions[0] = &node->link;
+		
+
+
 		addConnexions();
 
 
@@ -1626,7 +1659,12 @@ float Network::getSaturationPenalization()
 
 // L1 value regularization. Bias are not considered.
 float Network::getRegularizationLoss() {
-	constexpr int nArrays = 6; // eta and gamma's amplitudes are irrelevant here.
+	// eta's amplitudes are irrelevant here. (and gamma's or delta's too if defined);
+#ifdef RANDOM_W
+	constexpr int nArrays = 5; 
+#else
+	constexpr int nArrays = 6; 
+#endif
 
 	auto accumulate = [](InternalConnexion_G& co, float* valueAcc, int* sizeAcc) {
 		int s = co.nLines * co.nColumns;
@@ -1637,7 +1675,9 @@ float Network::getRegularizationLoss() {
 			*valueAcc += abs(co.C[k]);
 			*valueAcc += abs(co.D[k]);
 			*valueAcc += abs(co.alpha[k]);
-			*valueAcc += abs(co.w[k]);
+#ifndef RANDOM_W
+			* valueAcc += abs(co.w[k]);
+#endif
 		}
 	};
 

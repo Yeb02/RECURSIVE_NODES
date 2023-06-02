@@ -48,11 +48,17 @@ void MemoryNode_P::forward() {
 		float* H = pLink.H.get();
 		float* wLifetime = pLink.wLifetime.get();
 		float* alpha = type->link.alpha.get();
+
+#ifdef RANDOM_W
+		float* w = pLink.w.get();
+#else
 		float* w = type->link.w.get();
+#endif
+		
 
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
-				// += (H * alpha + w) * prevAct
+				// += (H * alpha + w + wL) * prevAct
 				outputBuffer[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * input[j];
 				matID++;
 			}
@@ -69,6 +75,10 @@ void MemoryNode_P::forward() {
 		float* D = type->link.D.get();
 		float* eta = type->link.eta.get();
 		float* E = pLink.E.get();
+
+#ifdef OJA
+		float* delta = type->link.delta.get();
+#endif
 
 #ifdef CONTINUOUS_LEARNING
 		float* gamma = type->link.gamma.get();
@@ -88,7 +98,9 @@ void MemoryNode_P::forward() {
 					 B[matID] * outputBuffer[i] +
 					 C[matID] * input[j] + 
 				     D[matID]);
-
+#ifdef OJA
+				E[matID] -= eta[matID] * outputBuffer[i] * outputBuffer[i] * delta[matID] * (w[matID] + alpha[matID] * H[matID] + wLifetime[matID]);
+#endif
 				H[matID] += E[matID] * modulation[0];
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
 #ifndef CONTINUOUS_LEARNING
@@ -166,7 +178,7 @@ void MemoryNode_P::forward() {
 		candidateL2Norm += candidateMemory[i] * candidateMemory[i];
 	}
 	
-	// If the treshhold is reached, add candidate memory to memory, and its inverse norm to
+	// If the treshold is reached, add candidate memory to memory, and its inverse norm to
 	// invNorms. TODO make it more efficient in copy and reallocations.
 	if (sqrtf(candidateL2Norm) * ksi3 > 1) {
 
@@ -222,8 +234,13 @@ void MemoryNode_P::preTrialReset() {
 
 	std::fill(candidateMemory.get(), candidateMemory.get() + type->outputSize + type->kernelDimension, 0.0f);
 
-	int s = type->link.nLines * type->link.nColumns;;
+	int s = type->link.nLines * type->link.nColumns;
 	pLink.zero(); // zero E, H, and AVG_H if need be.
+
+#ifdef RANDOM_W
+	pLink.randomInitW(); 
+#endif
+	
 }
 
 #ifdef GUIDED_MUTATIONS
