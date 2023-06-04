@@ -77,10 +77,10 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 	rand(B.get(), 0.0f);
 	rand(C.get(), 0.0f);
 	rand(D.get(), 0.0f);
-	rand(storage_eta.get(), -1.0f);
+	rand(storage_eta.get(), DECAY_PARAMETERS_STORAGE_BIAS);
 
 #ifdef CONTINUOUS_LEARNING
-	rand(storage_gamma.get(), -1.0f);
+	rand(storage_gamma.get(), DECAY_PARAMETERS_STORAGE_BIAS);
 #endif
 
 #ifdef GUIDED_MUTATIONS
@@ -88,7 +88,7 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 #endif
 
 #ifdef OJA
-	rand(storage_delta.get(), -1.0f);
+	rand(storage_delta.get(), DECAY_PARAMETERS_STORAGE_BIAS);
 #endif
 
 	if (init == ZERO) {
@@ -283,7 +283,9 @@ void InternalConnexion_G::mutateFloats(float p) {
 
 	//param(t+1) = (b+a*N1)*param(t) + c*N2
 	const float sigma = powf((float)nColumns, -.5f);
-
+	const float a = .3f * sigma;
+	const float b = 1.0f - .5f * a;
+	const float c = a;
 
 #ifdef GUIDED_MUTATIONS
 	// w += clip[-accumulatorClipRange,accumulatorClipRange](accumulator)
@@ -293,11 +295,8 @@ void InternalConnexion_G::mutateFloats(float p) {
 	int size = nLines * nColumns;
 	SET_BINOMIAL(size, p);
 
-	auto mutateMatrix = [size, p, sigma](float* matrix)
+	auto mutateMatrix = [size, p, a, b, c](float* matrix)
 	{
-		const float a = .3f * sigma;
-		const float b = 1.0f - .5f * a;
-		const float c = a;
 
 		int _nMutations = BINOMIAL;
 		for (int k = 0; k < _nMutations; k++) {
@@ -347,6 +346,9 @@ void InternalConnexion_G::accumulateW(float factor, float* wLifetime) {
 }
 #endif
 
+// No evolved elements are initialized at 0, because the elements added by the line
+// influence the input of the new node, not its output (with the exception of the output
+// node incrementing its size.)
 void InternalConnexion_G::insertLineRange(int id, int s) {
 	int _insertedOffset = id * nColumns;
 	int _insertedSize = s * nColumns;
@@ -382,23 +384,23 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 	f(C, 0.0f);
 	f(D, 0.0f);
 
-	f_0(alpha);
+	f(alpha, 0.0f);
 
-	f(storage_eta,-1.0f);
+	f(storage_eta, DECAY_PARAMETERS_STORAGE_BIAS);
 	f_0(eta);
 
 #ifdef CONTINUOUS_LEARNING
-	f(storage_gamma, -1.0f);
+	f(storage_gamma, DECAY_PARAMETERS_STORAGE_BIAS);
 	f_0(gamma);
 #endif
 
 #ifdef OJA
-	f(storage_delta, -1.0f);
+	f(storage_delta, DECAY_PARAMETERS_STORAGE_BIAS);
 	f_0(delta);
 #endif
 
 #ifndef RANDOM_W
-	f_0(w);
+	f(w, 0.0f);
 #endif
 
 #ifdef GUIDED_MUTATIONS
@@ -411,7 +413,7 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 void InternalConnexion_G::insertColumnRange(int id, int s) {
 	int _newNColumns = nColumns + s;
 	//int _nLines = nLines, _nColumns = nColumns;
-	float a = .2f * powf((float)(nColumns+s), -.5f);
+	float a = 1.0f * powf((float)_newNColumns, -.5f);
 
 
 	auto f = [&](std::unique_ptr<float[]>& m, float b)
@@ -419,9 +421,11 @@ void InternalConnexion_G::insertColumnRange(int id, int s) {
 		float* new_m = new float[_newNColumns * nLines];
 		for (int i = 0; i < nLines; i++) {
 			std::copy(&m[i * nColumns], &m[i * nColumns + id], &new_m[i * _newNColumns]);
-			for (int j = i * _newNColumns + id + s; j < (i + 1) * _newNColumns; j++) {
-				new_m[i] = NORMAL_01 * a + b;
+
+			for (int j = i * _newNColumns + id; j < i * _newNColumns + id + s; j++) {
+				new_m[j] = NORMAL_01 * a + b;
 			}
+
 			std::copy(&m[i * nColumns + id], &m[(i + 1) * nColumns], &new_m[i * _newNColumns + id + s]);
 		}
 		m.reset(new_m);
@@ -432,9 +436,11 @@ void InternalConnexion_G::insertColumnRange(int id, int s) {
 		float* new_m = new float[_newNColumns * nLines];
 		for (int i = 0; i < nLines; i++) {
 			std::copy(&m[i * nColumns], &m[i * nColumns + id], &new_m[i * _newNColumns]);
-			for (int j = i * _newNColumns + id + s; j < (i + 1) * _newNColumns; j++) {
-				new_m[i] = 0.0f;
+			
+			for (int j = i * _newNColumns + id; j < i * _newNColumns + id + s; j++) {
+				new_m[j] = 0.0f;
 			}
+
 			std::copy(&m[i * nColumns + id], &m[(i + 1) * nColumns], &new_m[i * _newNColumns + id + s]);
 		}
 		m.reset(new_m);
@@ -447,18 +453,18 @@ void InternalConnexion_G::insertColumnRange(int id, int s) {
 	f(C, 0.0f);
 	f(D, 0.0f);
 
-	f_0(alpha);
+	f_0(alpha); // necessite de laisser la nouvelle mémoire non modifiée.
 
-	f(storage_eta, -1.0f);
+	f(storage_eta, DECAY_PARAMETERS_STORAGE_BIAS);
 	f_0(eta);
 
 #ifdef CONTINUOUS_LEARNING
-	f(storage_gamma, -1.0f);
+	f(storage_gamma, DECAY_PARAMETERS_STORAGE_BIAS);
 	f_0(gamma);
 #endif
 
 #ifdef OJA
-	f(storage_delta, -1.0f);
+	f(storage_delta, DECAY_PARAMETERS_STORAGE_BIAS);
 	f_0(delta);
 #endif
 
@@ -557,7 +563,7 @@ void InternalConnexion_G::transform01Parameters() {
 	int s = nLines * nColumns;
 	for (int i = 0; i < s; i++) {
 		eta[i] = (tanhf(storage_eta[i]) + 1.0f) * .5f;
-#ifdef GUIDED_MUTATIONS
+#ifdef CONTINUOUS_LEARNING
 		gamma[i] = (tanhf(storage_gamma[i]) + 1.0f) * .5f;
 #endif
 #ifdef OJA

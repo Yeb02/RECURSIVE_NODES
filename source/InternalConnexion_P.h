@@ -25,23 +25,16 @@ struct InternalConnexion_P {   // responsible of its pointers
 	// Reset to random values at the beginning of each trial
 	std::unique_ptr<float[]> w;
 
-	void randomInitW() 
-	{
-		float normalizator = powf((float)type->nColumns, -.5f);
-		int s = type->nLines * type->nColumns;
-
-		for (int i = 0; i < s; i++) {
-			w[i] = NORMAL_01 * normalizator;
-		}
-	}
+	void randomInitW();
 #endif
 
 
 	// Should not be called !
-	InternalConnexion_P(const InternalConnexion_P&) {};
+	// And strangely, is never called but removing its declaration causes an error.
+	InternalConnexion_P(const InternalConnexion_P&) { __debugbreak();  type = nullptr; };
 	
 	// Should not be called !
-	InternalConnexion_P() {};
+	InternalConnexion_P() { __debugbreak();  type = nullptr; };
 
 	InternalConnexion_P(InternalConnexion_G* type);
 

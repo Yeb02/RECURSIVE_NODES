@@ -32,16 +32,16 @@ void RocketSimTrial::reset(bool sameSeed) {
 		// data on objects at rest found there:
 		// https://github.com/RLBot/RLBot/wiki/Useful-Game-Values
 		// angles are YPR, YR in -pi,pi and P in -pi/2,pi/2
-		initialCarState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), 17.f};
-		initialCarState.vel = { 200.0f * UNIFORM_01, 200.0f * UNIFORM_01, 0.f };
-		Angle carAng = Angle(M_PI * 2.0f * (UNIFORM_01 - .5f), 0.0f, 0.0f);
+		initialCarState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), 17.0f + UNIFORM_01 * 200.0f}; // zGrounded = 17
+		initialCarState.vel = { 400.0f * (UNIFORM_01-.5f), 400.0f * (UNIFORM_01 - .5f), 500 * (UNIFORM_01 - .2f) };
+		Angle carAng = Angle(M_PI * 2.0f * (UNIFORM_01 - .5f), M_PI * .4f * (UNIFORM_01 - .5f), M_PI * .7f * (UNIFORM_01 - .5f));
 		initialCarState.rotMat = carAng.ToRotMat();
 
 		initialCarState.boost = 100.0f * UNIFORM_01;
 
-		initialBallState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), 92.75f};
+		initialBallState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), (UNIFORM_01 - .5f) * 1000.0f + 92.75f}; // zGrounded = 92.75f
 		//initialBallState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), 92.75f + UNIFORM_01  * 1900.0f};
-		//initialBallState.vel = { 1000.0f * (UNIFORM_01 - .5f), 1000.0f * (UNIFORM_01 - .5f), 1000.0f * (UNIFORM_01 - .5f) };
+		initialBallState.vel = { 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f) };
 		initialBallState.vel = { .0f, .0f, .0f };
 	}
 

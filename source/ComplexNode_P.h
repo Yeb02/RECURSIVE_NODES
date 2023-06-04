@@ -50,9 +50,24 @@ struct ComplexNode_P {
 
 
 	ComplexNode_P(ComplexNode_G* type);
-	ComplexNode_P() {
+
+	// Should never be called.
+	ComplexNode_P() 
+	{
 		__debugbreak();
+#ifdef STDP
+		accumulatedPreSynActs = nullptr;
+#endif
+#ifdef SATURATION_PENALIZING
+		averageActivation = nullptr;
+		globalSaturationAccumulator = nullptr;
+#endif
+		preSynActs = nullptr;
+		postSynActs = nullptr;
+		std::fill(totalM, totalM + MODULATION_VECTOR_SIZE, 0.0f);
+		type = nullptr;
 	}
+
 	~ComplexNode_P() {};
 
 	void preTrialReset();

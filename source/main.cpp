@@ -1,5 +1,11 @@
 #pragma once
 
+#ifdef _DEBUG
+#define _CRT_SECURE_NO_WARNINGS
+#include <float.h>
+unsigned int fp_control_state = _controlfp(_EM_INEXACT, _MCW_EM);
+#endif
+
 #include <iostream>
 #include "Population.h"
 #include "Random.h"
@@ -19,6 +25,7 @@
 using namespace std;
 
 
+
 int main()
 {
     LOG("Seed : " << seed);
@@ -34,10 +41,10 @@ int main()
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
 #ifdef _DEBUG
-    nThreads = 1;
+    nThreads = 1; // Because multi-threaded functions are difficult to step through line by line.
 #endif
-    int nSpecimens = nThreads * 128; //16 -> 512
-    int nDifferentTrials = 1;
+    int nSpecimens = nThreads * 256; //16 -> 512
+    int nDifferentTrials = 4;
     int nSteps = 2000;
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
@@ -62,12 +69,12 @@ int main()
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { -2.0f, .25f };
-    params.useSameTrialInit = true;
+    params.selectionPressure = { -2.0f, .3f}; // first param < -1, second << 1.
+    params.useSameTrialInit = true; 
     params.rankingFitness = true;
-    params.saturationFactor = 0.03f;
-    params.regularizationFactor = 0.03f; 
-    params.competitionFactor = 0.0f; 
+    params.saturationFactor = 0.0f;
+    params.regularizationFactor = 0.05f; 
+    params.competitionFactor = .0f; 
     params.scoreBatchTransformation = RANK;
     params.nParents = 20;
 
@@ -112,7 +119,7 @@ int main()
         //population.setEvolutionParameters(params); // parameters can be changed at each step.
         population.step(trials, _nTrialsEvaluated);
 
-        if ((i + 1) % 100 == 0) {
+        if ((i + 1) % 30 == 0) {
             population.saveFittestSpecimen();
         }
     }
@@ -120,22 +127,10 @@ int main()
     population.stopThreads();
 
     // Tests.
-    /*{
-        trials[0]->reset(false);
-        Network* n = population.getSpecimenPointer(population.fittestSpecimen);
-        n->createPhenotype();
-        n->preTrialReset();
-        while (!trials[0]->isTrialOver) {
-            n->step(trials[0]->observations);
-            trials[0]->step(n->getOutput());
-        }
-        LOG("Best specimen's score on new trial = " << trials[0]->score);
-
-        population.saveFittestSpecimen();
-
-        std::ifstream is("topNet.renon", std::ios::binary);
+    if (false) {
+        std::ifstream is("topNet_1685814432215_3.renon", std::ios::binary);
         trials[0]->reset(true);
-        n = new Network(is);
+        Network* n = new Network(is);
         LOG("Loaded.")
             n->createPhenotype();
         n->preTrialReset();
@@ -145,7 +140,7 @@ int main()
         }
         delete n;
         LOG("Reloaded best specimen's score on the same trial = " << trials[0]->score);
-    }*/ 
+    }
 
     return 0;
 }

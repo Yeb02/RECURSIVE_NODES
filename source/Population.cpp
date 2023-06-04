@@ -39,7 +39,7 @@ void normalizeArray(float* src, float* dst, int size) {
 	}
 }
 
-// src is unchanged.
+// src is unchanged. Results in [-1, 1]
 void rankArray(float* src, float* dst, int size) {
 	std::vector<int> positions(size);
 	for (int i = 0; i < size; i++) {
@@ -56,7 +56,7 @@ void rankArray(float* src, float* dst, int size) {
 		// linear in [-1,1], -1 for the worst specimen, 1 for the best
 		float positionValue = (float)(2 * i - size) * invSize;
 		// arbitrary, to make it a bit more selective. 
-		positionValue = 2.0f * powf(positionValue * .8f, 3.0f);
+		positionValue = 1.953f * powf(positionValue * .8f, 3.0f);
 
 		dst[positions[i]] = positionValue;
 	}
@@ -182,11 +182,7 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 
 		for (int i = 0; i < localTrials.size(); i++) {
 
-			for (int j = i0; j < i0 + subArraySize; j++) {
-				networks[j]->preTrialReset();
-			}
 			evaluate(i0, subArraySize, localTrials[i].get(), rawScores.data() + i * nSpecimens);
-
 
 			ul.lock();
 			nDoneProcessing--;
@@ -486,7 +482,6 @@ Network* Population::createChild(PhylogeneticNode* primaryParent) {
 	{
 		rawWeights[0] = 1.0f;
 		float f0 = fitnesses[primaryParent->networkIndice];
-		float invf0 = 1.0f/f0;
 		for (int i = 1; i < parents.size(); i++) {
 			rawWeights[i] *= (fitnesses[parents[i]] - f0); // TODO better
 		}
@@ -517,7 +512,7 @@ void Population::createOffsprings() {
 	for (int i = 0; i < nSpecimens; i++) {
 		phase1Probabilities[i] = (fitnesses[i] - selectionPressure.first)*normalizationFactor;
 		if (fitnesses[i] < selectionPressure.second) phase2Probabilities[i] = 0.0f;
-		else phase2Probabilities[i] -= selectionPressure.second;
+		else phase2Probabilities[i] = fitnesses[i] - selectionPressure.second;
 	}
 
 	

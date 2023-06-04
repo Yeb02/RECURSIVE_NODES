@@ -77,9 +77,7 @@ Network::Network(int inputSize, int outputSize) :
 {
 
 	complexGenome.resize(0);
-
-	ComplexNode_G* baseComplexNode = new ComplexNode_G(1, 1);
-	complexGenome.emplace_back(baseComplexNode);
+	complexGenome.emplace_back(new ComplexNode_G(1,1));
 
 
 	memoryGenome.resize(0);
@@ -183,7 +181,7 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->w.get(); }
 		addMatrices();
 #endif
-#ifndef OJA
+#ifdef OJA
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->storage_delta.get(); }
 		addMatrices();
 #endif
@@ -271,7 +269,16 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 				s_positive += w;
 				s_negative += w - weights[j];
 			}
-			weights[0] = 1 - (s_positive - s_negative);
+			
+			//weights[0] = 1 - (s_positive - s_negative);
+
+			float s_max = std::max(s_positive, s_negative);
+			float s_f = .5f / s_max;
+			weights[0] = 1 - (s_positive - s_negative) * s_f;
+			for (int j = 1; j < nValidParents; j++) {
+				weights[j] *= s_f;
+			}
+
 		}
 
 		for (int j = 1; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toComplex;}
@@ -391,7 +398,14 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 				s_positive += w;
 				s_negative += w - weights[j];
 			}
-			weights[0] = 1 - (s_positive - s_negative);
+			//weights[0] = 1 - (s_positive - s_negative);
+
+			float s_max = std::max(s_positive, s_negative);
+			float s_f = .5f / s_max;
+			weights[0] = 1 - (s_positive - s_negative) * s_f;
+			for (int j = 1; j < nValidParents; j++) {
+				weights[j] *= s_f;
+			}
 		}
 
 		
@@ -627,59 +641,6 @@ void Network::step(const std::vector<float>& obs) {
 		topNodeP->totalM[i] = 0.0f;
 	}
 	topNodeP->forward();
-
-	// this lambda is a copy of the one in ComplexNode_P::forward.
-	auto applyNonLinearities = [](float* src, float* dst, ACTIVATION* fcts, int size
-#ifdef STDP
-		, float* acc_src, float decay
-#endif
-		)
-		{
-#ifdef STDP
-		for (int i = 0; i < size; i++) {
-			acc_src[i] = acc_src[i] * (1.0f - decay) + decay * src[i];
-		}
-
-		src = acc_src;
-#endif
-		for (int i = 0; i < size; i++) {
-			switch (fcts[i]) {
-			case TANH:
-				dst[i] = tanhf(src[i]);
-				break;
-			case GAUSSIAN:
-				dst[i] = 2.0f * expf(-src[i] * src[i]) - 1.0f; // technically the bias is not correctly put in. Does it matter ?
-				break;
-			case RELU:
-				dst[i] = std::max(src[i], 0.0f);
-				break;
-			case LOG2:
-				dst[i] = std::max(log2f(abs(src[i])), -100.0f);
-				break;
-			case EXP2:
-				dst[i] = std::min(exp2f(src[i]), 100.0f);
-				break;
-			case SINE:
-				dst[i] = sinf(src[i]);
-				break;
-			case CENTERED_TANH:
-				constexpr float z = 1.0f / .375261f; // to map to [-1, 1]
-				dst[i] = tanhf(src[i]) * expf(-powf(src[i], 2.0f)) * z;
-				break;
-			}
-		}
-	};
-
-	applyNonLinearities(
-		topNodeP->preSynActs,
-		topNodeP->preSynActs,
-		topNodeG->outputActivations.data(),
-		topNodeG->outputSize
-#ifdef STDP
-		, topNodeP->accumulatedPreSynActs, topNodeG->STDP_decays[1]
-#endif
-	);
-
 }
 
 
@@ -719,7 +680,7 @@ void Network::mutate() {
 
 	constexpr float eraseUnusedGenomeProbability = .002f;
 
-	constexpr float floatParamBaseMutationProbability = .5f;
+	constexpr float floatParamBaseMutationProbability = 1.f;
 
 	float r;
 
@@ -747,12 +708,12 @@ void Network::mutate() {
 
 	int activeGenotypeSize = 0;
 	{
-		for (int i = 0; i < complexGenome.size()+1; i++) {
-			ComplexNode_G* n = i == complexGenome.size() ? topNodeG.get() : complexGenome[i].get();
-			if (n->phenotypicMultiplicity > 0) {
-				activeGenotypeSize += n->getNParameters();
+		for (int i = 0; i < complexGenome.size(); i++) {
+			if (complexGenome[i]->phenotypicMultiplicity > 0) {
+				activeGenotypeSize += complexGenome[i]->getNParameters();
 			}
 		}
+		activeGenotypeSize += topNodeG->getNParameters();
 		for (int i = 0; i < memoryGenome.size(); i++) {
 			if (memoryGenome[i]->phenotypicMultiplicity > 0) {
 				activeGenotypeSize += memoryGenome[i]->getNParameters();
@@ -1765,28 +1726,12 @@ void Network::save(std::ofstream& os)
 	for (int i = 0; i < complexGenome.size(); i++) {
 		complexGenome[i]->save(os);
 	}
-
-	for (int i = 0; i < topNodeG->complexChildren.size(); i++) {
-		WRITE_4B(topNodeG->complexChildren[i]->position, os);
-	}
-	for (int i = 0; i < topNodeG->memoryChildren.size(); i++) {
-		WRITE_4B(topNodeG->memoryChildren[i]->position, os);
-	}
 	for (int i = 0; i < complexGenome.size(); i++) {
 		int closestNode = complexGenome[i]->closestNode == NULL ?
 			-1 :
 			complexGenome[i]->closestNode->position;
 		WRITE_4B(closestNode, os);
-
-		for (int j = 0; j < complexGenome[i]->complexChildren.size(); j++) {
-			WRITE_4B(complexGenome[i]->complexChildren[j]->position, os);
-		}
-		for (int j = 0; j < complexGenome[i]->memoryChildren.size(); j++) {
-			WRITE_4B(complexGenome[i]->memoryChildren[j]->position, os);
-		}
 	}
-
-
 
 	_s = (int)memoryGenome.size();
 	WRITE_4B(_s, os);
@@ -1799,6 +1744,23 @@ void Network::save(std::ofstream& os)
 			memoryGenome[i]->closestNode->position;
 		WRITE_4B(closestNode, os);
 	}
+
+	for (int i = 0; i < topNodeG->complexChildren.size(); i++) {
+		WRITE_4B(topNodeG->complexChildren[i]->position, os);
+	}
+	for (int i = 0; i < topNodeG->memoryChildren.size(); i++) {
+		WRITE_4B(topNodeG->memoryChildren[i]->position, os);
+	}
+
+	for (int i = 0; i < complexGenome.size(); i++) {
+		for (int j = 0; j < complexGenome[i]->complexChildren.size(); j++) {
+			WRITE_4B(complexGenome[i]->complexChildren[j]->position, os);
+		}
+		for (int j = 0; j < complexGenome[i]->memoryChildren.size(); j++) {
+			WRITE_4B(complexGenome[i]->memoryChildren[j]->position, os);
+		}
+	}
+
 }
 
 Network::Network(std::ifstream& is)
@@ -1812,6 +1774,7 @@ Network::Network(std::ifstream& is)
 	READ_4B(currentComplexNodeID, is);
 
 	topNodeG = std::make_unique<ComplexNode_G>(is);
+	topNodeG->phenotypicMultiplicity = 1;
 
 	int _s;
 	READ_4B(_s, is);
@@ -1820,18 +1783,7 @@ Network::Network(std::ifstream& is)
 		complexGenome[i] = std::make_unique<ComplexNode_G>(is);
 		complexGenome[i]->position = i;
 	}
-
 	topNodeG->position = (int)complexGenome.size();
-
-	for (int i = 0; i < topNodeG->complexChildren.size(); i++) {
-		READ_4B(_s, is);
-		topNodeG->complexChildren[i] = complexGenome[_s].get();
-	}
-	for (int i = 0; i < topNodeG->memoryChildren.size(); i++) {
-		READ_4B(_s, is);
-		topNodeG->memoryChildren[i] = memoryGenome[_s].get();
-	}
-
 	for (int i = 0; i < complexGenome.size(); i++) {
 		int closestNode;
 		READ_4B(closestNode, is);
@@ -1839,16 +1791,8 @@ Network::Network(std::ifstream& is)
 		complexGenome[i]->closestNode = closestNode == -1 ?
 			NULL :
 			complexGenome[closestNode].get();
-
-		for (int j = 0; j < complexGenome[i]->complexChildren.size(); j++) {
-			READ_4B(_s, is);
-			complexGenome[i]->complexChildren[j] = complexGenome[_s].get();
-		}
-		for (int j = 0; j < complexGenome[i]->memoryChildren.size(); j++) {
-			READ_4B(_s, is);
-			complexGenome[i]->memoryChildren[j] = memoryGenome[_s].get();
-		}
 	}
+	topNodeG->closestNode = nullptr;
 
 	READ_4B(_s, is);
 	memoryGenome.resize(_s);
@@ -1863,6 +1807,28 @@ Network::Network(std::ifstream& is)
 			NULL :
 			memoryGenome[closestNode].get();
 	}
+
+
+	for (int i = 0; i < topNodeG->complexChildren.size(); i++) {
+		READ_4B(_s, is);
+		topNodeG->complexChildren[i] = complexGenome[_s].get();
+	}
+	for (int i = 0; i < topNodeG->memoryChildren.size(); i++) {
+		READ_4B(_s, is);
+		topNodeG->memoryChildren[i] = memoryGenome[_s].get();
+	}
+	for (int i = 0; i < complexGenome.size(); i++) {
+
+		for (int j = 0; j < complexGenome[i]->complexChildren.size(); j++) {
+			READ_4B(_s, is);
+			complexGenome[i]->complexChildren[j] = complexGenome[_s].get();
+		}
+		for (int j = 0; j < complexGenome[i]->memoryChildren.size(); j++) {
+			READ_4B(_s, is);
+			complexGenome[i]->memoryChildren[j] = memoryGenome[_s].get();
+		}
+	}
+
 
 
 	topNodeP.reset(NULL);

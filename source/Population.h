@@ -176,8 +176,7 @@ public:
 		uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(
 			system_clock::now().time_since_epoch()).count();
 
-		std::ofstream os("topNet_" + std::to_string(ms) + "_" + std::to_string(evolutionStep) + ".renon", std::ios::binary);
-		//std::ofstream os("topNet.renon", std::ios::binary);
+		std::ofstream os("models\\topNet_" + std::to_string(ms) + "_" + std::to_string(evolutionStep) + ".renon", std::ios::binary);
 		networks[fittestSpecimen]->save(os);
 	}
 

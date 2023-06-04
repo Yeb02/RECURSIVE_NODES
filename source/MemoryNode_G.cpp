@@ -15,6 +15,9 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	beta = n->beta;
 	decay = n->decay;
 	storage_decay = n->storage_decay;
+#ifdef STDP
+	STDP_storage_decay = n->STDP_storage_decay;
+#endif
 
 	link = n->link; // deep copy assignement using overloaded = operator of genotypeConnexion
 
@@ -36,7 +39,10 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
 
 	link = InternalConnexion_G(outputSize, inputSize, InternalConnexion_G::RANDOM);
 
-	storage_decay = NORMAL_01 * .2f;
+	storage_decay = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
+#ifdef STDP
+	STDP_storage_decay = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
+#endif
 	
 	int s = inputSize * kernelDimension;
 	Q = std::make_unique<float[]>(s);
@@ -57,6 +63,9 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 	phenotypicMultiplicity = n.phenotypicMultiplicity;
 	decay = n.decay;
 	storage_decay = n.storage_decay;
+#ifdef STDP
+	STDP_storage_decay = n.STDP_storage_decay;
+#endif
 	
 	link = std::move(n.link);
 	Q = std::move(n.Q);

@@ -91,15 +91,15 @@ void MemoryNode_P::forward() {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * E[matID] * modulation[1];
+				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * H[matID] * alpha[matID] * modulation[1];
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-					(A[matID] * outputBuffer[i] * input[j] + 
-					 B[matID] * outputBuffer[i] +
+					(A[matID] * output[i] * input[j] + 
+					 B[matID] * output[i] +
 					 C[matID] * input[j] + 
 				     D[matID]);
 #ifdef OJA
-				E[matID] -= eta[matID] * outputBuffer[i] * outputBuffer[i] * delta[matID] * (w[matID] + alpha[matID] * H[matID] + wLifetime[matID]);
+				E[matID] -= eta[matID] * output[i] * output[i] * delta[matID] * (w[matID] + alpha[matID] * H[matID] + wLifetime[matID]);
 #endif
 				H[matID] += E[matID] * modulation[0];
 				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
@@ -166,7 +166,7 @@ void MemoryNode_P::forward() {
 		}
 
 		for (int i = 0; i < type->outputSize; i++) {
-			output[i] = ksi1 * output[i] + (1.0f-ksi1) * outputBuffer[i]; // preSynOutput's content can be discarded now.
+			output[i] = ksi1 * output[i] + (1.0f - ksi1) * outputBuffer[i]; // "input" 's content can be discarded now.
 		}
 
 	}

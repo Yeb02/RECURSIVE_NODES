@@ -55,9 +55,7 @@ struct MemoryNode_G {
 	MemoryNode_G(MemoryNode_G&& n) noexcept;
 
 	// Should never be called !
-	MemoryNode_G(MemoryNode_G& n) {
-		__debugbreak();
-	}
+	MemoryNode_G(MemoryNode_G& n);
 
 	~MemoryNode_G() {};
 

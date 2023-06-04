@@ -141,18 +141,10 @@ void ComplexNode_P::setglobalSaturationAccumulator(float* globalSaturationAccumu
 
 void ComplexNode_P::forward() {
 	
-	// TODO is it global modulation or local modulation that should
-	// be used as a modulation node output, after its own hebbian update ?
 
-	// TODO there are no reasons not to propagate several times through certain types, for instance:
+	// TODO there are no reasons not to propagate several times through MODULATION and MEMORY, for instance:
 	// MODULATION -> MEMORY -> COMPLEX -> MODULATION -> MEMORY -> OUTPUT ...
 	// And it can even be node specific. To be evolved ?
-
-	// TODO hebbian update before or after non linearity ?
-	// After is problematic in this implementation, because the original (postSynActs) input
-	// from the node of the same type has changed... 
-	// We could use previousPostSynAct for this type, which has it stored, but it requires extra code.
-	// (thats previousPostSynAct sole use at the moment) Also be wary of global modulation addition.
 
 #ifdef SATURATION_PENALIZING
 	constexpr float saturationExponent = .5f; 
@@ -184,9 +176,10 @@ void ComplexNode_P::forward() {
 
 	// STEP 1 to 4: for each of the 4 types of nodes (output, memory, complex, modulation), do:
 	
-	// - propagate postSynActs in preSynActs of all children of the type
-	// - apply all children of the type's forward
+	// - propagate postSynActs in preSynActs of all children of the type, and apply their non linearities.
 	// - apply hebbian update to the involved connexion matrices
+	// - apply all children of the type's forward
+	
 	
 	// This could be done simultaneously for all types, but doing it this way drastically speeds up information transmission
 	// through the network. The following order is used :
@@ -219,6 +212,8 @@ void ComplexNode_P::forward() {
 				matID++;
 			}
 		}
+
+
 	};
 
 	auto hebbianUpdate = [this](InternalConnexion_P& icp, float* destinationArray) {
@@ -250,13 +245,17 @@ void ComplexNode_P::forward() {
 #else
 		float* w = icp.type->delta.get();
 #endif
+#ifndef CONTINUOUS_LEARNING
+		float* wLifetime = icp.wLifetime.get();
+		float* alpha = icp.type->alpha.get();
+#endif
 #endif
 
 
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * E[matID] * totalM[1];
+				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * H[matID] * alpha[matID] * totalM[1];
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
 					(A[matID] * destinationArray[i] * postSynActs[j] + B[matID] * destinationArray[i] + C[matID] * postSynActs[j] + D[matID]);
@@ -266,7 +265,7 @@ void ComplexNode_P::forward() {
 #endif
 
 				H[matID] += E[matID] * totalM[0];
-				H[matID] = std::max(-1.0f, std::min(H[matID], 1.0f));
+				H[matID] = std::clamp(H[matID], -1.0f, 1.0f);
 #ifndef CONTINUOUS_LEARNING
 				avgH[matID] += H[matID];
 #endif
@@ -276,7 +275,6 @@ void ComplexNode_P::forward() {
 		}
 	};
 
-	// Dont forget to update the copy of this function in network.step when this one changes.
 	auto applyNonLinearities = [](float* src, float* dst, ACTIVATION* fcts, int size
 #ifdef STDP
 		, float* acc_src, float decay
@@ -297,7 +295,7 @@ void ComplexNode_P::forward() {
 				dst[i] = tanhf(src[i]);
 				break;
 			case GAUSSIAN:
-				dst[i] = 2.0f * expf(-powf(src[i], 2.0f)) - 1.0f; // technically the bias is not correctly put in. Does it matter ?
+				dst[i] = 2.0f * expf(-std::clamp(powf(src[i], 2.0f), -10.0f, 10.0f)) - 1.0f; // technically the bias is not correctly put in. Does it matter ?
 				break;
 			case RELU:
 				dst[i] = std::max(src[i], 0.0f);
@@ -306,23 +304,24 @@ void ComplexNode_P::forward() {
 				dst[i] = std::max(log2f(abs(src[i])), -100.0f);
 				break;
 			case EXP2:
-				dst[i] = std::min(exp2f(src[i]), 100.0f);
+				dst[i] = exp2f(std::clamp(src[i], -30.0f, 30.0f));
 				break;
 			case SINE:
 				dst[i] = sinf(src[i]);
 				break;
 			case CENTERED_TANH:
 				constexpr float z = 1.0f / .375261f; // to map to [-1, 1]
-				dst[i] = tanhf(src[i]) * expf(-powf(src[i], 2.0f)) * z;
+				dst[i] = tanhf(src[i]) * expf(-std::clamp(powf(src[i], 2.0f), -10.0f, 10.0f)) * z;
 				break;
 			}
 		}
 	};
 
-	// STEP 1: MODULATION 
+
+
+	// STEP 1: MODULATION  A
 	{
 		propagate(toModulation, preSynActs + type->outputSize);
-		hebbianUpdate(toModulation, preSynActs + type->outputSize);
 		applyNonLinearities(
 			preSynActs + type->outputSize,
 			postSynActs + type->inputSize, 
@@ -332,6 +331,7 @@ void ComplexNode_P::forward() {
 			, accumulatedPreSynActs + type->outputSize, type->STDP_decays[2]
 #endif
 		);
+		hebbianUpdate(toModulation, postSynActs + type->inputSize);
 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
 			totalM[i] += postSynActs[i + type->inputSize];
@@ -345,6 +345,53 @@ void ComplexNode_P::forward() {
 #endif
 	}
 
+
+
+	// STEP 2: MEMORY A
+	if (memoryChildren.size() != 0) {
+		// Nothing is transmitted between this and the memory children, as their pointers
+		// point towards the same data arrays.
+
+		propagate(toMemory, memoryChildren[0].input);
+
+
+		int activationFunctionId = 0;
+		for (int i = 0; i < memoryChildren.size(); i++) {
+
+			// in place, as the memory child's input is shared with this node.
+			applyNonLinearities(
+				memoryChildren[i].input,
+				memoryChildren[i].input,
+				&type->memoryActivations[activationFunctionId],
+				memoryChildren[i].type->inputSize
+#ifdef STDP
+				, memoryChildren[i].accumulatedInput, memoryChildren[i].type->STDP_decay
+#endif
+			);
+
+#ifdef SATURATION_PENALIZING
+			for (int j = 0; j < memoryChildren[i].type->inputSize; j++) {
+				float v = memoryChildren[i].input[j];
+				*globalSaturationAccumulator += powf(v, saturationExponent);
+				memoryChildren[i].saturationArray[j] += v;
+			}
+#endif
+
+			activationFunctionId += memoryChildren[i].type->inputSize;
+		}
+
+
+		hebbianUpdate(toMemory, memoryChildren[0].input);
+
+
+		for (int i = 0; i < memoryChildren.size(); i++) {
+			memoryChildren[i].forward();
+		}
+
+	}
+
+
+
 	// STEP 2: COMPLEX
 	if (complexChildren.size() != 0) {
 		float* ptrToInputs = preSynActs + type->outputSize + MODULATION_VECTOR_SIZE;
@@ -352,17 +399,13 @@ void ComplexNode_P::forward() {
 		float* ptrToAccInputs = accumulatedPreSynActs + type->outputSize + MODULATION_VECTOR_SIZE;
 #endif
 		propagate(toComplex, ptrToInputs);
-		hebbianUpdate(toComplex, ptrToInputs);
+		
 		
 
-		// transmit modulation and input, apply forward, then retrieve the child's output.
+		// Apply non-linearities
 		int id = 0;
-		float* childOut = postSynActs + type->inputSize + MODULATION_VECTOR_SIZE;
 		for (int i = 0; i < complexChildren.size(); i++) {
 
-			for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
-				complexChildren[i].totalM[j] = this->totalM[j];
-			}
 
 			applyNonLinearities(
 				ptrToInputs + id,
@@ -374,51 +417,89 @@ void ComplexNode_P::forward() {
 #endif
 			);
 
-			complexChildren[i].forward();
-
-			applyNonLinearities(
-				complexChildren[i].preSynActs,
-				childOut,
-				type->complexChildren[i]->outputActivations.data(),
-				complexChildren[i].type->outputSize
-#ifdef STDP
-				, complexChildren[i].accumulatedPreSynActs, complexChildren[i].type->STDP_decays[1]
-#endif
-			);
-
 #ifdef SATURATION_PENALIZING 
-			// child pre-syn input
+			// child post-syn input
 			for (int j = 0; j < complexChildren[i].type->inputSize; j++) {
 				float v = *(ptrToInputs + id + j);
 				*globalSaturationAccumulator += powf(abs(v), saturationExponent);
 				complexChildren[i].averageActivation[j] += v;
 			}
-
-			// child pre-syn output
-			for (int j = 0; j < complexChildren[i].type->outputSize; j++) {
-				float v = complexChildren[i].preSynActs[j];
-				*globalSaturationAccumulator += powf(abs(v), saturationExponent);
-				complexChildren[i].averageActivation[j + complexChildren[i].type->inputSize] += v;
-			}
 #endif
 
 			id += complexChildren[i].type->inputSize;
+		}
+
+		// has to happen after non linearities but before forward, 
+		// for children's output not to have changed yet.
+		hebbianUpdate(toComplex, ptrToInputs);
+
+
+		// transmit modulation and apply forward, then retrieve the child's output.
+		float* childOut = postSynActs + type->inputSize + MODULATION_VECTOR_SIZE;
+		for (int i = 0; i < complexChildren.size(); i++) {
+
+			for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
+				complexChildren[i].totalM[j] = this->totalM[j];
+			}
+
+			complexChildren[i].forward();
+
+			std::copy(complexChildren[i].preSynActs, complexChildren[i].preSynActs + complexChildren[i].type->outputSize, childOut);
 			childOut += complexChildren[i].type->outputSize;
 		}
 
 	}
 
-	// STEP 3: MEMORY
+
+	// STEP 4: MODULATION B
+	{
+		propagate(toModulation, preSynActs + type->outputSize);
+		applyNonLinearities(
+			preSynActs + type->outputSize,
+			postSynActs + type->inputSize,
+			type->modulationActivations,
+			MODULATION_VECTOR_SIZE
+#ifdef STDP
+			, accumulatedPreSynActs + type->outputSize, type->STDP_decays[2]
+#endif
+		);
+		hebbianUpdate(toModulation, postSynActs + type->inputSize);
+
+		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
+			totalM[i] += postSynActs[i + type->inputSize];
+		}
+
+#ifdef SATURATION_PENALIZING 
+		for (int j = type->outputSize; j < MODULATION_VECTOR_SIZE + type->outputSize; j++) {
+			*globalSaturationAccumulator += powf(abs(preSynActs[j]), saturationExponent);
+			averageActivation[j] += preSynActs[j];
+		}
+#endif
+	}
+
+
+	// STEP 5: MEMORY B
 	if (memoryChildren.size() != 0) {
-		
+		// Nothing is transmitted between this and the memory children, as their pointers
+		// point towards the same data arrays.
+
 		propagate(toMemory, memoryChildren[0].input);
-		hebbianUpdate(toMemory, memoryChildren[0].input);
+
 
 		int activationFunctionId = 0;
-		// modulation is not transmitted, as it is shared with this node.
 		for (int i = 0; i < memoryChildren.size(); i++) {
 
-			
+			// in place, as the memory child's input is shared with this node.
+			applyNonLinearities(
+				memoryChildren[i].input,
+				memoryChildren[i].input,
+				&type->memoryActivations[activationFunctionId],
+				memoryChildren[i].type->inputSize
+#ifdef STDP
+				, memoryChildren[i].accumulatedInput, memoryChildren[i].type->STDP_decay
+#endif
+			);
+
 #ifdef SATURATION_PENALIZING
 			for (int j = 0; j < memoryChildren[i].type->inputSize; j++) {
 				float v = memoryChildren[i].input[j];
@@ -426,42 +507,37 @@ void ComplexNode_P::forward() {
 				memoryChildren[i].saturationArray[j] += v;
 			}
 #endif
-			
-			// in place, as the memory child's input is shared with this node.
-			applyNonLinearities(
-				memoryChildren[i].input,
-				memoryChildren[i].input, 
-				&type->memoryActivations[activationFunctionId],
-				memoryChildren[i].type->inputSize
-#ifdef STDP
-				, memoryChildren[i].accumulatedInput , memoryChildren[i].type->STDP_decay
-#endif
-			);
 
-			memoryChildren[i].forward();
-
-			// no retrieval, as the memory child's output is shared with this node.
-
-#ifdef SATURATION_PENALIZING
-			for (int j = 0; j < memoryChildren[i].type->inputSize; j++) {
-				float v = memoryChildren[i].output[j];
-				*globalSaturationAccumulator += powf(abs(v), saturationExponent);
-				memoryChildren[i].saturationArray[j+ memoryChildren[i].type->outputSize] += v;
-			}
-#endif
 			activationFunctionId += memoryChildren[i].type->inputSize;
+		}
+
+
+		hebbianUpdate(toMemory, memoryChildren[0].input);
+
+
+		for (int i = 0; i < memoryChildren.size(); i++) {
+			memoryChildren[i].forward();
 		}
 
 	}
 
-	// STEP 4: OUTPUT
+
+	// STEP 6: OUTPUT
 	{
 		propagate(toOutput, preSynActs);
-		hebbianUpdate(toOutput, preSynActs);
 		
-		// no call to applyNonLinearities, because it is the parent that calls
-		// it to avoid one unnecessary copy. (the parent being Network for the top Node)
-		// If saturation penalization or STDP are enabled, it is also handled by the parent / Network.
+		
+		applyNonLinearities(
+			preSynActs,
+			preSynActs,
+			type->outputActivations.data(),
+			type->outputSize
+#ifdef STDP
+			, accumulatedPreSynActs, type->STDP_decays[1]
+#endif
+		);
+
+		hebbianUpdate(toOutput, preSynActs);
 	}
 	
 }

@@ -26,9 +26,9 @@ ComplexNode_G::ComplexNode_G(int inputSize, int outputSize) :
 	memoryBiasSize = 0;
 
 #ifdef STDP
-	STDP_storage_decay[0] = NORMAL_01 * .2f;
-	STDP_storage_decay[1] = NORMAL_01 * .2f;
-	STDP_storage_decay[2] = NORMAL_01 * .2f;
+	STDP_storage_decay[0] = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
+	STDP_storage_decay[1] = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
+	STDP_storage_decay[2] = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
 #endif
 
 	// The following initializations MUST be done outside.
@@ -37,6 +37,17 @@ ComplexNode_G::ComplexNode_G(int inputSize, int outputSize) :
 		position = -1;
 		phenotypicMultiplicity = -1;
 		complexNodeID = -1;
+	}
+
+	// The following initializations are useless, as the parameters are set somewhere else.
+	// Here for completeness, warning suppression and ensuring (sould be the case already)
+	// that the behaviour is the same in debug and release mode.
+	{
+#ifdef STDP
+		STDP_decays[0] = 0.0f;
+		STDP_decays[1] = 0.0f;
+		STDP_decays[2] = 0.0f;
+#endif
 	}
 };
 
@@ -67,6 +78,7 @@ ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 
 	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
 		modulationBias[i] = n->modulationBias[i];
+		modulationActivations[i] = n->modulationActivations[i];
 	}
 
 	complexBiasSize = n->complexBiasSize;
@@ -275,7 +287,7 @@ void ComplexNode_G::mutateFloats(float adjustedFMutationP) {
 }
 
 void ComplexNode_G::mutateActivations(float adjustedFMutationP) {
-	float p = adjustedFMutationP * log2f((float)phenotypicMultiplicity + 1.0f) / (float)phenotypicMultiplicity;
+	float p = .1f * adjustedFMutationP * log2f((float)phenotypicMultiplicity + 1.0f) / (float)phenotypicMultiplicity;
 
 	auto mutateActivationsArray = [p](ACTIVATION* v, int size)
 	{

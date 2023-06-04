@@ -1,19 +1,18 @@
 # RECURSIVE_NODES
 
-Implements a 3 loops optimization algorithm to tackle reinforcement learning challenges. A population of plastic graph networks is meta-optimized by a custom genetic algorithm, which evolves both topology and floating point parameters. Networks use 3 factor Hebbian learning rules and local neuromodulation.
-##### The algorithm does not use sparse connexions anymore, to be easier to port to GPU. The following visual are therefore obsolete, new ones coming soon.
+Implements a 3 loops optimization algorithm to tackle reinforcement learning challenges. A population of recursive networks is meta-optimized by a custom genetic algorithm, which evolves both topology and floating point parameters. Networks use evolved local learning rules, cascading neuromodulation and dedicated memory units with various available implementations.
 
 &nbsp;
 
 <p align="center">
   <img src="Capture.PNG">
 </p>
-<em>Obsolete visual</em>
+<em>Visualisation of the genotype of a specimen.</em>
 
 &nbsp;
-##### KNOWN BUGS: Stable, BUT   partial evaluation and gradient guided mutations are for now incompatible and will cause a crash. If you do not have a rocketSim install you may want to exclude rocketSim.h and rocketSim.cpp from the solution. And Release and Debug have wildly different performance, to be investigated.
+##### KNOWN BUGS: Stable, BUT  partial evaluation and gradient guided mutations are for now incompatible and will cause a crash. If you do not have a rocketSim install you will need to exclude rocketSim.h and rocketSim.cpp from the solution, same for libTorch. 
 ##### IN PROGRESS: feed forward DNN memory with inline gradient descent.
-##### TODO: New visuals. Heap defragmentation. GPU port only when sufficient gains.
+##### TODO: Heap defragmentation. GPU port only when sufficient gains.
 &nbsp;
 
 ## USER GUIDE
@@ -21,9 +20,10 @@ Implements a 3 loops optimization algorithm to tackle reinforcement learning cha
 #### Several variations of the algorithm are implemented, change the active preprocessor directives in config.h to compile a custom version. More info in the file. The project can be compiled into an executable or a dll.
 &nbsp;
 
-With the executable, one can experiment with the algorithm, and use all of its features. It can be tested or on rocketSim and then in Rocket league with RLBot, or on the some simple c++ trials. As of now, 5 trials are implemented: XoR with memorization, gym's cartpole, T-Maze, N-Links pendulum, and Key-value memorization. More to come !
+With the executable, one can tinker with the whole algorithm directly. It can be tested on rocketSim and then in Rocket league with RLBot, or on the some simple c++ trials. As of now, 5 trials are implemented: XoR with memorization, gym's cartpole, T-Maze, N-Links pendulum, and Key-value memorization. More to come !
 
-The dll has limited features, especially when it comes to the evolutionary algorithm. It is meant to be used in python with ctypes, for benchmarking on openAI's gym's (now gymnasium) for instance. A demo can be found in python\gym_cartpole.py. 
+The dll has limited features, especially when it comes to the meta-optimization algorithm. It is meant to be used in python with ctypes, for benchmarking on openAI's gym's (now gymnasium) for instance. A demo can be found in python\gym_cartpole.py. 
+It also allows models optimized with the exe to be tested in python.
 
 #### Example run:
 

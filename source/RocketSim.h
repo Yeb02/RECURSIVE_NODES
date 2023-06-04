@@ -2,8 +2,8 @@
 
 #include "Trial.h"
 
-#include "C:/Users/alpha/Bureau/RLRL/RocketSim/src/Sim/Arena/Arena.h"
-#include "C:/Users/alpha/Bureau/RLRL/RocketSim/src/RocketSim.h"
+#include "RocketSim/src/Sim/Arena/Arena.h"
+#include "RocketSim/src/RocketSim.h"
 
 
 

@@ -22,14 +22,14 @@ public:
         }
     };
 
+    // TODO when there are to much nodes...
     void draw(Network* n, int step) {
 
-        constexpr float nodeRadius = 10.0f;
-        constexpr float wheelRadius = 40.0f;
-        constexpr float offset = 130.0f;
+        constexpr float nodeRadius = 12.0f;
+        constexpr float nodeOffset = 6.0f * nodeRadius;
+        constexpr float lineOffset = 7.0f * nodeRadius;
 
-        static sf::CircleShape node(10.0f);
-        static sf::CircleShape selfConnexion(nodeRadius);
+        static sf::CircleShape node(nodeRadius);
         static sf::Vertex line[] =
         {
             sf::Vertex(sf::Vector2f(0.0f, 0.0f)),
@@ -59,16 +59,13 @@ public:
         text.setFont(font);
         text.setCharacterSize(15);
         text.setFillColor(sf::Color::White);
-        text.setString("Blue circle = complex node      White circle = memory node");
+        text.setString("In blue, complex nodes. In red memory. in/out are input/output sizes. kD = kernel dimension, d = depth, pM = phenotypic multiplicity"); // Legend
         text.setPosition(10.0f, w.getSize().y - 30.0f);
         w.draw(text);
         text.setString("Generation " + std::to_string(step));
         text.setPosition(w.getSize().x - 150.0f, 10.0f);
         w.draw(text);
 
-        selfConnexion.setFillColor(sf::Color::Transparent);
-        selfConnexion.setOutlineColor(sf::Color::White);
-        selfConnexion.setOutlineThickness(1.0f);
 
         if (paused) {
             text.setString("PAUSED !  Press SPACE to resume.");
@@ -76,67 +73,69 @@ public:
             w.draw(text);
         }
 
+        text.setCharacterSize(11);
+        int nComplexNodes = (int)n->complexGenome.size() + 1;
+        int nMemoryNodes = (int)n->memoryGenome.size();
+        float memoryOffset = nodeOffset * ((float)nComplexNodes - 1.0f) / (float)(nMemoryNodes - 1);
+        float x0 = 2.0f*nodeRadius, y0 = 3.0f*nodeRadius + 2 * lineOffset;
 
-        float x0 = offset/2.0f, y0 = offset/1.5f;
+        // Connexions, then complexNodes and their legend, then memory nodes and their legends.
+
         for (int i = (int)n->complexGenome.size(); i >= 0; i--) {
-            ComplexNode_G* gNode = i == n->complexGenome.size() ? n->topNodeG.get() : n->complexGenome[i].get();
-            if (gNode->phenotypicMultiplicity == 0) {continue;}
-            if (x0 + offset > w.getSize().x) {
-                x0 = offset; 
-                y0 = 2.25f * offset;
+            ComplexNode_G* cNode = i == n->complexGenome.size() ? n->topNodeG.get() : n->complexGenome[i].get();
+            float x = x0 + (nComplexNodes - 1 - cNode->position) * nodeOffset;
+            line[0].position.x = x + nodeRadius;
+            line[0].position.y = y0 + nodeRadius;
+
+            line[1].position.y = y0 - lineOffset + nodeRadius;
+            for (int j = 0; j < cNode->complexChildren.size(); j++) {
+                line[1].position.x = x0 + (nComplexNodes - 1 - cNode->complexChildren[j]->position) * nodeOffset + nodeRadius;
+                w.draw(line, 2, sf::Lines);
             }
-            
-            text.setFillColor(sf::Color::White);
-            if (i == n->complexGenome.size()) {
-                text.setString("Top node, depth " + std::to_string(gNode->depth));
+
+            line[1].position.y = y0 + lineOffset + nodeRadius;
+            for (int j = 0; j < cNode->memoryChildren.size(); j++) {
+                line[1].position.x = x0 + (nMemoryNodes - 1 - cNode->memoryChildren[j]->position) * memoryOffset + nodeRadius;
+                w.draw(line, 2, sf::Lines);
             }
-            else {
-                text.setString("Node n°" + std::to_string(gNode->position)  + ", depth " + std::to_string(gNode->depth));
-            }
-            text.setPosition(x0-1.25f*wheelRadius, y0 + 1.75f * wheelRadius);
+        }
+
+        node.setFillColor(sf::Color::Cyan);
+        for (int i = 0; i < nComplexNodes; i++) {
+            ComplexNode_G* cNode = i == n->complexGenome.size() ? n->topNodeG.get() : n->complexGenome[i].get();
+
+            float x = x0 + (nComplexNodes - 1 - cNode->position) * nodeOffset;
+
+            node.setPosition(x, y0);
+            w.draw(node);
+
+            node.setPosition(x, y0 - lineOffset);
+            w.draw(node);
+
+            text.setString("in: " + std::to_string(cNode->inputSize) + " out: " + std::to_string(cNode->outputSize));
+            text.setPosition(x - .5f * nodeRadius, y0 - lineOffset - 1.1f * nodeRadius);
             w.draw(text);
-            text.setString("In size " + std::to_string(gNode->inputSize) + ", out size " + std::to_string(gNode->outputSize));
-            text.setPosition(x0- 1.25f * wheelRadius, y0 + 2.25f * wheelRadius);
+            text.setString("d: " + std::to_string(cNode->depth) + " pM: " + std::to_string(cNode->phenotypicMultiplicity));
+            text.setPosition(x - .5f * nodeRadius, y0 - lineOffset - 2.6f * nodeRadius);
             w.draw(text);
+        }
 
-            int _nNodes = (int) (gNode->complexChildren.size() + gNode->memoryChildren.size()) ;
-            float factor = 6.28f / (float) _nNodes;
-            for (int j = 0; j < _nNodes; j++) {
-                Xs[j] = x0 + wheelRadius * cosf(factor * (float)j);
-                Ys[j] = y0 + wheelRadius * sinf(factor * (float)j);
-            }
+        node.setFillColor(sf::Color::Red);
+        for (int i = 0; i < nMemoryNodes; i++) {
+            MemoryNode_G* mn = n->memoryGenome[i].get();
 
+            float x = x0 + (nMemoryNodes - 1 - mn->position) * memoryOffset;
+            float y = y0 + lineOffset;
 
-            
-            text.setFillColor(sf::Color::Black);
+            node.setPosition(x, y);
+            w.draw(node);
 
-            
-
-            node.setFillColor(sf::Color::Cyan);
-            for (int j = 0; j < gNode->complexChildren.size(); j++) {
-       
-                node.setPosition(Xs[j], Ys[j]);
-
-                w.draw(node);
-
-                text.setString(std::to_string(gNode->complexChildren[j]->position));
-                text.setPosition(Xs[j] + nodeRadius / 4.0f, Ys[j] + nodeRadius / 4.0f);
-                w.draw(text);
-            }
-
-            node.setFillColor(sf::Color::White);
-            for (int j = 0; j < gNode->memoryChildren.size(); j++) {
-                int id = (int) gNode->complexChildren.size() + j;
-                node.setPosition(Xs[id], Ys[id]);
-
-                w.draw(node);
-
-                text.setString(std::to_string(gNode->memoryChildren[j]->position));
-                text.setPosition(Xs[id] + nodeRadius / 4.0f, Ys[id] + nodeRadius / 4.0f);
-                w.draw(text);
-            }
-
-            x0 += offset*1.25f;
+            text.setString("in: " + std::to_string(mn->inputSize) + " out: " + std::to_string(mn->outputSize));
+            text.setPosition(x - .5f * nodeRadius,y + 2.1f * nodeRadius);
+            w.draw(text);
+            text.setString("kD: " + std::to_string(mn->kernelDimension) + " pm " + std::to_string(mn->phenotypicMultiplicity));
+            text.setPosition(x - .5f * nodeRadius, y + 3.6f * nodeRadius);
+            w.draw(text);
         }
 
         w.display();

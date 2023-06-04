@@ -127,7 +127,7 @@ struct ComplexNode_G {
 
 #ifdef STDP
 	// [0] used in forward by its phenotypic parent for this node's input
-	// [1] used in forward by its phenotypic parent for this node's output
+	// [1] used by its phenotypic version for the output
 	// [2] used by its phenotypic version for the modulation
 	float STDP_decays[3], STDP_storage_decay[3];
 #endif
