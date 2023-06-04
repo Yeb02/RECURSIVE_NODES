@@ -162,8 +162,14 @@ private:
 	// construction.
 	void updatePhenotypicMultiplicities();
 
-	// Called with a small probability in mutations. Deletes all nodes that do not show up in the phenotype.
-	void removeUnusedNodes();
+	// WARNING: DOES NOT UPDATE POSITIONS, NOR DEPTHS, NOR MULTIPLICITIES.
+	// Use in network.mutate(): it is used to erase some of the non-phenotypically active nodes. However, 
+	// this function itself does not require any of the updates above. So it can be called several times in
+	// a row, and positions, depths etc can be updated only once at the end.
+	void eraseComplexNode(int genomeID);
+
+	// everything is still up to date after a call to this function.
+	void eraseMemoryNode(int genomeID);
 
 	// Update the depths of the genome and the top node. Requires every node to have a valid position !
 	// i.e. in [0, genome.size() - 1], and no two nodes share the same.

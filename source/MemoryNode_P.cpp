@@ -212,7 +212,7 @@ void MemoryNode_P::setArrayPointers(float* post_syn_acts, float* pre_syn_acts, f
 
 #ifdef SATURATION_PENALIZING
 	saturationArray = *aa;
-	*aa += type->inputSize + type->outputSize;
+	*aa += type->inputSize;
 #endif
 	
 

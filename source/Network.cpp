@@ -649,38 +649,38 @@ void Network::mutate() {
 	// The second constexpr value in each pair should not be neglible when compared to
 	// the first, to introduce some kind of spontaneous regularization.
 
-	constexpr float incrementComplexInputSizeProbability = .003f;
-	constexpr float decrementComplexInputSizeProbability = .003f;
+	constexpr float incrementComplexInputSizeProbability = .01f;
+	constexpr float decrementComplexInputSizeProbability = .01f;
 
-	constexpr float incrementComplexOutputSizeProbability = .003f;
-	constexpr float decrementComplexOutputSizeProbability = .003f;
+	constexpr float incrementComplexOutputSizeProbability = .01f;
+	constexpr float decrementComplexOutputSizeProbability = .01f;
 
-	constexpr float incrementMemoryInputSizeProbability = .003f;
-	constexpr float decrementMemoryInputSizeProbability = .003f;
+	constexpr float incrementMemoryInputSizeProbability = .01f;
+	constexpr float decrementMemoryInputSizeProbability = .01f;
 
-	constexpr float incrementMemoryOutputSizeProbability = .003f;
-	constexpr float decrementMemoryOutputSizeProbability = .003f;
+	constexpr float incrementMemoryOutputSizeProbability = .01f;
+	constexpr float decrementMemoryOutputSizeProbability = .01f;
 
-	constexpr float incrementMemoryKernelSizeProbability = .003f;
-	constexpr float decrementMemoryKernelSizeProbability = .003f;
-
-
-	constexpr float addComplexChildProbability = .004f;
-	constexpr float removeComplexChildProbability = .002f;
-
-	constexpr float addMemoryChildProbability = .004f; // .01f
-	constexpr float removeMemoryChildProbability = .002f; // .002f
+	constexpr float incrementMemoryKernelSizeProbability = .01f;
+	constexpr float decrementMemoryKernelSizeProbability = .01f;
 
 
-	constexpr float replaceComplexChildProbability = .05f;
-	constexpr float replaceMemoryChildProbability = .05f;
+	constexpr float addComplexChildProbability = .015f;
+	constexpr float removeComplexChildProbability = .015f;
+
+	constexpr float addMemoryChildProbability = .015f; 
+	constexpr float removeMemoryChildProbability = .015f; 
+
+
+	constexpr float replaceComplexChildProbability = .03f;
+	constexpr float replaceMemoryChildProbability = .03f;
 
 	constexpr float duplicateComplexChildProbability = .01f;
-	constexpr float duplicateMemoryChildProbability = .01f; //.01f
+	constexpr float duplicateMemoryChildProbability = .01f; 
 
-	constexpr float eraseUnusedGenomeProbability = .002f;
+	constexpr float floatParamBaseMutationProbability = 1.0f;
 
-	constexpr float floatParamBaseMutationProbability = 1.f;
+	constexpr float nodeErasureConstant = .2f;
 
 	float r;
 
@@ -721,6 +721,33 @@ void Network::mutate() {
 		}
 	}
 
+
+	float activeComplexGenomeSizeMultiplier;
+	if (complexGenome.size() == 0) {
+		activeComplexGenomeSizeMultiplier = 0.0f;
+	}
+	else {
+		float s = 1.0f;
+		for (int i = 0; i < complexGenome.size(); i++) {
+			if (complexGenome[i]->phenotypicMultiplicity == 0) continue;
+			s += 1.0f / complexGenome[i]->phenotypicMultiplicity;
+		}
+		activeComplexGenomeSizeMultiplier = log2f(1.0f + s) * powf(1.0f + s, -.5);		
+	}
+
+	float activeMemoryGenomeSizeMultiplier;
+	if (memoryGenome.size() == 0) {
+		activeMemoryGenomeSizeMultiplier = 0.0f;
+	} 
+	else {
+		float s = 0.0f;
+		for (int i = 0; i < memoryGenome.size(); i++) {
+			if (memoryGenome[i]->phenotypicMultiplicity == 0) continue;
+			s += 1.0f / memoryGenome[i]->phenotypicMultiplicity;
+		}
+		activeMemoryGenomeSizeMultiplier = log2f(1.0f + s) * powf(1.0f + s, -.5);
+
+	}
 
 	// The effective number of structural mutations of each kind.
 	int nStructuralMutations;
@@ -901,17 +928,16 @@ void Network::mutate() {
 		ComplexNode_G* parent = nullptr;
 
 		// Complex
-		SET_BINOMIAL((int)complexGenome.size() + 1, addComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, addComplexChildProbability * activeComplexGenomeSizeMultiplier);
 		nStructuralMutations = BINOMIAL;
 		if (nStructuralMutations > 0 && complexGenome.size() > 0) {
 			auto criterion = [](ComplexNode_G* n) {
-				float p = (float)n->phenotypicMultiplicity ;
+				if (n->phenotypicMultiplicity == 0) return 0.0f;
 
-				// The more children a node has, the less likely it is to gain one. Also zeros p when max children reached.
-				p *= (float)(MAX_COMPLEX_CHILDREN_PER_COMPLEX - n->complexChildren.size());
+				float p = 1.0f/(float)n->phenotypicMultiplicity ;
 
-				// The shallower a node, the less likely it is to gain a child.
-				p *= 1.0f - powf(.9f, (float)n->depth);
+				// The more children a node has, the less likely it is to gain one. Zero when max children reached.
+				p *= (float)(MAX_COMPLEX_CHILDREN_PER_COMPLEX - n->complexChildren.size())/ (float)MAX_COMPLEX_CHILDREN_PER_COMPLEX;
 
 				return p;
 			};
@@ -922,7 +948,6 @@ void Network::mutate() {
 			}
 			for (int _unused = 0; _unused < nStructuralMutations; _unused++)
 			{
-				// The fewer children a node already has, and deeper it is (high depth), the more likely it is to gain one.
 
 				// choose parent:
 				float r = UNIFORM_01;
@@ -984,17 +1009,17 @@ void Network::mutate() {
 
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size() + 1, addMemoryChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, addMemoryChildProbability * activeMemoryGenomeSizeMultiplier);
 		nStructuralMutations = BINOMIAL;
 		if (nStructuralMutations > 0 && memoryGenome.size() > 0) {
 			auto criterion = [](ComplexNode_G* n) {
-				float p = (float)n->phenotypicMultiplicity * (n->memoryChildren.size() < MAX_MEMORY_CHILDREN_PER_COMPLEX);
+				if (n->phenotypicMultiplicity == 0) return 0.0f;
 
-				// The more children a node has, the less likely it is to gain one.
-				p *= (float)(2 * MAX_MEMORY_CHILDREN_PER_COMPLEX - n->memoryChildren.size());
+				float p = 1.0f / (float)n->phenotypicMultiplicity;
 
-				// The shallower a node, the less likely it is to gain a child.
-				p *= 1.0f - powf(.9f, (float)n->depth);
+				// The more children a node has, the less likely it is to gain one. Zero when max children reached.
+				p *= (float)(MAX_MEMORY_CHILDREN_PER_COMPLEX - n->memoryChildren.size()) / (float)MAX_MEMORY_CHILDREN_PER_COMPLEX;
+
 
 				return p;
 			};
@@ -1006,9 +1031,7 @@ void Network::mutate() {
 
 			for (int _unused = 0; _unused < nStructuralMutations; _unused++)
 			{
-				// The fewer children a node already has, and higher its depth, the more likely it is to gain one.
-				// "higher its depth" and not "deeper", as nodes closer to the top node are more likely to gain children.
-				// (for parallelization bias)
+
 
 				// choose parent:
 				float r = UNIFORM_01;
@@ -1030,11 +1053,16 @@ void Network::mutate() {
 		ComplexNode_G* parent = nullptr;
 
 		// Complex
-		SET_BINOMIAL((int)complexGenome.size() + 1, replaceComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, replaceComplexChildProbability * activeComplexGenomeSizeMultiplier);
 		nStructuralMutations = BINOMIAL;
 		if (nStructuralMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
-				float p = (float)n->phenotypicMultiplicity * n->complexChildren.size();
+				if (n->phenotypicMultiplicity == 0) return 0.0f;
+
+				float p = 1.0f / (float)n->phenotypicMultiplicity;
+
+				p *= (float) n->complexChildren.size();
+
 				return p;
 			};
 
@@ -1129,11 +1157,15 @@ void Network::mutate() {
 
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size() + 1, replaceMemoryChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, replaceMemoryChildProbability * activeMemoryGenomeSizeMultiplier);
 		nStructuralMutations = BINOMIAL;
 		if (nStructuralMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
-				float p = (float)n->phenotypicMultiplicity * n->memoryChildren.size();
+				if (n->phenotypicMultiplicity == 0) return 0.0f;
+
+				float p = 1.0f / (float)n->phenotypicMultiplicity;
+
+				p *= (float)n->memoryChildren.size();
 				return p;
 			};
 
@@ -1211,11 +1243,16 @@ void Network::mutate() {
 		ComplexNode_G* parent = nullptr;
 
 		// Complex
-		SET_BINOMIAL((int)complexGenome.size() + 1, removeComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, removeComplexChildProbability * activeComplexGenomeSizeMultiplier);
 		nStructuralMutations = BINOMIAL;
 		if (nStructuralMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
-				float p = (float)n->phenotypicMultiplicity * n->complexChildren.size();
+				if (n->phenotypicMultiplicity == 0) return 0.0f;
+
+				float p = 1.0f / (float)n->phenotypicMultiplicity;
+
+				p *= (float)n->complexChildren.size();
+
 				return p;
 			};
 
@@ -1240,11 +1277,16 @@ void Network::mutate() {
 
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size() + 1, removeMemoryChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, removeMemoryChildProbability * activeMemoryGenomeSizeMultiplier);
 		nStructuralMutations = BINOMIAL;
 		if (nStructuralMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
-				float p = (float)n->phenotypicMultiplicity * n->memoryChildren.size();
+				if (n->phenotypicMultiplicity == 0) return 0.0f;
+
+				float p = 1.0f / (float)n->phenotypicMultiplicity;
+
+				p *= (float)n->memoryChildren.size();
+
 				return p;
 			};
 
@@ -1275,12 +1317,16 @@ void Network::mutate() {
 		ComplexNode_G* parent = nullptr;
 
 		// Complex
-		SET_BINOMIAL((int)complexGenome.size() + 1, duplicateComplexChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, duplicateComplexChildProbability * activeComplexGenomeSizeMultiplier);
 		nStructuralMutations = BINOMIAL;
 		if (nStructuralMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
-				float p = (float)n->phenotypicMultiplicity * n->complexChildren.size();
-				p *= 1.0f - powf(.8f, (float)n->depth);
+				if (n->phenotypicMultiplicity == 0) return 0.0f;
+
+				float p = 1.0f / (float)n->phenotypicMultiplicity;
+
+				p *= (float)n->complexChildren.size();
+
 				return p;
 			};
 
@@ -1334,12 +1380,16 @@ void Network::mutate() {
 		}
 
 		// Memory
-		SET_BINOMIAL((int)complexGenome.size() + 1, duplicateMemoryChildProbability);
+		SET_BINOMIAL((int)complexGenome.size() + 1, duplicateMemoryChildProbability * activeMemoryGenomeSizeMultiplier);
 		nStructuralMutations = BINOMIAL;
 		if (nStructuralMutations > 0) {
 			auto criterion = [](ComplexNode_G* n) {
-				float p = (float)n->phenotypicMultiplicity * n->memoryChildren.size();
-				p *= 1.0f - powf(.8f, (float)n->depth);
+				if (n->phenotypicMultiplicity == 0) return 0.0f;
+
+				float p = 1.0f / (float)n->phenotypicMultiplicity;
+
+				p *= (float)n->memoryChildren.size();
+
 				return p;
 			};
 
@@ -1376,10 +1426,7 @@ void Network::mutate() {
 	}
 
 
-	
-	// the order of the following calls must be respected.
-	
-	// these 3 are unnecessary, because a correct state is guaranteed by each mutation.
+	// these 3 calls are unnecessary, because keeping a correct state is guaranteed by each mutation.
 	/*
 	updateDepths();
 	sortGenome();
@@ -1387,27 +1434,74 @@ void Network::mutate() {
 	*/
 
 
-	// Removing unused nodes. Find a better solution, TODO 
-	if (UNIFORM_01 < eraseUnusedGenomeProbability) {
-		removeUnusedNodes(); 
+	// Update mutationalDistance and timeSinceLastUse.
+	{
+		for (int i = 0; i < complexGenome.size(); i++) {
+			if (complexGenome[i]->phenotypicMultiplicity > 0) {
+				complexGenome[i]->mutationalDistance++;
+
+				// it can already be = 0 if the node was active before mutations,
+				// but this is the best way to do it.
+				complexGenome[i]->timeSinceLastUse = 0;
+			}
+			else {
+				complexGenome[i]->timeSinceLastUse++;
+			}
+			complexGenome[i]->computeBiasSizes();
+		}
+		topNodeG->computeBiasSizes();
+		for (int i = 0; i < memoryGenome.size(); i++) {
+			if (memoryGenome[i]->phenotypicMultiplicity > 0) {
+				memoryGenome[i]->mutationalDistance++;
+
+				// it can already be = 0 if the node was active before mutations,
+				// but this is the best way to do it.
+				memoryGenome[i]->timeSinceLastUse = 0;
+			}
+			else {
+				memoryGenome[i]->timeSinceLastUse++;
+			}
+		}
 	}
 
 
-	// Update mutational distances.
-	for (int i = 0; i < complexGenome.size(); i++) {
-		if (complexGenome[i]->phenotypicMultiplicity > 0) {
-			complexGenome[i]->mutationalDistance++;
+
+	// Remove unused nodes.
+	{
+		for (int i = 0; i < complexGenome.size(); i++) { 
+			if (complexGenome[i]->phenotypicMultiplicity > 0) continue;
+
+			float pErasure = .5f * tanhf((float)complexGenome[i]->timeSinceLastUse * nodeErasureConstant - 5.0f) + .5f;
+
+			if (UNIFORM_01 < pErasure)
+			{
+				eraseComplexNode(i);
+				i--;
+			}
 		}
-		complexGenome[i]->computeBiasSizes();
-	}
-	topNodeG->computeBiasSizes();
-	for (int i = 0; i < memoryGenome.size(); i++) {
-		if (memoryGenome[i]->phenotypicMultiplicity > 0) {
-			memoryGenome[i]->mutationalDistance++;
+		for (int i = 0; i < complexGenome.size(); i++) complexGenome[i]->position = i;
+		topNodeG->position = (int)complexGenome.size();
+		updateDepths();
+		sortGenome();
+
+
+		for (int i = 0; i < memoryGenome.size(); i++) {
+			if (memoryGenome[i]->phenotypicMultiplicity > 0) continue;
+
+			float pErasure = .5f * tanhf((float)memoryGenome[i]->timeSinceLastUse * nodeErasureConstant - 5.0f) + .5f;
+
+			if (UNIFORM_01 < pErasure)
+			{
+				eraseMemoryNode(i);
+				i--;
+			}
 		}
+		for (int i = 0; i < memoryGenome.size(); i++) memoryGenome[i]->position = i;
 	}
+
 
 	createIDMaps();
+
 
 	// Phenotype is destroyed, as it may have become outdated. It will have to be recreated
 	// before next inference. (The phenotype should not exist at this stage anyway)
@@ -1489,103 +1583,125 @@ void Network::updatePhenotypicMultiplicities() {
 }
 
 
-// requires the genome be sorted by ascending (and up to date) depths, positions and multiplicities be correct.
-void Network::removeUnusedNodes() {
-	std::vector<int> occurences(complexGenome.size());
-	for (int i = 0; i < (int)topNodeG->complexChildren.size(); i++) {
-		occurences[topNodeG->complexChildren[i]->position]++;
+void Network::eraseComplexNode(int genomeID) {
+	ComplexNode_G* erasedNode = complexGenome[genomeID].get();
+
+	// firstly, handle the replacement of "closestNode" pointers. Those of all
+	// the nodes that pointed towards erasedNode have to be replaced, by erasedNode->closestNode
+	// if available, otherwise by the node that was the closest in terms of mutational distance 
+	// to closest node.
+	if (erasedNode->closestNode != NULL)
+	{
+		for (int j = 0; j < complexGenome.size(); j++) {
+			if (complexGenome[j]->closestNode == erasedNode) {
+				complexGenome[j]->closestNode = erasedNode->closestNode;
+				complexGenome[j]->mutationalDistance += erasedNode->mutationalDistance;
+			}
+		}
 	}
-
-	for (int i = (int)complexGenome.size() - 1; i >= 0; i--) {
-
-		if (complexGenome[i]->phenotypicMultiplicity == 0) { 
-
-			// firstly, handle the replacement pointers. Could do better, TODO .
-			if (complexGenome[i]->closestNode != NULL)
-			{
-				for (int j = 0; j < complexGenome.size(); j++) {
-					if (complexGenome[j]->closestNode == complexGenome[i].get()) {
-						complexGenome[j]->closestNode = complexGenome[i]->closestNode;
-						complexGenome[j]->mutationalDistance += complexGenome[i]->mutationalDistance;
-					}
+	else {
+		int dMin = 1000000000;
+		ComplexNode_G* newRoot = nullptr;
+		for (int j = 0; j < complexGenome.size(); j++) {
+			if (complexGenome[j]->closestNode == erasedNode) {
+				if (complexGenome[j]->mutationalDistance < dMin) {
+					dMin = complexGenome[j]->mutationalDistance;
+					newRoot = complexGenome[j].get();
 				}
 			}
-			else {
-				int dMin = 1000000000; 
-				ComplexNode_G* newRoot = nullptr;
-				for (int j = 0; j < complexGenome.size(); j++) {
-					if (complexGenome[j]->closestNode == complexGenome[i].get()) {
-						if (complexGenome[j]->mutationalDistance < dMin) {
-							dMin = complexGenome[j]->mutationalDistance;
-							newRoot = complexGenome[j].get();
-						}
-					}
-				}
-				if (newRoot != nullptr) {
-					newRoot->closestNode = NULL;
-					newRoot->mutationalDistance = 0;
-					for (int j = 0; j < complexGenome.size(); j++) {
-						if (complexGenome[j]->closestNode == complexGenome[i].get()) {
-							complexGenome[j]->mutationalDistance += dMin;
-							complexGenome[j]->closestNode = newRoot;
-						}
-					}
+		}
+		if (newRoot != nullptr) {
+			newRoot->closestNode = NULL;
+			newRoot->mutationalDistance = 0;
+			for (int j = 0; j < complexGenome.size(); j++) {
+				if (complexGenome[j]->closestNode == erasedNode) {
+					complexGenome[j]->mutationalDistance += dMin;
+					complexGenome[j]->closestNode = newRoot;
 				}
 			}
-
-			// erase it from the genome list.
-			complexGenome.erase(complexGenome.begin() + i);
-			continue;
 		}
 	}
 
-	for (int i = 0; i < complexGenome.size(); i++) complexGenome[i]->position = i;
-	topNodeG->position = (int)complexGenome.size();
 
-	for (int i = (int)memoryGenome.size()-1; i >= 0; i--) {
-
-		if (memoryGenome[i]->phenotypicMultiplicity == 0) {
-
-			// firstly, handle the replacement pointers. Could do better, TODO .
-			if (memoryGenome[i]->closestNode != NULL)
-			{
-				for (int j = 0; j < memoryGenome.size(); j++) {
-					if (memoryGenome[j]->closestNode == memoryGenome[i].get()) {
-						memoryGenome[j]->closestNode = memoryGenome[i]->closestNode;
-						memoryGenome[j]->mutationalDistance += memoryGenome[i]->mutationalDistance;
-					}
+	// Remove all its occurences in each of its potential parents. Those are the nodes with a 
+	// multiplicity = 0, and a higher position in the genome list. genomeID is used for position
+	// instead of erasedNode->position because it may be obsolete (See comments at eraseComplexNode's
+	// declaration). TopNode's multiplicity = 1 so not involved in this section.
+	for (int i = genomeID + 1; i < complexGenome.size(); i++) {
+		if (complexGenome[i]->phenotypicMultiplicity == 0) 
+		{
+			for (int j = 0; j < complexGenome[i]->complexChildren.size(); j++) {
+				if (complexGenome[i]->complexChildren[j] == erasedNode) {
+					complexGenome[i]->removeComplexChild(j);
+					j--;
 				}
 			}
-			else {
-				int dMin = 1000000000;
-				MemoryNode_G* newRoot = nullptr;
-				for (int j = 0; j < memoryGenome.size(); j++) {
-					if (memoryGenome[j]->closestNode == memoryGenome[i].get()) {
-						if (memoryGenome[j]->mutationalDistance < dMin) {
-							dMin = memoryGenome[j]->mutationalDistance;
-							newRoot = memoryGenome[j].get();
-						}
-					}
-				}
-				if (newRoot != nullptr) {
-					newRoot->closestNode = NULL;
-					newRoot->mutationalDistance = 0;
-					for (int j = 0; j < memoryGenome.size(); j++) {
-						if (memoryGenome[j]->closestNode == memoryGenome[i].get()) {
-							memoryGenome[j]->mutationalDistance += dMin;
-							memoryGenome[j]->closestNode = newRoot;
-						}
-					}
-				}
-			}
-
-			// erase it from the genome list.
-			memoryGenome.erase(memoryGenome.begin() + i);
-
-			continue;
 		}
 	}
-	for (int i = 0; i < memoryGenome.size(); i++) memoryGenome[i]->position = i;
+
+
+	// finally erase it from the genome list.
+	complexGenome.erase(complexGenome.begin() + genomeID);
+}
+
+void Network::eraseMemoryNode(int genomeID) {
+	MemoryNode_G* erasedNode = memoryGenome[genomeID].get();
+
+	// firstly, handle the replacement of "closestNode" pointers. Those of all
+	// the nodes that pointed towards erasedNode have to be replaced, by erasedNode->closestNode
+	// if available, otherwise by the node that was the closest in terms of mutational distance 
+	// to closest node.
+	if (erasedNode->closestNode != NULL)
+	{
+		for (int j = 0; j < memoryGenome.size(); j++) {
+			if (memoryGenome[j]->closestNode == erasedNode) {
+				memoryGenome[j]->closestNode = erasedNode->closestNode;
+				memoryGenome[j]->mutationalDistance += erasedNode->mutationalDistance;
+			}
+		}
+	}
+	else {
+		int dMin = 1000000000;
+		MemoryNode_G* newRoot = nullptr;
+		for (int j = 0; j < memoryGenome.size(); j++) {
+			if (memoryGenome[j]->closestNode == erasedNode) {
+				if (memoryGenome[j]->mutationalDistance < dMin) {
+					dMin = memoryGenome[j]->mutationalDistance;
+					newRoot = memoryGenome[j].get();
+				}
+			}
+		}
+		if (newRoot != nullptr) {
+			newRoot->closestNode = NULL;
+			newRoot->mutationalDistance = 0;
+			for (int j = 0; j < memoryGenome.size(); j++) {
+				if (memoryGenome[j]->closestNode == erasedNode) {
+					memoryGenome[j]->mutationalDistance += dMin;
+					memoryGenome[j]->closestNode = newRoot;
+				}
+			}
+		}
+	}
+
+
+	// Remove all its occurences in each of its potential parents. Those are the nodes with a 
+	// multiplicity = 0 genomeID is used for position instead of erasedNode->position because
+	// it may be obsolete (See comments at eraseComplexNode's declaration).
+	// TopNode's multiplicity = 1 so not involved in this section.
+	for (int i = 0; i < complexGenome.size(); i++) {
+		if (complexGenome[i]->phenotypicMultiplicity == 0)
+		{
+			for (int j = 0; j < complexGenome[i]->memoryChildren.size(); j++) {
+				if (complexGenome[i]->memoryChildren[j] == erasedNode) {
+					complexGenome[i]->removeMemoryChild(j);
+					j--;
+				}
+			}
+		}
+	}
+
+	// erase it from the genome list.
+	memoryGenome.erase(memoryGenome.begin() + genomeID);
 }
 
 
@@ -1605,10 +1721,10 @@ float Network::getSaturationPenalization()
 
 	float p2 = 0.0f;
 	float invNInferencesN = 1.0f / nInferencesOverLifetime;
-	for (int i = inputSize+outputSize; i < averageActivationArraySize; i++) {
-		p2 += powf(abs(averageActivation[i]) * invNInferencesN, .5f);
+	for (int i = 0; i < averageActivationArraySize; i++) {
+		p2 += powf(abs(averageActivation[i]) * invNInferencesN, 6.0f);
 	}
-	p2 /= (float) (averageActivationArraySize - inputSize - outputSize);
+	p2 /= (float) averageActivationArraySize;
 	
 
 

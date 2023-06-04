@@ -111,11 +111,15 @@ struct ComplexNode_G {
 	// Points towards the node this was cloned from or boxed from on the tree of life. 
 	ComplexNode_G* closestNode;
 
-	// How many iterations of floating point values mutations it has undergone since it was created.
+	// Number of mutations its parent network has undergone since this node was created.
 	int mutationalDistance;
 
 	// How many times this node appears in the phenotype.
 	int phenotypicMultiplicity;
+
+	// Number of mutations its parent network has undergone since last time this node had a phenotypic
+	// multiplicity > 0 (so timeSinceLastUse = 0 for nodes that are phenotypically active.)
+	int timeSinceLastUse;
 
 	// Updated by a call to computeBiasSizes. 
 	int complexBiasSize, memoryBiasSize;

@@ -8,6 +8,7 @@ ComplexNode_G::ComplexNode_G(int inputSize, int outputSize) :
 	toOutput(0, 0, InternalConnexion_G::ZERO)
 {
 	mutationalDistance = 0;
+	timeSinceLastUse = 0;
 	closestNode = NULL;
 
 	outputBias.resize(outputSize);
@@ -87,6 +88,7 @@ ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 	position = n->position;
 	mutationalDistance = n->mutationalDistance;
 	phenotypicMultiplicity = n->phenotypicMultiplicity;
+	timeSinceLastUse = n->timeSinceLastUse;
 
 	// The following enclosed section is useless if n is not part of the same network as "this", 
 	// and it must be repeated where this function was called.
@@ -124,6 +126,7 @@ ComplexNode_G::ComplexNode_G(std::ifstream& is) {
 
 	READ_4B(complexNodeID, is);
 	READ_4B(mutationalDistance, is);
+	READ_4B(timeSinceLastUse, is);
 
 #ifdef STDP
 	READ_4B(STDP_storage_decay[0], is);
@@ -176,6 +179,7 @@ void ComplexNode_G::save(std::ofstream& os) {
 
 	WRITE_4B(complexNodeID, os);
 	WRITE_4B(mutationalDistance, os);
+	WRITE_4B(timeSinceLastUse, os);
 
 #ifdef STDP
 	WRITE_4B(STDP_storage_decay[0], os);
@@ -694,15 +698,16 @@ void ComplexNode_G::computePostSynActArraySize(std::vector<int>& genomeState) {
 #ifdef SATURATION_PENALIZING
 // Used to compute the size of the array containing the average saturations of the phenotype.
 void ComplexNode_G::computeSaturationArraySize(std::vector<int>& genomeState) {
-	int s = inputSize + outputSize + MODULATION_VECTOR_SIZE;
+	int s = MODULATION_VECTOR_SIZE;
 	for (int i = 0; i < complexChildren.size(); i++) {
+		s += complexChildren[i]->inputSize;
 		if (genomeState[complexChildren[i]->position] == 0) {
 			complexChildren[i]->computeSaturationArraySize(genomeState);
 		}
 		s += genomeState[complexChildren[i]->position];
 	}
 	for (int i = 0; i < memoryChildren.size(); i++) {
-		s += memoryChildren[i]->inputSize + memoryChildren[i]->outputSize;
+		s += memoryChildren[i]->inputSize;
 	}
 	genomeState[position] = s;
 }

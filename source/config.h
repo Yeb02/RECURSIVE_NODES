@@ -20,12 +20,12 @@
 
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
 // These do not affect the DLL.
-#define CARTPOLE_T
+//#define CARTPOLE_T
 //#define XOR_T
 //#define TMAZE_T
 //#define N_LINKS_PENDULUM_T
 //#define MEMORY_T
-//#define ROCKET_SIM_T // for now, path are hardcoded in the project properties (linker->input), in main.cpp and in RocketSim.h.
+#define ROCKET_SIM_T 
 
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
@@ -42,14 +42,14 @@
 //#define GUIDED_MUTATIONS
 
 
-// IN DEVELOPPEMENT, DO NOT USE
+// IN DEVELOPPEMENT
 // When defined, for each network, float sp = sum of a function F of each activation of the network, at each step.
 // F is of the kind pow(activation, 2*k), so that its symmetric around 0 and decreasing in [-1,0]. (=> increasing in [0, -1])
 // At the end of the lifetime, sp is divided by the numer of steps and the number of activations, as both may differ from
 // one specimen to another. The vector of [sp/(nA*nS) for each specimen] is normalized (mean 0 var 1), and for each specimen
 // the corresponding value in the vector is substracted to the score in parallel of size and amplitude regularization terms
 // when computing fitness. The lower sum(F), the fitter.
-//#define SATURATION_PENALIZING
+#define SATURATION_PENALIZING
 
 // IN DEVELOPPEMENT
 // Instead of a discrete, finite set of memorized vectors and an attention mechanism, memory is programmed with
@@ -70,7 +70,7 @@
 // I dont really know what to expect from non-monotonous functions when it comes to applying 
 // hebbian updates... It does not make much sense. But I plan to add cases where activations
 // do not use hebbian rules.
-#define N_ACTIVATIONS  2 // only activation functions < N_ACTIVATIONS are used
+#define N_ACTIVATIONS  1 // only activation functions < N_ACTIVATIONS are used
 const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, LOG2 = 2, EXP2 = 3, RELU = 4, SINE = 5, CENTERED_TANH = 6 };
 
 	

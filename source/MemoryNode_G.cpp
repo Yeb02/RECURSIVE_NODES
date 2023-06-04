@@ -12,6 +12,8 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	closestNode = n->closestNode;
 	kernelDimension = n->kernelDimension;
 	phenotypicMultiplicity = n->phenotypicMultiplicity;
+	timeSinceLastUse = n->timeSinceLastUse;
+
 	beta = n->beta;
 	decay = n->decay;
 	storage_decay = n->storage_decay;
@@ -33,6 +35,7 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize, int kernelDimension) :
 	closestNode = NULL;
 	mutationalDistance = 0;
 	phenotypicMultiplicity = 0;
+	timeSinceLastUse = 0;
 	position = -1;
 	memoryNodeID = -1;
 	setBeta();
@@ -59,8 +62,10 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 	mutationalDistance = n.mutationalDistance;
 	closestNode = n.closestNode;
 	kernelDimension = n.kernelDimension;
-	beta = n.beta;
 	phenotypicMultiplicity = n.phenotypicMultiplicity;
+	timeSinceLastUse = n.timeSinceLastUse;
+	
+	beta = n.beta;
 	decay = n.decay;
 	storage_decay = n.storage_decay;
 #ifdef STDP
@@ -78,6 +83,7 @@ MemoryNode_G::MemoryNode_G(std::ifstream& is)
 	READ_4B(outputSize, is);
 
 	READ_4B(mutationalDistance, is);
+	READ_4B(timeSinceLastUse, is);
 	READ_4B(memoryNodeID, is);
 
 	READ_4B(kernelDimension, is);
@@ -107,6 +113,7 @@ void MemoryNode_G::save(std::ofstream& os)
 	WRITE_4B(outputSize, os);
 
 	WRITE_4B(mutationalDistance, os);
+	WRITE_4B(timeSinceLastUse, os);
 	WRITE_4B(memoryNodeID, os);
 	
 	WRITE_4B(kernelDimension, os);

@@ -76,7 +76,7 @@ void ComplexNode_P::setArrayPointers(float** post_syn_acts, float** pre_syn_acts
 
 #ifdef SATURATION_PENALIZING
 	averageActivation = *aa;
-	*aa += type->outputSize + type->inputSize + MODULATION_VECTOR_SIZE;
+	*aa += MODULATION_VECTOR_SIZE;
 #endif
 
 #ifdef STDP
@@ -89,6 +89,9 @@ void ComplexNode_P::setArrayPointers(float** post_syn_acts, float** pre_syn_acts
 		*pre_syn_acts += complexChildren[i].type->inputSize;
 #ifdef STDP
 		*acc_pre_syn_acts += complexChildren[i].type->inputSize;
+#endif
+#ifdef SATURATION_PENALIZING
+		*aa += complexChildren[i].type->inputSize;
 #endif
 	}
 	for (int i = 0; i < memoryChildren.size(); i++) {
@@ -147,7 +150,7 @@ void ComplexNode_P::forward() {
 	// And it can even be node specific. To be evolved ?
 
 #ifdef SATURATION_PENALIZING
-	constexpr float saturationExponent = .5f; 
+	constexpr float saturationExponent = 6.0f; 
 #endif
 
 	// STEP 0: initialize all pre-synaptic activations with the associated weights
@@ -338,9 +341,10 @@ void ComplexNode_P::forward() {
 		}
 
 #ifdef SATURATION_PENALIZING 
-		for (int j = type->outputSize; j < MODULATION_VECTOR_SIZE + type->outputSize; j++) {
-			*globalSaturationAccumulator += powf(abs(preSynActs[j]), saturationExponent);
-			averageActivation[j] += preSynActs[j];
+		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
+			float v = postSynActs[i + type->inputSize];
+			*globalSaturationAccumulator += powf(abs(v), saturationExponent);
+			averageActivation[i] += v;
 		}
 #endif
 	}
@@ -419,10 +423,11 @@ void ComplexNode_P::forward() {
 
 #ifdef SATURATION_PENALIZING 
 			// child post-syn input
+			int i0 = MODULATION_VECTOR_SIZE + id;
 			for (int j = 0; j < complexChildren[i].type->inputSize; j++) {
-				float v = *(ptrToInputs + id + j);
+				float v = complexChildren[i].postSynActs[j];
 				*globalSaturationAccumulator += powf(abs(v), saturationExponent);
-				complexChildren[i].averageActivation[j] += v;
+				averageActivation[i0+j] += v;
 			}
 #endif
 
@@ -470,9 +475,10 @@ void ComplexNode_P::forward() {
 		}
 
 #ifdef SATURATION_PENALIZING 
-		for (int j = type->outputSize; j < MODULATION_VECTOR_SIZE + type->outputSize; j++) {
-			*globalSaturationAccumulator += powf(abs(preSynActs[j]), saturationExponent);
-			averageActivation[j] += preSynActs[j];
+		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
+			float v = postSynActs[i + type->inputSize];
+			*globalSaturationAccumulator += powf(abs(v), saturationExponent);
+			averageActivation[i] += v;
 		}
 #endif
 	}

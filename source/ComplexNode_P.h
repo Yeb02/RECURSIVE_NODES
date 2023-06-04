@@ -30,12 +30,12 @@ struct ComplexNode_P {
 	 
 
 
-	// Used as the multiplied vector in matrix operations.
-	// Arranged in this order: input -> modulation.out -> complexChildren.out -> memoryChildren.out
+	// Used as the multiplied vector in matrix operations. Layout:
+	// input -> modulation.out -> complexChildren.out -> memoryChildren.out
 	float* postSynActs;
 
-	// Used as the result vector in matrix operations.
-	// Arranged in this order: output -> modulation.in -> complexChildren.in -> memoryChildren.in
+	// Used as the result vector in matrix operations. Layout:
+	// output -> modulation.in -> complexChildren.in -> memoryChildren.in
 	float* preSynActs;
 
 #ifdef STDP
@@ -45,6 +45,9 @@ struct ComplexNode_P {
 #endif
 
 #ifdef SATURATION_PENALIZING
+	// Layout:
+	// Modulation -> complexChildren->inputSize
+	// inputSize for memory nodes
 	float* averageActivation;
 #endif
 

@@ -31,6 +31,7 @@ int main()
     LOG("Seed : " << seed);
 
 #ifdef ROCKET_SIM_T
+    // Path to where you dumped rocket league collision meshes.
     RocketSim::Init((std::filesystem::path)"C:/Users/alpha/Bureau/RLRL/collisionDumper/x64/Release/collision_meshes");
 #endif
 
@@ -41,7 +42,7 @@ int main()
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
 #ifdef _DEBUG
-    nThreads = 1; // Because multi-threaded functions are difficult to step through line by line.
+    //nThreads = 1; // Because multi-threaded functions are difficult to step through line by line.
 #endif
     int nSpecimens = nThreads * 256; //16 -> 512
     int nDifferentTrials = 4;
@@ -72,8 +73,8 @@ int main()
     params.selectionPressure = { -2.0f, .3f}; // first param < -1, second << 1.
     params.useSameTrialInit = true; 
     params.rankingFitness = true;
-    params.saturationFactor = 0.0f;
-    params.regularizationFactor = 0.05f; 
+    params.saturationFactor = 0.03f;
+    params.regularizationFactor = .03f; 
     params.competitionFactor = .0f; 
     params.scoreBatchTransformation = RANK;
     params.nParents = 20;

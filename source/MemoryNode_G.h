@@ -20,15 +20,21 @@ struct MemoryNode_G {
 	// The dimension of the scalar product between keys and queries.
 	int kernelDimension;
 
-	// Util for Network. How many times this node appears in the phenotype.
-	int phenotypicMultiplicity;
 
 	MemoryNode_G* closestNode;
 
 	// unique to each node of the network, used to match them when mating
 	int memoryNodeID;
 
+	// Number of mutations its parent network has undergone since this node was created.
 	int mutationalDistance;
+
+	// How many times this node appears in the phenotype.
+	int phenotypicMultiplicity;
+
+	// Number of mutations its parent network has undergone since last time this node had a phenotypic
+	// multiplicity > 0 (so timeSinceLastUse = 0 for nodes that are phenotypically active.)
+	int timeSinceLastUse;
 
 	// the connexion linking input and output
 	InternalConnexion_G link;

@@ -76,7 +76,7 @@ public:
         text.setCharacterSize(11);
         int nComplexNodes = (int)n->complexGenome.size() + 1;
         int nMemoryNodes = (int)n->memoryGenome.size();
-        float memoryOffset = nodeOffset * ((float)nComplexNodes - 1.0f) / (float)(nMemoryNodes - 1);
+        float memoryOffset = nodeOffset * ((float)nComplexNodes - 1.0f) / ((float)nMemoryNodes - 1.0f +.000001f);
         float x0 = 2.0f*nodeRadius, y0 = 3.0f*nodeRadius + 2 * lineOffset;
 
         // Connexions, then complexNodes and their legend, then memory nodes and their legends.
