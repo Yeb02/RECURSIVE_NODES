@@ -34,7 +34,13 @@ int InternalConnexion_G::nEvolvedArrays =   7 +
 InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATION init) :
 	nLines(nLines), nColumns(nColumns)
 {
+
 	int s = nLines * nColumns;
+
+	float f0 = 1.0f;
+	if (s != 0) { f0 = powf((float)nColumns, -.5f); }
+	 
+
 	eta = std::make_unique<float[]>(s);
 	storage_eta = std::make_unique<float[]>(s);
 	A = std::make_unique<float[]>(s);
@@ -61,26 +67,26 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 	accumulator = std::make_unique<float[]>(s);
 #endif
 
-	auto zero = [s](float* vec) {
+	auto zero = [&s](float* vec) {
 		for (int i = 0; i < s; i++) {
 			vec[i] = 0.0f;
 		}
 	};
 
-	auto rand = [s](float* vec, float b) {
+	auto rand = [&s](float* vec, float b, float f) {
 		for (int i = 0; i < s; i++) {
-			vec[i] = NORMAL_01 * .2f + b;
+			vec[i] = NORMAL_01 * f + b;
 		}
 	};
 
-	rand(A.get(), 0.0f);
-	rand(B.get(), 0.0f);
-	rand(C.get(), 0.0f);
-	rand(D.get(), 0.0f);
-	rand(storage_eta.get(), DECAY_PARAMETERS_STORAGE_BIAS);
+	rand(A.get(), 0.0f, f0);
+	rand(B.get(), 0.0f, f0);
+	rand(C.get(), 0.0f, f0);
+	rand(D.get(), 0.0f, f0);
+	rand(storage_eta.get(), DECAY_PARAMETERS_STORAGE_BIAS, .2f);
 
 #ifdef CONTINUOUS_LEARNING
-	rand(storage_gamma.get(), DECAY_PARAMETERS_STORAGE_BIAS);
+	rand(storage_gamma.get(), DECAY_PARAMETERS_STORAGE_BIAS, .2f);
 #endif
 
 #ifdef GUIDED_MUTATIONS
@@ -88,7 +94,7 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 #endif
 
 #ifdef OJA
-	rand(storage_delta.get(), DECAY_PARAMETERS_STORAGE_BIAS);
+	rand(storage_delta.get(), DECAY_PARAMETERS_STORAGE_BIAS, .2f);
 #endif
 
 	if (init == ZERO) {
@@ -99,11 +105,37 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 #endif
 	}
 	else if (init == RANDOM) {
-		rand(alpha.get(), 0.0f);
+		rand(alpha.get(), 0.0f, f0);
 
 #ifndef RANDOM_W
-		rand(w.get(), 0.0f);
+		rand(w.get(), 0.0f, f0);
 #endif
+	}
+
+
+
+	s = nLines;
+	biases = std::make_unique<float[]>(s);
+	activationFunctions = std::make_unique<ACTIVATION[]>(s);
+
+#ifdef STDP
+	STDP_storage_lambda = std::make_unique<float[]>(s);
+	STDP_storage_mu = std::make_unique<float[]>(s);
+	STDP_mu = std::make_unique<float[]>(s);
+	STDP_lambda = std::make_unique<float[]>(s);
+	rand(STDP_storage_mu.get(), DECAY_PARAMETERS_STORAGE_BIAS, .2f);
+	rand(STDP_storage_lambda.get(), DECAY_PARAMETERS_STORAGE_BIAS, .2f);
+#endif
+
+	for (int i = 0; i < s; i++) {
+		activationFunctions[i] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
+	}
+
+	if (init == ZERO) {
+		zero(biases.get());
+	}
+	else if (init == RANDOM) {
+		rand(biases.get(), 0.0f, 1.0f);
 	}
 }
 
@@ -156,6 +188,23 @@ InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
 	accumulator = std::make_unique<float[]>(s);
 	std::copy(gc.accumulator.get(), gc.accumulator.get() + s, accumulator.get());
 #endif
+
+	s = nLines;
+	biases = std::make_unique<float[]>(s);
+	activationFunctions = std::make_unique<ACTIVATION[]>(s);
+	std::copy(gc.biases.get(), gc.biases.get() + s, biases.get());
+	std::copy(gc.activationFunctions.get(), gc.activationFunctions.get() + s, activationFunctions.get());
+
+#ifdef STDP
+	STDP_storage_lambda = std::make_unique<float[]>(s);
+	STDP_storage_mu = std::make_unique<float[]>(s);
+	STDP_mu = std::make_unique<float[]>(s);
+	STDP_lambda = std::make_unique<float[]>(s);
+	std::copy(gc.STDP_mu.get(), gc.STDP_mu.get() + s, STDP_mu.get());
+	std::copy(gc.STDP_lambda.get(), gc.STDP_lambda.get() + s, STDP_lambda.get());
+	std::copy(gc.STDP_storage_mu.get(), gc.STDP_storage_mu.get() + s, STDP_storage_mu.get());
+	std::copy(gc.STDP_storage_lambda.get(), gc.STDP_storage_lambda.get() + s, STDP_storage_lambda.get());
+#endif
 }
 
 InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc) {
@@ -205,6 +254,23 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	std::copy(gc.accumulator.get(), gc.accumulator.get() + s, accumulator.get());
 #endif
 
+	s = nLines;
+	biases = std::make_unique<float[]>(s);
+	activationFunctions = std::make_unique<ACTIVATION[]>(s);
+	std::copy(gc.biases.get(), gc.biases.get() + s, biases.get());
+	std::copy(gc.activationFunctions.get(), gc.activationFunctions.get() + s, activationFunctions.get());
+
+#ifdef STDP
+	STDP_storage_lambda = std::make_unique<float[]>(s);
+	STDP_storage_mu = std::make_unique<float[]>(s);
+	STDP_mu = std::make_unique<float[]>(s);
+	STDP_lambda = std::make_unique<float[]>(s);
+	std::copy(gc.STDP_mu.get(), gc.STDP_mu.get() + s, STDP_mu.get());
+	std::copy(gc.STDP_lambda.get(), gc.STDP_lambda.get() + s, STDP_lambda.get());
+	std::copy(gc.STDP_storage_mu.get(), gc.STDP_storage_mu.get() + s, STDP_storage_mu.get());
+	std::copy(gc.STDP_storage_lambda.get(), gc.STDP_storage_lambda.get() + s, STDP_storage_lambda.get());
+#endif
+
 	return *this;
 }
 
@@ -250,6 +316,22 @@ InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
 #ifdef GUIDED_MUTATIONS
 	accumulator = std::make_unique<float[]>(s);
 #endif
+
+	s = nLines;
+	biases = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(biases.get()), s * sizeof(float));
+
+	activationFunctions = std::make_unique<ACTIVATION[]>(s);
+	is.read(reinterpret_cast<char*>(activationFunctions.get()), s * sizeof(ACTIVATION));
+
+#ifdef STDP
+	STDP_storage_lambda = std::make_unique<float[]>(s);
+	STDP_storage_mu = std::make_unique<float[]>(s);
+	STDP_mu = std::make_unique<float[]>(s);
+	STDP_lambda = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(STDP_storage_mu.get()), s * sizeof(float));
+	is.read(reinterpret_cast<char*>(STDP_storage_lambda.get()), s * sizeof(float));
+#endif
 }
 
 void InternalConnexion_G::save(std::ofstream& os) 
@@ -276,6 +358,16 @@ void InternalConnexion_G::save(std::ofstream& os)
 
 #ifdef CONTINUOUS_LEARNING
 	os.write(reinterpret_cast<const char*>(storage_gamma.get()), s * sizeof(float));
+#endif
+
+	s = nLines;
+	os.write(reinterpret_cast<const char*>(biases.get()), s * sizeof(float));
+
+	os.write(reinterpret_cast<const char*>(activationFunctions.get()), s * sizeof(ACTIVATION));
+
+#ifdef STDP
+	os.write(reinterpret_cast<const char*>(STDP_storage_mu.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(STDP_storage_lambda.get()), s * sizeof(float));
 #endif
 }
 
@@ -327,12 +419,47 @@ void InternalConnexion_G::mutateFloats(float p) {
 	mutateMatrix(storage_delta.get());
 #endif
 
-#ifdef GUIDED_MUTATIONS
+#if defined(GUIDED_MUTATIONS) && !defined(RANDOM_W)
 	for (int k = 0; k < size; k++) {;
-		w[k] += std::max(std::min(accumulator[k], accumulatorClipRange), -accumulatorClipRange) * sigma;
+		w[k] += std::max(std::min(accumulator[k], accumulatorClipRange), -accumulatorClipRange); 
 		accumulator[k] = 0.0f;
 	}
 #endif
+
+	
+	SET_BINOMIAL(nLines, p);
+
+	int _nMutations = BINOMIAL;
+	for (int i = 0; i < _nMutations; i++) {
+		int id = INT_0X(nLines);
+		biases[id] *= .9f + NORMAL_01 * .1f; // .9 < 1 to drive the weight towards 0.
+		biases[id] += NORMAL_01 * .2f;
+	}
+
+
+#ifdef STDP
+	_nMutations = BINOMIAL;
+	for (int i = 0; i < _nMutations; i++) {
+		int id = INT_0X(nLines);
+		STDP_storage_lambda[id] *= .95f + NORMAL_01 * .1f; // .9 < 1 to drive it towards 0.
+		STDP_storage_lambda[id] += NORMAL_01 * .1f;
+	}
+
+	_nMutations = BINOMIAL;
+	for (int i = 0; i < _nMutations; i++) {
+		int id = INT_0X(nLines);
+		STDP_storage_mu[id] *= .95f + NORMAL_01 * .1f; // .9 < 1 to drive it towards 0.
+		STDP_storage_mu[id] += NORMAL_01 * .1f;
+	}
+#endif
+
+	SET_BINOMIAL(nLines, .1f * p);
+    _nMutations = BINOMIAL;
+	for (int i = 0; i < _nMutations; i++) {
+		int id = INT_0X(nLines);
+		activationFunctions[id] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
+	}
+
 }
 
 
@@ -341,7 +468,6 @@ void InternalConnexion_G::accumulateW(float factor, float* wLifetime) {
 	int s = nLines * nColumns;
 	for (int j = 0; j < s; j++) {
 		accumulator[j] += factor * wLifetime[j];
-		//wLifetime[j] = 0.0f; // TODO ?
 	}
 }
 #endif
@@ -407,9 +533,49 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 	f_0(accumulator); // set to 0...
 #endif
 
+
+	
+	float* newB = new float[nLines + s];
+	std::copy(biases.get(), biases.get() + id, newB);
+	for (int i = id; i < id + s; i++) {
+		newB[i] = NORMAL_01;
+	}
+	std::copy(biases.get() + id, biases.get() + nLines, newB);
+	biases.reset(newB);
+
+	ACTIVATION* newA = new ACTIVATION[nLines + s];
+	std::copy(activationFunctions.get(), activationFunctions.get() + id, newA);
+	for (int i = id; i < id + s; i++) {
+		newA[i] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
+	}
+	std::copy(activationFunctions.get() + id, activationFunctions.get() + nLines, newA);
+	activationFunctions.reset(newA);
+
+
+#ifdef STDP
+	STDP_mu.reset(new float[nLines + s]);
+	STDP_lambda.reset(new float[nLines + s]);
+
+	float* newMu = new float[nLines + s];
+	float* newLambda = new float[nLines + s];
+	std::copy(STDP_storage_mu.get(), STDP_storage_mu.get() + id, newMu);
+	std::copy(STDP_storage_lambda.get(), STDP_storage_lambda.get() + id, newLambda);
+	for (int i = id; i < id + s; i++) {
+		newMu[i] = NORMAL_01*.2f - DECAY_PARAMETERS_STORAGE_BIAS;
+		newLambda[i] = NORMAL_01*.2f - DECAY_PARAMETERS_STORAGE_BIAS;
+	}
+	std::copy(STDP_storage_mu.get() + id, STDP_storage_mu.get() + nLines, newMu);
+	std::copy(STDP_storage_lambda.get() + id, STDP_storage_lambda.get() + nLines, newLambda);
+	STDP_storage_mu.reset(newMu);
+	STDP_storage_lambda.reset(newLambda);
+#endif
+
+
 	nLines += s;
 }
 
+// zeroing some of the inserted evolved parameters, to minimize the impact
+// of the new topology on the network.
 void InternalConnexion_G::insertColumnRange(int id, int s) {
 	int _newNColumns = nColumns + s;
 	//int _nLines = nLines, _nColumns = nColumns;
@@ -514,6 +680,31 @@ void InternalConnexion_G::removeLineRange(int id, int s) {
 	f(accumulator); // set to 0...
 #endif
 
+	float* newB = new float[nLines - s];
+	std::copy(biases.get(), biases.get() + id, newB);
+	std::copy(biases.get() + id + s, biases.get() + nLines, newB);
+	biases.reset(newB);
+
+	ACTIVATION* newA = new ACTIVATION[nLines - s];
+	std::copy(activationFunctions.get(), activationFunctions.get() + id, newA);
+	std::copy(activationFunctions.get() + id + s, activationFunctions.get() + nLines, newA);
+	activationFunctions.reset(newA);
+
+
+#ifdef STDP
+	STDP_mu.reset(new float[nLines - s]);
+	STDP_lambda.reset(new float[nLines - s]);
+
+	float* newMu = new float[nLines - s];
+	float* newLambda = new float[nLines - s];
+	std::copy(STDP_storage_mu.get(), STDP_storage_mu.get() + id, newMu);
+	std::copy(STDP_storage_lambda.get(), STDP_storage_lambda.get() + id, newLambda);
+	std::copy(STDP_storage_mu.get() + id + s, STDP_storage_mu.get() + nLines, newMu);
+	std::copy(STDP_storage_lambda.get() + id + s, STDP_storage_lambda.get() + nLines, newLambda);
+	STDP_storage_mu.reset(newMu);
+	STDP_storage_lambda.reset(newLambda);
+#endif
+
 	nLines -= s;
 }
 
@@ -570,4 +761,16 @@ void InternalConnexion_G::transform01Parameters() {
 		delta[i] = (tanhf(storage_delta[i]) + 1.0f) * .5f;
 #endif
 	}
+
+	
+#ifdef STDP
+	s = nLines;
+	for (int i = 0; i < s; i++) {
+		// 1 - d because it is viable to use it solely as a decay term and not the time
+		// constant of a moving exponential average.
+		STDP_mu[i] = 1.0f - (tanhf(STDP_storage_mu[i]) + 1.0f) * .5f; 
+
+		STDP_lambda[i] = (tanhf(STDP_storage_lambda[i]) + 1.0f) * .5f; 
+	}
+#endif
 }

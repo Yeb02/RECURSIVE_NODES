@@ -97,10 +97,7 @@ struct ComplexNode_G {
 
 	// unique for each node of the network, used to match nodes when mating.
 	int complexNodeID;
-	
-	float modulationBias[MODULATION_VECTOR_SIZE];
 
-	ACTIVATION modulationActivations[MODULATION_VECTOR_SIZE];
 
 	// Depth of the children tree. =0 for simple neurons, at least 1 otherwise, even if there are no children.
 	int depth;
@@ -121,20 +118,6 @@ struct ComplexNode_G {
 	// multiplicity > 0 (so timeSinceLastUse = 0 for nodes that are phenotypically active.)
 	int timeSinceLastUse;
 
-	// Updated by a call to computeBiasSizes. 
-	int complexBiasSize, memoryBiasSize;
-
-	std::vector<float> complexBias, memoryBias, outputBias;
-
-	// arrays indicating the activation function to use on each presynaptic input.
-	std::vector<ACTIVATION> complexActivations, memoryActivations, outputActivations;
-
-#ifdef STDP
-	// [0] used in forward by its phenotypic parent for this node's input
-	// [1] used by its phenotypic version for the output
-	// [2] used by its phenotypic version for the modulation
-	float STDP_decays[3], STDP_storage_decay[3];
-#endif
 
 	// to be called only by network::createPhenotype
 	void transform01Parameters() {
@@ -142,26 +125,17 @@ struct ComplexNode_G {
 		toMemory.transform01Parameters();
 		toModulation.transform01Parameters();
 		toOutput.transform01Parameters();
-
-#ifdef STDP
-		STDP_decays[0] = .5f * (tanhf(STDP_storage_decay[0]) + 1.0f);
-		STDP_decays[1] = .5f * (tanhf(STDP_storage_decay[1]) + 1.0f);
-		STDP_decays[2] = .5f * (tanhf(STDP_storage_decay[2]) + 1.0f);
-#endif
 	}
 
 	// returns the number of evolved floating point parameters. As of now, the toX matrices sets and the biases.
 	int getNParameters() 
 	{
-		return  toComplex.getNParameters() + toModulation.getNParameters() + toMemory.getNParameters() + toOutput.getNParameters()
-			+ complexBiasSize + memoryBiasSize + outputSize + MODULATION_VECTOR_SIZE; // biases
+		return  toComplex.getNParameters() + toModulation.getNParameters() + toMemory.getNParameters() + toOutput.getNParameters();
 	}
 
 	// Allocates and randomly initializes internal connexions.
 	void createInternalConnexions();
 
-	// Sets complexBiasSize, memoryBiasSize. To be called after creation and mutations
-	void computeBiasSizes();
 
 	// genomeState is an array of the size of the genome, which has 1s where the node's depth is known and 0s elsewhere
 	void updateDepth(std::vector<int>& genomeState);
@@ -181,9 +155,6 @@ struct ComplexNode_G {
 
 	// Mutate real-valued floating point parameters.
 	void mutateFloats(float adjustedFMutationP);
-
-	// Mutate the non linearities entering the modulation, complex and memory children, and output.
-	void mutateActivations(float adjustedFMutationP);
 
 	// Add the specified child to the node. After the call to this function, depths, genome order, and 
 	// phenotypic multiplicities must be manually updated.

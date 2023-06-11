@@ -11,26 +11,7 @@ ComplexNode_G::ComplexNode_G(int inputSize, int outputSize) :
 	timeSinceLastUse = 0;
 	closestNode = NULL;
 
-	outputBias.resize(outputSize);
-	outputActivations.resize(outputSize);
-	for (int i = 0; i < outputSize; i++) {
-		outputBias[i] = NORMAL_01 * .2f;
-		outputActivations[i] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
-	}
-
-	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-		modulationBias[i] = NORMAL_01 * .2f;
-		modulationActivations[i] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
-	}
-
-	complexBiasSize = 0;
-	memoryBiasSize = 0;
-
-#ifdef STDP
-	STDP_storage_decay[0] = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
-	STDP_storage_decay[1] = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
-	STDP_storage_decay[2] = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
-#endif
+	
 
 	// The following initializations MUST be done outside.
 	{
@@ -44,11 +25,7 @@ ComplexNode_G::ComplexNode_G(int inputSize, int outputSize) :
 	// Here for completeness, warning suppression and ensuring (sould be the case already)
 	// that the behaviour is the same in debug and release mode.
 	{
-#ifdef STDP
-		STDP_decays[0] = 0.0f;
-		STDP_decays[1] = 0.0f;
-		STDP_decays[2] = 0.0f;
-#endif
+
 	}
 };
 
@@ -63,27 +40,7 @@ ComplexNode_G::ComplexNode_G(ComplexNode_G* n) {
 	toModulation = n->toModulation;
 	toOutput = n->toOutput;
 
-#ifdef STDP
-	STDP_storage_decay[0] = n->STDP_storage_decay[0];
-	STDP_storage_decay[1] = n->STDP_storage_decay[1];
-	STDP_storage_decay[2] = n->STDP_storage_decay[2];
-#endif
 
-	outputBias.assign(n->outputBias.begin(), n->outputBias.end());
-	complexBias.assign(n->complexBias.begin(), n->complexBias.end());
-	memoryBias.assign(n->memoryBias.begin(), n->memoryBias.end());
-
-	outputActivations.assign(n->outputActivations.begin(), n->outputActivations.end());
-	complexActivations.assign(n->complexActivations.begin(), n->complexActivations.end());
-	memoryActivations.assign(n->memoryActivations.begin(), n->memoryActivations.end());
-
-	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-		modulationBias[i] = n->modulationBias[i];
-		modulationActivations[i] = n->modulationActivations[i];
-	}
-
-	complexBiasSize = n->complexBiasSize;
-	memoryBiasSize = n->memoryBiasSize;
 	depth = n->depth;
 	position = n->position;
 	mutationalDistance = n->mutationalDistance;
@@ -128,36 +85,6 @@ ComplexNode_G::ComplexNode_G(std::ifstream& is) {
 	READ_4B(mutationalDistance, is);
 	READ_4B(timeSinceLastUse, is);
 
-#ifdef STDP
-	READ_4B(STDP_storage_decay[0], is);
-	READ_4B(STDP_storage_decay[1], is);
-	READ_4B(STDP_storage_decay[2], is);
-#else
-	float _unused;
-	READ_4B(_unused, is);
-	READ_4B(_unused, is);
-	READ_4B(_unused, is);
-#endif
-
-	outputBias.resize(outputSize);
-	outputActivations.resize(outputSize);
-	is.read(reinterpret_cast<char*>(outputBias.data()), outputSize * sizeof(float));
-	is.read(reinterpret_cast<char*>(outputActivations.data()), outputSize * sizeof(ACTIVATION));
-
-	is.read(reinterpret_cast<char*>(modulationBias), MODULATION_VECTOR_SIZE * sizeof(float));
-	is.read(reinterpret_cast<char*>(modulationActivations), MODULATION_VECTOR_SIZE * sizeof(ACTIVATION));
-
-	READ_4B(complexBiasSize, is);
-	complexBias.resize(complexBiasSize);
-	complexActivations.resize(complexBiasSize);
-	is.read(reinterpret_cast<char*>(complexBias.data()), complexBiasSize * sizeof(float));
-	is.read(reinterpret_cast<char*>(complexActivations.data()), complexBiasSize * sizeof(ACTIVATION));
-
-	READ_4B(memoryBiasSize, is);
-	memoryBias.resize(memoryBiasSize);
-	memoryActivations.resize(memoryBiasSize);
-	is.read(reinterpret_cast<char*>(memoryBias.data()), memoryBiasSize * sizeof(float));
-	is.read(reinterpret_cast<char*>(memoryActivations.data()), memoryBiasSize * sizeof(ACTIVATION));
 
 	toComplex = InternalConnexion_G(is);
 	toMemory = InternalConnexion_G(is);
@@ -181,30 +108,6 @@ void ComplexNode_G::save(std::ofstream& os) {
 	WRITE_4B(mutationalDistance, os);
 	WRITE_4B(timeSinceLastUse, os);
 
-#ifdef STDP
-	WRITE_4B(STDP_storage_decay[0], os);
-	WRITE_4B(STDP_storage_decay[1], os);
-	WRITE_4B(STDP_storage_decay[2], os);
-#else
-	float unused = 0.0f;
-	WRITE_4B(unused, os);
-	WRITE_4B(unused, os);
-	WRITE_4B(unused, os);
-#endif
-
-	os.write(reinterpret_cast<const char*>(outputBias.data()), outputSize * sizeof(float));
-	os.write(reinterpret_cast<const char*>(outputActivations.data()), outputSize * sizeof(ACTIVATION));
-
-	os.write(reinterpret_cast<const char*>(modulationBias), MODULATION_VECTOR_SIZE * sizeof(float));
-	os.write(reinterpret_cast<const char*>(modulationActivations), MODULATION_VECTOR_SIZE * sizeof(ACTIVATION));
-
-	WRITE_4B(complexBiasSize, os);
-	os.write(reinterpret_cast<const char*>(complexBias.data()), complexBiasSize * sizeof(float));
-	os.write(reinterpret_cast<const char*>(complexActivations.data()), complexBiasSize * sizeof(ACTIVATION));
-	
-	WRITE_4B(memoryBiasSize, os);
-	os.write(reinterpret_cast<const char*>(memoryBias.data()), memoryBiasSize * sizeof(float));
-	os.write(reinterpret_cast<const char*>(memoryActivations.data()), memoryBiasSize * sizeof(ACTIVATION));
 
 	toComplex.save(os);
 	toMemory.save(os);
@@ -244,19 +147,6 @@ void ComplexNode_G::createInternalConnexions() {
 	toModulation = InternalConnexion_G(nLines, nColumns, InternalConnexion_G::RANDOM);
 }
 
-void ComplexNode_G::computeBiasSizes() {
-	int _s = 0;
-	for (int i = 0; i < complexChildren.size(); i++) {
-		_s += complexChildren[i]->inputSize;
-	}
-	complexBiasSize = _s;
-
-	_s = 0;
-	for (int i = 0; i < memoryChildren.size(); i++) {
-		_s += memoryChildren[i]->inputSize;
-	}
-	memoryBiasSize = _s;
-}
 
 void ComplexNode_G::mutateFloats(float adjustedFMutationP) {
 	float p = adjustedFMutationP * log2f((float)phenotypicMultiplicity + 1.0f) / (float)phenotypicMultiplicity;
@@ -264,119 +154,42 @@ void ComplexNode_G::mutateFloats(float adjustedFMutationP) {
 	toComplex.mutateFloats(p);
 	toMemory.mutateFloats(p);
 	toModulation.mutateFloats(p);
-	toOutput.mutateFloats(p);
-
-	
-	auto mutateBiasArray =  [p] (float* v, int size)
-	{
-		SET_BINOMIAL(size, p);
-		int _nMutations = BINOMIAL;
-		for (int i = 0; i < _nMutations; i++) {
-			int id = INT_0X(size);
-			v[id] *= .9f + NORMAL_01 * .1f; // .9 < 1 to drive the weight towards 0.
-			v[id] += NORMAL_01 * .2f;
-		}
-	};
-
-	mutateBiasArray(modulationBias, MODULATION_VECTOR_SIZE);
-	mutateBiasArray(outputBias.data(), outputSize);
-	mutateBiasArray(complexBias.data(), complexBiasSize);
-	mutateBiasArray(memoryBias.data(), memoryBiasSize);
-
-#ifdef STDP
-	// not really biases, but it will do
-	mutateBiasArray(STDP_storage_decay, 3);
-#endif
-		
+	toOutput.mutateFloats(p);	
 }
 
-void ComplexNode_G::mutateActivations(float adjustedFMutationP) {
-	float p = .1f * adjustedFMutationP * log2f((float)phenotypicMultiplicity + 1.0f) / (float)phenotypicMultiplicity;
-
-	auto mutateActivationsArray = [p](ACTIVATION* v, int size)
-	{
-		SET_BINOMIAL(size, p);
-		int _nMutations = BINOMIAL;
-		for (int i = 0; i < _nMutations; i++) {
-			int id = INT_0X(size);
-			v[id] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
-		}
-	};
-
-	mutateActivationsArray(modulationActivations, MODULATION_VECTOR_SIZE);
-	mutateActivationsArray(outputActivations.data(), outputSize);
-	mutateActivationsArray(complexActivations.data(), complexBiasSize);
-	mutateActivationsArray(memoryActivations.data(), memoryBiasSize);
-
-}
 
 
 void ComplexNode_G::addComplexChild(ComplexNode_G* child) {
+	toComplex.insertLineRange(toComplex.nLines, child->inputSize);
 
-	// insert random bias and activations range
-	{
-		int id = 0;
-		for (int i = 0; i < complexChildren.size(); i++) {
-			id += complexChildren[i]->inputSize;
-		}
-
-		complexBias.insert(complexBias.begin() + id, child->inputSize, 0.0f);
-		complexActivations.insert(complexActivations.begin() + id, child->inputSize, TANH);
-
-		for (int i = id; i < id + child->inputSize; i++) {
-			complexBias[i] = NORMAL_01 * .2f;
-			complexActivations[i] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
-		}
+	int pos = inputSize + MODULATION_VECTOR_SIZE;
+	for (int i = 0; i < complexChildren.size(); i++) {
+		pos += complexChildren[i]->outputSize;
 	}
+	toComplex.insertColumnRange(pos, child->outputSize);
+	toMemory.insertColumnRange(pos, child->outputSize);
+	toModulation.insertColumnRange(pos, child->outputSize);
+	toOutput.insertColumnRange(pos, child->outputSize);
 	
-	// insert random weight range
-	{
-		toComplex.insertLineRange(toComplex.nLines, child->inputSize);
-
-		int pos = inputSize + MODULATION_VECTOR_SIZE;
-		for (int i = 0; i < complexChildren.size(); i++) {
-			pos += complexChildren[i]->outputSize;
-		}
-		toComplex.insertColumnRange(pos, child->outputSize);
-		toMemory.insertColumnRange(pos, child->outputSize);
-		toModulation.insertColumnRange(pos, child->outputSize);
-		toOutput.insertColumnRange(pos, child->outputSize);
-	}
-
 	complexChildren.emplace_back(child);
 }
 void ComplexNode_G::addMemoryChild(MemoryNode_G* child) {
 
-	// insert random bias and activation range
-	{
-		int id = 0;
-		for (int i = 0; i < memoryChildren.size(); i++) {
-			id += memoryChildren[i]->inputSize;
-		}
-		memoryBias.insert(memoryBias.begin() + id, child->inputSize, 0.0f);
-		memoryActivations.insert(memoryActivations.begin() + id, child->inputSize, TANH);
-		for (int i = id; i < id + child->inputSize; i++) {
-			memoryBias[i] = NORMAL_01 * .2f;
-			memoryActivations[i] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
-		}
-	}
+	
+	toMemory.insertLineRange(toMemory.nLines, child->inputSize);
 
-	// insert random weight range
-	{
-		toMemory.insertLineRange(toMemory.nLines, child->inputSize);
-
-		int pos = inputSize + MODULATION_VECTOR_SIZE;
-		for (int i = 0; i < complexChildren.size(); i++) {
-			pos += complexChildren[i]->outputSize;
-		}
-		for (int i = 0; i < memoryChildren.size(); i++) {
-			pos += memoryChildren[i]->outputSize;
-		}
-		toComplex.insertColumnRange(pos, child->outputSize);
-		toMemory.insertColumnRange(pos, child->outputSize);
-		toModulation.insertColumnRange(pos, child->outputSize);
-		toOutput.insertColumnRange(pos, child->outputSize);
+	int pos = inputSize + MODULATION_VECTOR_SIZE;
+	for (int i = 0; i < complexChildren.size(); i++) {
+		pos += complexChildren[i]->outputSize;
 	}
+	for (int i = 0; i < memoryChildren.size(); i++) {
+		pos += memoryChildren[i]->outputSize;
+	}
+	toComplex.insertColumnRange(pos, child->outputSize);
+	toMemory.insertColumnRange(pos, child->outputSize);
+	toModulation.insertColumnRange(pos, child->outputSize);
+	toOutput.insertColumnRange(pos, child->outputSize);
+	
 
 	memoryChildren.emplace_back(child);
 }
@@ -384,70 +197,43 @@ void ComplexNode_G::addMemoryChild(MemoryNode_G* child) {
 
 void ComplexNode_G::removeComplexChild(int rID) {
 
-	// erase the corresponding bias and activations range
-	{
-		int id = 0;
-		for (int i = 0; i < rID; i++) {
-			id += complexChildren[i]->inputSize;
-		}
-		complexBias.erase(complexBias.begin() + id, complexBias.begin() + id + complexChildren[rID]->inputSize);
-		complexActivations.erase(complexActivations.begin() + id, complexActivations.begin() + id + complexChildren[rID]->inputSize);
+	int pos = 0;
+	for (int i = 0; i < rID; i++) {
+		pos += complexChildren[i]->inputSize;
 	}
+	toComplex.removeLineRange(pos, complexChildren[rID]->inputSize);
 
-	// Erase the corresponding weight ranges
-	{
-		int pos = 0;
-		for (int i = 0; i < rID; i++) {
-			pos += complexChildren[i]->inputSize;
-		}
-		toComplex.removeLineRange(pos, complexChildren[rID]->inputSize);
-
-		pos = inputSize + MODULATION_VECTOR_SIZE;
-		for (int i = 0; i < rID; i++) {
-			pos += complexChildren[i]->outputSize;
-		}
-		toComplex.removeColumnRange(pos, complexChildren[rID]->outputSize);
-		toMemory.removeColumnRange(pos, complexChildren[rID]->outputSize);
-		toModulation.removeColumnRange(pos, complexChildren[rID]->outputSize);
-		toOutput.removeColumnRange(pos, complexChildren[rID]->outputSize);
+	pos = inputSize + MODULATION_VECTOR_SIZE;
+	for (int i = 0; i < rID; i++) {
+		pos += complexChildren[i]->outputSize;
 	}
-
-
+	toComplex.removeColumnRange(pos, complexChildren[rID]->outputSize);
+	toMemory.removeColumnRange(pos, complexChildren[rID]->outputSize);
+	toModulation.removeColumnRange(pos, complexChildren[rID]->outputSize);
+	toOutput.removeColumnRange(pos, complexChildren[rID]->outputSize);
+	
 	complexChildren.erase(complexChildren.begin() + rID);
 }
 void ComplexNode_G::removeMemoryChild(int rID) {
-
-	// erase the corresponding bias range
-	{
-		int id = 0;
-		for (int i = 0; i < rID; i++) {
-			id += memoryChildren[i]->inputSize;
-		}
-		memoryBias.erase(memoryBias.begin() + id, memoryBias.begin() + id + memoryChildren[rID]->inputSize);
-		memoryActivations.erase(memoryActivations.begin() + id, memoryActivations.begin() + id + memoryChildren[rID]->inputSize);
+	
+	int pos = 0;
+	for (int i = 0; i < rID; i++) {
+		pos += memoryChildren[i]->inputSize;
 	}
+	toMemory.removeLineRange(pos, memoryChildren[rID]->inputSize);
 
-	// Erase the corresponding weight ranges
-	{
-		int pos = 0;
-		for (int i = 0; i < rID; i++) {
-			pos += memoryChildren[i]->inputSize;
-		}
-		toMemory.removeLineRange(pos, memoryChildren[rID]->inputSize);
-
-		pos = inputSize + MODULATION_VECTOR_SIZE;
-		for (int i = 0; i < complexChildren.size(); i++) {
-			pos += complexChildren[i]->outputSize;
-		}
-		for (int i = 0; i < rID; i++) {
-			pos += memoryChildren[i]->outputSize;
-		}
-		toComplex.removeColumnRange(pos, memoryChildren[rID]->outputSize);
-		toMemory.removeColumnRange(pos, memoryChildren[rID]->outputSize);
-		toModulation.removeColumnRange(pos, memoryChildren[rID]->outputSize);
-		toOutput.removeColumnRange(pos, memoryChildren[rID]->outputSize);
+	pos = inputSize + MODULATION_VECTOR_SIZE;
+	for (int i = 0; i < complexChildren.size(); i++) {
+		pos += complexChildren[i]->outputSize;
 	}
-
+	for (int i = 0; i < rID; i++) {
+		pos += memoryChildren[i]->outputSize;
+	}
+	toComplex.removeColumnRange(pos, memoryChildren[rID]->outputSize);
+	toMemory.removeColumnRange(pos, memoryChildren[rID]->outputSize);
+	toModulation.removeColumnRange(pos, memoryChildren[rID]->outputSize);
+	toOutput.removeColumnRange(pos, memoryChildren[rID]->outputSize);
+	
 	memoryChildren.erase(memoryChildren.begin() + rID);
 }
 
@@ -475,8 +261,6 @@ void ComplexNode_G::onChildInputSizeIncremented(void* potentialChild, bool compl
 			id += complexChildren[i]->inputSize;
 			if (complexChildren[i] == potentialChildC) {
 				toComplex.insertLineRange(id - 1,1); // id-1 because the child's inputSize has already been updated.
-				complexBias.insert(complexBias.begin() + (id - 1), NORMAL_01 * .2f);
-				complexActivations.insert(complexActivations.begin() + (id - 1), static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS)));
 			}
 		}
 
@@ -489,8 +273,6 @@ void ComplexNode_G::onChildInputSizeIncremented(void* potentialChild, bool compl
 			id += memoryChildren[i]->inputSize;
 			if (memoryChildren[i] == potentialChildM) {
 				toMemory.insertLineRange(id - 1,1);// id-1 because the child's inputSize has already been updated.
-				memoryBias.insert(memoryBias.begin() + (id - 1), NORMAL_01 * .2f);
-				memoryActivations.insert(memoryActivations.begin() + (id - 1), static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS)));
 			}
 		}
 
@@ -506,8 +288,6 @@ bool ComplexNode_G::incrementOutputSize() {
 	
 	toOutput.insertLineRange(outputSize,1);
 
-	outputBias.insert(outputBias.begin() + outputSize, NORMAL_01*.2f);
-	outputActivations.insert(outputActivations.begin() + outputSize, static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS)));
 	outputSize++;
 	return true;
 }
@@ -576,8 +356,6 @@ void ComplexNode_G::onChildInputSizeDecremented(void* potentialChild, bool compl
 			
 			if (complexChildren[i] == potentialChildC) {
 				toComplex.removeLineRange(aID +id, 1);
-				complexBias.erase(complexBias.begin() + aID + id);
-				complexActivations.erase(complexActivations.begin() + aID + id);
 			}
 			aID += complexChildren[i]->inputSize;
 		}
@@ -592,8 +370,6 @@ void ComplexNode_G::onChildInputSizeDecremented(void* potentialChild, bool compl
 			
 			if (memoryChildren[i] == potentialChildM) {
 				toMemory.removeLineRange(aID + id, 1);
-				memoryBias.erase(memoryBias.begin() + aID + id);
-				memoryActivations.erase(memoryActivations.begin() + aID + id);
 			}
 			aID += memoryChildren[i]->inputSize;
 		}
@@ -607,8 +383,6 @@ bool ComplexNode_G::decrementOutputSize(int id) {
 
 	toOutput.removeLineRange(id, 1);
 
-	outputBias.erase(outputBias.begin() + id);
-	outputActivations.erase(outputActivations.begin() + id);
 	outputSize--;
 	return true;
 }

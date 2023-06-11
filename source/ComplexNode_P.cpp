@@ -25,7 +25,7 @@ ComplexNode_P::ComplexNode_P(ComplexNode_G* _type) :
 	// must be made before any forward pass. 
 };
 
-#if defined GUIDED_MUTATIONS
+#ifdef GUIDED_MUTATIONS
 void ComplexNode_P::accumulateW(float factor) {
 	
 	type->toComplex.accumulateW(factor, toComplex.wLifetime.get());
@@ -46,6 +46,8 @@ void ComplexNode_P::accumulateW(float factor) {
 #ifndef CONTINUOUS_LEARNING
 void ComplexNode_P::updateWatTrialEnd(float invNInferencesOverTrial) {
 
+	// return; This completely disables wL when CONTINUOUS_LEARNING is disabled
+
 	for (int i = 0; i < complexChildren.size(); i++) {
 		complexChildren[i].updateWatTrialEnd(invNInferencesOverTrial);
 	}
@@ -56,7 +58,7 @@ void ComplexNode_P::updateWatTrialEnd(float invNInferencesOverTrial) {
 	toOutput.updateWatTrialEnd(invNInferencesOverTrial);
 	
 	for (int i = 0; i < memoryChildren.size(); i++) {
-		memoryChildren[i].pLink.updateWatTrialEnd(invNInferencesOverTrial);
+		memoryChildren[i].updateWatTrialEnd(invNInferencesOverTrial);
 	}
 }
 #endif
@@ -128,6 +130,14 @@ void ComplexNode_P::preTrialReset() {
 	toModulation.randomInitW();
 	toOutput.randomInitW();
 #endif
+
+	// TODO commented or not ? 
+#ifdef CONTINUOUS_LEARNING
+	/*toComplex.zeroWlifetime();
+	toMemory.zeroWlifetime();
+	toModulation.zeroWlifetime();
+	toOutput.zeroWlifetime();*/
+#endif 
 	
 }
 
@@ -153,40 +163,18 @@ void ComplexNode_P::forward() {
 	constexpr float saturationExponent = 6.0f; 
 #endif
 
-	// STEP 0: initialize all pre-synaptic activations with the associated weights
-
-	{
-		int id = 0;
-		for (int i = 0; i < type->outputSize; i++) {
-			preSynActs[id] = type->outputBias[id];
-			id++;
-		}
-		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			preSynActs[id] = type->modulationBias[i];
-			id++;
-		}
-		for (int i = 0; i < type->complexBiasSize; i++) {
-			preSynActs[id] = type->complexBias[i];
-			id++;
-		}
-		for (int i = 0; i < type->memoryBiasSize; i++) {
-			preSynActs[id] = type->memoryBias[i];
-			id++;
-		}
-	}
 	
 
-
-	// STEP 1 to 4: for each of the 4 types of nodes (output, memory, complex, modulation), do:
+	// STEP 1 to 6: for each type of node in the sequence:
+	// 1_Modulation -> 2_Memory -> 3_Complex -> 4_Modulation -> 5_Memory -> 6_output
 	
-	// - propagate postSynActs in preSynActs of all children of the type, and apply their non linearities.
+	// - propagate postSynActs in preSynActs of the corresponding node(s), and apply their non linearities.
 	// - apply hebbian update to the involved connexion matrices
-	// - apply all children of the type's forward
-	
+	// - apply all nodes of the type's forward
 	
 	// This could be done simultaneously for all types, but doing it this way drastically speeds up information transmission
-	// through the network. The following order is used :
-	// MODULATION -> COMPLEX -> MEMORY -> OUTPUT
+	// through the network. 
+
 
 	// These 3 lambdas, hopefully inline, avoid repetition, as they are used for each child type.
 
@@ -209,6 +197,7 @@ void ComplexNode_P::forward() {
 
 			
 		for (int i = 0; i < nl; i++) {
+			destinationArray[i] = icp.type->biases[i];
 			for (int j = 0; j < nc; j++) {
 				// += (H * alpha + w + wL) * prevAct
 				destinationArray[i] += (H[matID] * alpha[matID] + w[matID] + wLifetime[matID]) * postSynActs[j];
@@ -280,13 +269,13 @@ void ComplexNode_P::forward() {
 
 	auto applyNonLinearities = [](float* src, float* dst, ACTIVATION* fcts, int size
 #ifdef STDP
-		, float* acc_src, float decay
+		, float* acc_src, float* mu, float* lambda
 #endif
 		) 
 	{
 #ifdef STDP
 		for (int i = 0; i < size; i++) {
-			acc_src[i] = acc_src[i] * (1.0f - decay) + decay * src[i];
+			acc_src[i] = acc_src[i] * mu[i] + src[i];
 		}
 
 		src = acc_src;
@@ -318,6 +307,12 @@ void ComplexNode_P::forward() {
 				break;
 			}
 		}
+
+#ifdef STDP
+		for (int i = 0; i < size; i++) {
+			acc_src[i] -= lambda[i] * (1.0f - dst[i] * dst[i]) * powf(dst[i], 3.0f); // TODO only works for tanh as of now
+		}
+#endif
 	};
 
 
@@ -328,10 +323,10 @@ void ComplexNode_P::forward() {
 		applyNonLinearities(
 			preSynActs + type->outputSize,
 			postSynActs + type->inputSize, 
-			type->modulationActivations, 
+			type->toModulation.activationFunctions.get(),
 			MODULATION_VECTOR_SIZE
 #ifdef STDP
-			, accumulatedPreSynActs + type->outputSize, type->STDP_decays[2]
+			, accumulatedPreSynActs + type->outputSize, type->toModulation.STDP_mu.get(), type->toModulation.STDP_lambda.get()
 #endif
 		);
 		hebbianUpdate(toModulation, postSynActs + type->inputSize);
@@ -366,10 +361,10 @@ void ComplexNode_P::forward() {
 			applyNonLinearities(
 				memoryChildren[i].input,
 				memoryChildren[i].input,
-				&type->memoryActivations[activationFunctionId],
+				&type->toMemory.activationFunctions[activationFunctionId],
 				memoryChildren[i].type->inputSize
 #ifdef STDP
-				, memoryChildren[i].accumulatedInput, memoryChildren[i].type->STDP_decay
+				, memoryChildren[i].accumulatedInput, &type->toMemory.STDP_mu[activationFunctionId], &type->toMemory.STDP_lambda[activationFunctionId]
 #endif
 			);
 
@@ -414,10 +409,10 @@ void ComplexNode_P::forward() {
 			applyNonLinearities(
 				ptrToInputs + id,
 				complexChildren[i].postSynActs,
-				&type->complexActivations[id],
+				&type->toComplex.activationFunctions[id],
 				complexChildren[i].type->inputSize
 #ifdef STDP
-				, ptrToAccInputs + id, complexChildren[i].type->STDP_decays[0]
+				, ptrToAccInputs + id, &type->toComplex.STDP_mu[id], &type->toComplex.STDP_lambda[id]
 #endif
 			);
 
@@ -440,6 +435,7 @@ void ComplexNode_P::forward() {
 
 
 		// transmit modulation and apply forward, then retrieve the child's output.
+
 		float* childOut = postSynActs + type->inputSize + MODULATION_VECTOR_SIZE;
 		for (int i = 0; i < complexChildren.size(); i++) {
 
@@ -462,10 +458,10 @@ void ComplexNode_P::forward() {
 		applyNonLinearities(
 			preSynActs + type->outputSize,
 			postSynActs + type->inputSize,
-			type->modulationActivations,
+			type->toModulation.activationFunctions.get(),
 			MODULATION_VECTOR_SIZE
 #ifdef STDP
-			, accumulatedPreSynActs + type->outputSize, type->STDP_decays[2]
+			, accumulatedPreSynActs + type->outputSize, type->toModulation.STDP_mu.get(), type->toModulation.STDP_lambda.get()
 #endif
 		);
 		hebbianUpdate(toModulation, postSynActs + type->inputSize);
@@ -499,10 +495,10 @@ void ComplexNode_P::forward() {
 			applyNonLinearities(
 				memoryChildren[i].input,
 				memoryChildren[i].input,
-				&type->memoryActivations[activationFunctionId],
+				&type->toMemory.activationFunctions[activationFunctionId],
 				memoryChildren[i].type->inputSize
 #ifdef STDP
-				, memoryChildren[i].accumulatedInput, memoryChildren[i].type->STDP_decay
+				, memoryChildren[i].accumulatedInput, &type->toMemory.STDP_mu[activationFunctionId], &type->toMemory.STDP_lambda[activationFunctionId]
 #endif
 			);
 
@@ -536,10 +532,10 @@ void ComplexNode_P::forward() {
 		applyNonLinearities(
 			preSynActs,
 			preSynActs,
-			type->outputActivations.data(),
+			type->toOutput.activationFunctions.get(),
 			type->outputSize
 #ifdef STDP
-			, accumulatedPreSynActs, type->STDP_decays[1]
+			, accumulatedPreSynActs, type->toOutput.STDP_mu.get(), type->toOutput.STDP_lambda.get()
 #endif
 		);
 

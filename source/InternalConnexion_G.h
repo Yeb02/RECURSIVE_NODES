@@ -30,6 +30,9 @@ struct InternalConnexion_G {
 	std::unique_ptr<float[]> storage_eta;   // in R
 	std::unique_ptr<float[]> alpha;
 
+	std::unique_ptr<ACTIVATION[]> activationFunctions;
+	std::unique_ptr<float[]> biases;
+
 #ifndef RANDOM_W
 	std::unique_ptr<float[]> w;
 #endif
@@ -53,6 +56,16 @@ struct InternalConnexion_G {
 		}
 	}
 #endif
+
+
+#ifdef STDP
+	std::unique_ptr<float[]> STDP_mu;
+	std::unique_ptr<float[]> STDP_storage_mu;
+
+	std::unique_ptr<float[]> STDP_lambda;
+	std::unique_ptr<float[]> STDP_storage_lambda;
+#endif
+
 
 	InternalConnexion_G() { nLines = -1; nColumns = -1; };
 

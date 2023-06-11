@@ -27,8 +27,6 @@ void InternalConnexion_P::updateWatTrialEnd(float factor) {
 	float* alpha = type->alpha.get();
 
 	for (int i = 0; i < s; i++) {
-		// When the following line is commented, there is no learning at all between trials. 
-		// Useful for benchmarking.
 		wLifetime[i] += alpha[i] * avgH[i] * factor;
 	}
 }

@@ -68,7 +68,7 @@ public:
 	void destroyPhenotype();
 
 #ifdef GUIDED_MUTATIONS
-	// Sets at 0 the accumulators of both internal connexions for complex nodes and key+query for memory nodes.
+	// Sets to 0 all accumulators. Legacy, not used anymore.
 	void zeroAccumulators();
 #endif
 
@@ -157,6 +157,7 @@ private:
 	int averageActivationArraySize;
 #endif
 
+	// WARNING: REQUIRES UP TO DATE DEPTHS AND POSITIONS 
 	// Sets phenotypicMultiplicity for each node of the genome, and the topNode. Should be called after each
 	// structural modification of the genotype, i.e. after Network creation or mutations. Not necessary at copy 
 	// construction.

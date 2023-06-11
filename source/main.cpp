@@ -1,9 +1,9 @@
 #pragma once
 
 #ifdef _DEBUG
-#define _CRT_SECURE_NO_WARNINGS
-#include <float.h>
-unsigned int fp_control_state = _controlfp(_EM_INEXACT, _MCW_EM);
+//#define _CRT_SECURE_NO_WARNINGS
+//#include <float.h>
+//unsigned int fp_control_state = _controlfp(_EM_INEXACT, _MCW_EM);
 #endif
 
 #include <iostream>
@@ -44,9 +44,9 @@ int main()
 #ifdef _DEBUG
     //nThreads = 1; // Because multi-threaded functions are difficult to step through line by line.
 #endif
-    int nSpecimens = nThreads * 256; //16 -> 512
+    int nSpecimens = nThreads * 128; //16 -> 512 in most cases
     int nDifferentTrials = 4;
-    int nSteps = 2000;
+    int nSteps = 10000;
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
     // different kinds of trials can be put in the vector.
@@ -66,18 +66,18 @@ int main()
         trials.emplace_back(new RocketSimTrial());
 #endif
     }
-
+    
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { -2.0f, .3f}; // first param < -1, second << 1.
-    params.useSameTrialInit = true; 
+    params.selectionPressure = { -3.0f, .2f}; // first param < -1, second << 1.
+    params.useSameTrialInit = false; 
     params.rankingFitness = true;
-    params.saturationFactor = 0.03f;
-    params.regularizationFactor = .03f; 
+    params.saturationFactor = .015f;
+    params.regularizationFactor = .015f; 
     params.competitionFactor = .0f; 
-    params.scoreBatchTransformation = RANK;
-    params.nParents = 20;
+    params.scoreBatchTransformation = NONE; // NONE recommended when useSameTrialInit = false
+    params.nParents = 15;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
     population.setEvolutionParameters(params); 
@@ -103,11 +103,6 @@ int main()
         }
 #endif
 
-        for (int j = 0; j < nDifferentTrials; j++) {
-            trials[j]->reset(false);
-        }
-
-
 #ifdef TMAZE_T
         bool switchesSide = false;
         for (int j = 0; j < nDifferentTrials; j++) {
@@ -115,6 +110,20 @@ int main()
             trials[j]->outerLoopUpdate(&switchesSide);
         }
 #endif
+
+#ifdef ROCKET_SIM_T
+        float v = std::max((20.0f - (float)i) * .05f, 0.0f);
+        float jbt[3] = {v*.5f, v*.2f, v};
+        for (int j = 0; j < nDifferentTrials; j++) {
+            trials[j]->outerLoopUpdate(&jbt);
+        }
+#endif
+
+        for (int j = 0; j < nDifferentTrials; j++) {
+            trials[j]->reset(false);
+        }
+
+
 
         // params.selectionPressure.second = sinf((float)i / 2.0f) - .5f;
         //population.setEvolutionParameters(params); // parameters can be changed at each step.
@@ -129,15 +138,18 @@ int main()
 
     // Tests.
     if (false) {
-        std::ifstream is("topNet_1685814432215_3.renon", std::ios::binary);
-        trials[0]->reset(true);
+        std::ifstream is("models\\topNet_1685971637922_631.renon", std::ios::binary);
+        LOG(is.is_open());
         Network* n = new Network(is);
-        LOG("Loaded.")
-            n->createPhenotype();
+        LOG("Loaded.");
+        n->createPhenotype();
         n->preTrialReset();
+        trials[0]->reset(true);
+        float avg_thr = 0.0f;
         while (!trials[0]->isTrialOver) {
             n->step(trials[0]->observations);
             trials[0]->step(n->getOutput());
+            LOG(n->getOutput()[0]);
         }
         delete n;
         LOG("Reloaded best specimen's score on the same trial = " << trials[0]->score);

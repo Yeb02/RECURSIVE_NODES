@@ -59,7 +59,7 @@ public:
         text.setFont(font);
         text.setCharacterSize(15);
         text.setFillColor(sf::Color::White);
-        text.setString("In blue, complex nodes. In red memory. in/out are input/output sizes. kD = kernel dimension, d = depth, pM = phenotypic multiplicity"); // Legend
+        text.setString("In blue, complex nodes. In red memory. in/out are input/output sizes. d = depth, pM = phenotypic multiplicity"); // Legend
         text.setPosition(10.0f, w.getSize().y - 30.0f);
         w.draw(text);
         text.setString("Generation " + std::to_string(step));
@@ -133,7 +133,7 @@ public:
             text.setString("in: " + std::to_string(mn->inputSize) + " out: " + std::to_string(mn->outputSize));
             text.setPosition(x - .5f * nodeRadius,y + 2.1f * nodeRadius);
             w.draw(text);
-            text.setString("kD: " + std::to_string(mn->kernelDimension) + " pm " + std::to_string(mn->phenotypicMultiplicity));
+            text.setString("pm " + std::to_string(mn->phenotypicMultiplicity));
             text.setPosition(x - .5f * nodeRadius, y + 3.6f * nodeRadius);
             w.draw(text);
         }

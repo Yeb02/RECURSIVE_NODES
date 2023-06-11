@@ -5,6 +5,23 @@
 #include "RocketSim/src/Sim/Arena/Arena.h"
 #include "RocketSim/src/RocketSim.h"
 
+/* Data I collected on how the sim behaves compared to the game.
+
+ROCKET LEAGUE :
+
+SetState:  CarAng(Rotator(pitch, yaw, roll)), p in - pi / 2 i / 2
+GetState : CarAng(Rotator(yaw, pitch, roll)). Yeah, it is $#@ % !reversed !
+
+SetState : CarAngVel(-rollvel, -pitchvel, +yawvel)  
+Get state yields the same as was set.
+
+ROCKET SIM:
+SetState:  CarAng(Rotator(yaw, pitch, roll)), p in - pi / 2 i / 2
+GetState : CarAng(Rotator(yaw, pitch, roll)). 
+
+SetState : CarAngVel(-rollvel, -pitchvel, +yawvel)  
+Get state yields the same as was set.
+*/
 
 
 /*
@@ -25,9 +42,19 @@ public:
 	void reset(bool sameSeed = false) override;
 	void copy(Trial* t) override;
 	Trial* clone() override;
-	void outerLoopUpdate(void* data) override {};
+	void outerLoopUpdate(void* data) override 
+	{ 
+		float* fdata = static_cast<float*>(data);
+		jumpR = fdata[0];
+		boostR = fdata[1];
+		throttleR = fdata[2];
+	};
 
-	static const int TICK_LIMIT = 6*120; // 6 seconds.
+	void compare2Game();
+
+	static const int TICK_LIMIT = 5*120; // 5 seconds.
+	
+	float jumpR, boostR, throttleR;
 
 private:
 	void setObservations();
@@ -36,4 +63,9 @@ private:
 	Car* car; // managed by arena. Used as a shortcut for perfs.
 	CarState initialCarState;
 	BallState initialBallState;
+
+	// Used for reward computations. The inverse of the initial distance between the car and the ball.
+	float inv_d0;
+
+	float jumpS, boostS, throttleS;
 };

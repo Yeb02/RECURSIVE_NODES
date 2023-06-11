@@ -5,9 +5,15 @@
 #include "MemoryNode_G.h"
 #include "InternalConnexion_P.h"
 
+
+
+
+
 struct MemoryNode_P {
 	MemoryNode_G* type;
 
+
+#ifdef QKV_MEMORY
 	int nMemorizedVectors;
 
 	InternalConnexion_P pLink;
@@ -31,6 +37,40 @@ struct MemoryNode_P {
 	// a vector of size kernelDimension + outputSize, eligible to be appended to memory.
 	std::unique_ptr<float[]> candidateMemory;
 
+	// Size outputSize, used to hold temporary value during inference.
+	std::unique_ptr<float[]> outputBuffer;
+#endif
+
+#ifdef SRWM
+	std::unique_ptr<float[]> W;
+
+	std::unique_ptr<float[]> vBuffer;
+	std::unique_ptr<float[]> matMulResult;
+
+	// To avoid setting them at runtime.
+	float* k;
+	float* q;
+	float* beta;
+#endif
+
+#ifdef DNN_MEMORY
+	std::vector<std::unique_ptr<float[]>> Ws;
+
+	std::vector<std::unique_ptr<float[]>> Bs;
+
+	std::unique_ptr<float[]> candX;
+	std::unique_ptr<float[]> candY;
+
+	// Layer by layer activations of the network. 
+	std::unique_ptr<float[]> activations;
+
+	// d(cost)/d(preSynAct). Could be only 2 * max (type->sizes) in size, but
+	// it is a negligible optimization as of yet.
+	std::unique_ptr<float[]> delta;
+
+#endif
+	
+
 	// These 3 pointers point towards memory that is shared between this node and its complex parent.
 	float* modulation;
 	float* input;
@@ -43,11 +83,12 @@ struct MemoryNode_P {
 	float* accumulatedInput;
 #endif
 
-	// Size outputSize, used to hold temporary value during inference.
-	std::unique_ptr<float[]> outputBuffer;
-
 #ifdef GUIDED_MUTATIONS
 	void accumulateW(float factor);
+#endif
+
+#ifndef CONTINUOUS_LEARNING
+	void updateWatTrialEnd(float invNInferencesOverTrial);
 #endif
 
 	MemoryNode_P(MemoryNode_G* type);
