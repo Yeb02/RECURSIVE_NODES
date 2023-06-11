@@ -1,17 +1,19 @@
 # RECURSIVE_NODES
 
-Implements a 3 loops optimization algorithm to tackle reinforcement learning challenges. A population of recursive networks is meta-optimized by a custom genetic algorithm, which evolves both topology and floating point parameters. Networks use evolved local learning rules, cascading neuromodulation and dedicated memory units with various available implementations.
+Implements a 3 loops optimization algorithm to tackle reinforcement learning challenges and general learning tasks. A population of recursive networks is meta-optimized by a custom genetic algorithm, which evolves both topology and floating point parameters. Networks use evolved local learning rules, cascading neuromodulation and dedicated memory units with various available implementations.
 
 &nbsp;
 
 <p align="center">
   <img src="Capture.PNG">
 </p>
-<em>Visualisation of the genotype of a specimen.</em>
+<em>Visualisation of the genotype of a simple specimen.</em>
 
 &nbsp;
-##### KNOWN BUGS: Stable, BUT  partial evaluation and gradient guided mutations are for now incompatible and will cause a crash. If you do not have a rocketSim install you will need to exclude rocketSim.h and rocketSim.cpp from the solution, same for libTorch. 
-##### IN PROGRESS: feed forward DNN memory with inline gradient descent.
+##### KNOWN BUGS: Stable. 
+
+##### IN PROGRESS: GPU-isation (CUDA), and progressive environments (LibTorch).
+
 ##### TODO: Heap defragmentation. GPU port only when sufficient gains.
 &nbsp;
 
@@ -61,6 +63,6 @@ If SFML is used, the following DLLs must be placed in the same folder as the bui
 
 #### Details
 
-- I recommend toggling adress Sanitizer on (if you have it installed) when debuging the .exe . It MUST be disabled when debuging the DLL because of a VS bug. Found in  Project Properties -> C/C++ -> General -> Enable Adress Sanitizer  . 
+- I recommend toggling adress Sanitizer on (if you have it installed) when debuging the .exe . It MUST be disabled when debuging the DLL because of a VS bug. Found in  Project Properties -> C/C++ -> General -> Enable Adress Sanitizer. It is also incompatible with rocketSim. 
 
-- Sciplot's headers are in the repo but unused yet.
+- If you do not have a rocketSim install you will need to exclude rocketSim.h and rocketSim.cpp from the solution, same for files using torch if you dont have libtorch. 

@@ -35,11 +35,6 @@ void XorTrial::reset(bool sameSeed) {
 }
 
 void XorTrial::step(const float* actions) {
-	//constexpr int endV1Phase = 5;
-	//constexpr int endV2Phase = 10;
-	//constexpr int startResponsePhase = 10;
-	//constexpr int endResponsePhase = 15;
-
 	if (isTrialOver)
 	{
 		return;
@@ -60,7 +55,7 @@ void XorTrial::step(const float* actions) {
 
 	if (currentNStep >= delay*3) {
 		isTrialOver = true;
-		score /= vSize * delay;
+		score /= (float) (vSize * delay);
 	}
 
 	currentNStep++;

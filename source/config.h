@@ -20,8 +20,8 @@
 
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
 // These do not affect the DLL.
-#define CARTPOLE_T
-//#define XOR_T
+//#define CARTPOLE_T
+#define XOR_T
 //#define TMAZE_T
 //#define N_LINKS_PENDULUM_T
 //#define MEMORY_T

@@ -55,7 +55,7 @@ int main()
 #ifdef CARTPOLE_T
         trials.emplace_back(new CartPoleTrial(true)); // bool : continuous control.
 #elif defined XOR_T
-        trials.emplace_back(new XorTrial(2,15));  // int : vSize, int : delay
+        trials.emplace_back(new XorTrial(2,5));  // int : vSize, int : delay
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
 #elif defined N_LINKS_PENDULUM_T

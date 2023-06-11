@@ -695,8 +695,8 @@ void Network::mutate() {
 	constexpr float replaceComplexChildProbability = .04f;
 	constexpr float replaceMemoryChildProbability = .04f;
 
-	constexpr float duplicateComplexChildProbability = .003f;
-	constexpr float duplicateMemoryChildProbability = .003f; 
+	constexpr float duplicateComplexChildProbability = .005f;
+	constexpr float duplicateMemoryChildProbability = .005f; 
 
 	constexpr float floatParamBaseMutationProbability = .5f;
 
@@ -828,7 +828,7 @@ void Network::mutate() {
 			continue;
 		}
 
-		float f = powf(complexGenome[i]->phenotypicMultiplicity, -.5f) * activeComplexGenomeSizeMultiplier;
+		float f = powf((float)complexGenome[i]->phenotypicMultiplicity, -.5f) * activeComplexGenomeSizeMultiplier;
 
 		r = UNIFORM_01;
 		if (r < incrementComplexInputSizeProbability * f) {
@@ -885,7 +885,7 @@ void Network::mutate() {
 			continue;
 		}
 
-		float f = powf(memoryGenome[i]->phenotypicMultiplicity, -.5f) * activeMemoryGenomeSizeMultiplier;
+		float f = powf((float)memoryGenome[i]->phenotypicMultiplicity, -.5f) * activeMemoryGenomeSizeMultiplier;
 
 		r = UNIFORM_01;
 		if (r < incrementMemoryInputSizeProbability * f) {
@@ -1815,6 +1815,8 @@ float Network::getRegularizationLoss() {
 		}
 	};
 
+
+
 	std::vector<int> nMemoryParams(memoryGenome.size() + 1);
 	std::vector<float> memoryAmplitudes(memoryGenome.size() + 1);
 	for (int i = 0; i < memoryGenome.size(); i++) {
@@ -1849,12 +1851,12 @@ float Network::getRegularizationLoss() {
 		
 	}
 
+
+
 	std::vector<int> nParams_P(complexGenome.size() + 1);
 	std::vector<float> amplitudes_P(complexGenome.size() + 1);
-
 	std::vector<int> nParams_G(complexGenome.size() + 1);
 	std::vector<float> amplitudes_G(complexGenome.size() + 1);
-
 	for (int i = 0; i < complexGenome.size() + 1; i++) {
 		ComplexNode_G* n;
 		n = i != complexGenome.size() ? complexGenome[i].get() : topNodeG.get();
@@ -1897,7 +1899,7 @@ float Network::getRegularizationLoss() {
 
 	float a = genotypeAmplitude / (float) genotypeSize;			// amplitude term
 	float b = log2f((float)nParams_P[complexGenome.size()]);	// size term
-	return  a + b * (0.0f*a + .3f/14.0f);						// normalized or ranked, so multiplying by a constant does nothing.
+	return  0.0f * a + b * (0.0f * a + .3f/14.0f);						// normalized or ranked, so multiplying by a constant does nothing.
 }
 
 
