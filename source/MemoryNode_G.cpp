@@ -27,10 +27,6 @@ int MemoryNode_G::getNParameters() {
 
 void MemoryNode_G::transform01Parameters() {
 
-#ifdef STDP
-	STDP_decay = (tanhf(STDP_storage_decay) + 1.0f) * .5f;
-#endif
-
 
 #ifdef QKV_MEMORY
 	decay = (tanhf(storage_decay) + 1.0f) * .5f;
@@ -60,10 +56,6 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	closestNode = n->closestNode;
 	phenotypicMultiplicity = n->phenotypicMultiplicity;
 	timeSinceLastUse = n->timeSinceLastUse;
-
-#ifdef STDP
-	STDP_storage_decay = n->STDP_storage_decay;
-#endif
 
 
 #ifdef QKV_MEMORY
@@ -129,10 +121,6 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize) :
 	position = -1;
 	memoryNodeID = -1;
 
-	
-#ifdef STDP
-	STDP_storage_decay = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
-#endif
 
 #ifdef QKV_MEMORY
 	storage_decay = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
@@ -167,7 +155,7 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize) :
 
 #ifdef DNN_MEMORY
 	learningRate_Storage = NORMAL_01 * .2f - 1.5f;
-	nLayers = 2;
+	nLayers = 1;
 
 	sizes.push_back(inputSize);
 	for (int i = 0; i < nLayers - 1; i++) { // TODO
@@ -207,10 +195,7 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 	closestNode = n.closestNode;
 	phenotypicMultiplicity = n.phenotypicMultiplicity;
 	timeSinceLastUse = n.timeSinceLastUse;
-	
-#ifdef STDP
-	STDP_storage_decay = n.STDP_storage_decay;
-#endif
+
 
 
 #ifdef QKV_MEMORY
@@ -311,10 +296,6 @@ MemoryNode_G::MemoryNode_G(std::ifstream& is)
 #endif
 
 
-#ifdef STDP
-	READ_4B(STDP_storage_decay, is);
-#endif
-
 }
 
 void MemoryNode_G::save(std::ofstream& os)
@@ -362,22 +343,12 @@ void MemoryNode_G::save(std::ofstream& os)
 	}
 #endif
 
-
-#ifdef STDP
-	WRITE_4B(STDP_storage_decay, os);
-#endif
 }
 
 
 void MemoryNode_G::mutateFloats(float adjustedFMutationP) {
 	float p = adjustedFMutationP * log2f((float)phenotypicMultiplicity + 1.0f) / (float)phenotypicMultiplicity;
 
-#ifdef STDP
-	if (UNIFORM_01 < p) {
-		STDP_storage_decay *= .9f + NORMAL_01 * .1f;
-		STDP_storage_decay += NORMAL_01 * .1f;
-	}
-#endif
 
 #ifdef QKV_MEMORY
 	link.mutateFloats(p);

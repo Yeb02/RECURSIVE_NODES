@@ -133,10 +133,10 @@ void ComplexNode_P::preTrialReset() {
 
 	// TODO commented or not ? 
 #ifdef CONTINUOUS_LEARNING
-	/*toComplex.zeroWlifetime();
+	toComplex.zeroWlifetime();
 	toMemory.zeroWlifetime();
 	toModulation.zeroWlifetime();
-	toOutput.zeroWlifetime();*/
+	toOutput.zeroWlifetime();
 #endif 
 	
 }
@@ -235,7 +235,7 @@ void ComplexNode_P::forward() {
 #ifdef RANDOM_W
 		float* w = icp.w.get();
 #else
-		float* w = icp.type->delta.get();
+		float* w = icp.type->w.get();
 #endif
 #ifndef CONTINUOUS_LEARNING
 		float* wLifetime = icp.wLifetime.get();
@@ -247,7 +247,7 @@ void ComplexNode_P::forward() {
 		for (int i = 0; i < nl; i++) {
 			for (int j = 0; j < nc; j++) {
 #ifdef CONTINUOUS_LEARNING
-				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * H[matID] * alpha[matID] * totalM[1];
+				wLifetime[matID] = (1 - gamma[matID]) * wLifetime[matID] + gamma[matID] * H[matID] * alpha[matID] * totalM[1]; // TODO remove ?
 #endif
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
 					(A[matID] * destinationArray[i] * postSynActs[j] + B[matID] * destinationArray[i] + C[matID] * postSynActs[j] + D[matID]);
@@ -345,7 +345,6 @@ void ComplexNode_P::forward() {
 	}
 
 
-
 	// STEP 2: MEMORY A
 	if (memoryChildren.size() != 0) {
 		// Nothing is transmitted between this and the memory children, as their pointers
@@ -388,7 +387,6 @@ void ComplexNode_P::forward() {
 		}
 
 	}
-
 
 
 	// STEP 2: COMPLEX
@@ -453,6 +451,7 @@ void ComplexNode_P::forward() {
 
 
 	// STEP 4: MODULATION B
+	if (complexChildren.size() != 0 && memoryChildren.size() != 0)
 	{
 		propagate(toModulation, preSynActs + type->outputSize);
 		applyNonLinearities(
@@ -481,7 +480,7 @@ void ComplexNode_P::forward() {
 
 
 	// STEP 5: MEMORY B
-	if (memoryChildren.size() != 0) {
+	if (complexChildren.size() != 0 && memoryChildren.size() != 0) {
 		// Nothing is transmitted between this and the memory children, as their pointers
 		// point towards the same data arrays.
 

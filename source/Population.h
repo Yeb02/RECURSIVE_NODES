@@ -172,52 +172,13 @@ public:
 	
 	void saveFittestSpecimen() const 
 	{
-		using namespace std::chrono;
 		uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-			system_clock::now().time_since_epoch()).count();
+			std::chrono::system_clock::now().time_since_epoch()).count();
 
 		std::ofstream os("models\\topNet_" + std::to_string(ms) + "_" + std::to_string(evolutionStep) + ".renon", std::ios::binary);
 		networks[fittestSpecimen]->save(os);
 	}
 
-	
-	/*
-	template <class Archive>
-	void save(Archive& ar) const
-	{
-		ar(networks);
-	}
-
-	template <class Archive>
-	void load(Archive& ar) 
-	{
-		ar(networks);
-	}
-
-	void defragmentate() {
-		
-		{
-			std::ofstream os("temp_networks.cereal", std::ios::binary); 
-			cereal::BinaryOutputArchive archive(os);
-
-			archive(networks);
-
-			for (int i = 0; i < nSpecimens; i++)
-			{
-				delete networks[i];
-			}
-		}
-
-		{
-			std::ifstream os("temp_networks.cereal", std::ios::binary);
-			cereal::BinaryInputArchive archive(os);
-
-			archive(networks);
-		}
-
-		std::remove("temp_networks.cereal");
-	}
-	*/
 
 	// DLL util only:
 	void mutatePopulation() {

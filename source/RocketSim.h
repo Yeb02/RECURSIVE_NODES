@@ -9,14 +9,14 @@
 
 ROCKET LEAGUE :
 
-SetState:  CarAng(Rotator(pitch, yaw, roll)), p in - pi / 2 i / 2
-GetState : CarAng(Rotator(yaw, pitch, roll)). Yeah, it is $#@ % !reversed !
+SetState:  CarAng(Rotator(pitch, yaw, roll)). Yeah, it is $#@ % !reversed !
+GetState : CarAng(Rotator(yaw, pitch, roll)), pitch in - pi / 2, pi / 2.
 
 SetState : CarAngVel(-rollvel, -pitchvel, +yawvel)  
 Get state yields the same as was set.
 
 ROCKET SIM:
-SetState:  CarAng(Rotator(yaw, pitch, roll)), p in - pi / 2 i / 2
+SetState:  CarAng(Rotator(yaw, pitch, roll)), pitch in - pi / 2, pi / 2
 GetState : CarAng(Rotator(yaw, pitch, roll)). 
 
 SetState : CarAngVel(-rollvel, -pitchvel, +yawvel)  
@@ -52,7 +52,7 @@ public:
 
 	void compare2Game();
 
-	static const int TICK_LIMIT = 5*120; // 5 seconds.
+	static const int TICK_LIMIT = 3*120; // 3 seconds.
 	
 	float jumpR, boostR, throttleR;
 

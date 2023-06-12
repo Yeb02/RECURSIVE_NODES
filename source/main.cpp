@@ -45,7 +45,7 @@ int main()
     //nThreads = 1; // Because multi-threaded functions are difficult to step through line by line.
 #endif
     int nSpecimens = nThreads * 128; //16 -> 512 in most cases
-    int nDifferentTrials = 4;
+    int nDifferentTrials = 12;
     int nSteps = 10000;
 
     // ALL TRIALS IN THE VECTOR MUST HAVE SAME netInSize AND netOutSize. When this condition is met
@@ -70,11 +70,11 @@ int main()
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { -3.0f, .2f}; // first param < -1, second << 1.
+    params.selectionPressure = { -3.0f, 0.2f}; 
     params.useSameTrialInit = false; 
     params.rankingFitness = true;
-    params.saturationFactor = .015f;
-    params.regularizationFactor = .015f; 
+    params.saturationFactor = .01f;
+    params.regularizationFactor = .01f; 
     params.competitionFactor = .0f; 
     params.scoreBatchTransformation = NONE; // NONE recommended when useSameTrialInit = false
     params.nParents = 15;
@@ -83,7 +83,7 @@ int main()
     population.setEvolutionParameters(params); 
 
     // Only the last _nTrialsEvaluated are used for fitness calculations. Others are only used for learning.
-    // DO NOT USE A VALUE DIFFERENT OF nDifferentTrials, AS OF NOW IT WILL CAUSE A CRASH. TODO adapt parentData
+    // DO NOT USE A VALUE DIFFERENT FROM nDifferentTrials, AS OF NOW IT WILL CAUSE A CRASH. TODO adapt parentData
     int _nTrialsEvaluated = nDifferentTrials ;   // = (int)trials.size(), or 4, or (int)trials.size() / 4, ...
 
 
@@ -112,10 +112,11 @@ int main()
 #endif
 
 #ifdef ROCKET_SIM_T
-        float v = std::max((20.0f - (float)i) * .05f, 0.0f);
-        float jbt[3] = {v*.5f, v*.2f, v};
-        for (int j = 0; j < nDifferentTrials; j++) {
-            trials[j]->outerLoopUpdate(&jbt);
+        if (i < 10.0f) {
+            float jbt[3] = { .002f, .002f, .004f };
+            for (int j = 0; j < nDifferentTrials; j++) {
+                trials[j]->outerLoopUpdate(&jbt);
+            }
         }
 #endif
 

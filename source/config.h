@@ -21,11 +21,11 @@
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
 // These do not affect the DLL.
 //#define CARTPOLE_T
-#define XOR_T
+//#define XOR_T
 //#define TMAZE_T
 //#define N_LINKS_PENDULUM_T
 //#define MEMORY_T
-//#define ROCKET_SIM_T 
+#define ROCKET_SIM_T 
 
 
 // When defined, wLifetime updates take place during the trial and not at the end of it. The purpose is to
@@ -40,7 +40,7 @@
 // TODO toggle zeroing of wLifetime at trial end. If off, the accumulation should only happen at lifetime's end.
 // Note: this requires passing the "accumulator" matrices from the parent to the children, and through Network::combine,
 // which is a tedious and error prone task.
-#define GUIDED_MUTATIONS
+//#define GUIDED_MUTATIONS
 
 
 // When defined, for each network, float sp = sum of a function F of each activation of the network, at each step.
@@ -54,7 +54,7 @@
 
 // IN DEVELOPPEMENT: several mutually exclusive types of memory. One MUST be active.
 
-// A hopfield/transformer - inspired QueryKeyValue memory with a discrete and increasing number of stored vectors.
+// A hopfield/transformer - inspired QueryKeyValue memory with a discrete, increasing number of stored vectors.
 //#define QKV_MEMORY
 
 // Instead of a discrete, finite set of memorized vectors and an attention mechanism, memory is programmed with
@@ -89,13 +89,13 @@
 #define MEMORY_MODULATION_SIZE 1    // DO NOT CHANGE
 #endif
 
-#define MAX_COMPLEX_CHILDREN_PER_COMPLEX  10
-#define MAX_MEMORY_CHILDREN_PER_COMPLEX  5
+#define MAX_COMPLEX_CHILDREN_PER_COMPLEX  8
+#define MAX_MEMORY_CHILDREN_PER_COMPLEX  3
 #define MAX_COMPLEX_INPUT_NODE_SIZE  10          // Does not apply to the top node
 #define MAX_COMPLEX_OUTPUT_SIZE  10				 // Does not apply to the top node
 
-#define MAX_MEMORY_INPUT_SIZE  10          
-#define MAX_MEMORY_OUTPUT_SIZE  10         
+#define MAX_MEMORY_INPUT_SIZE  15          
+#define MAX_MEMORY_OUTPUT_SIZE  15         
 
 #define MODULATION_VECTOR_SIZE (2 + MEMORY_MODULATION_SIZE)      // DO NOT CHANGE
 

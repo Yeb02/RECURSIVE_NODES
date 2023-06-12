@@ -135,7 +135,7 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 		zero(biases.get());
 	}
 	else if (init == RANDOM) {
-		rand(biases.get(), 0.0f, 1.0f);
+		rand(biases.get(), 0.0f, .2f);
 	}
 }
 

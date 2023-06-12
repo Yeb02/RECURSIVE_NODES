@@ -77,15 +77,17 @@ Network::Network(int inputSize, int outputSize) :
 {
 
 	complexGenome.resize(0);
-	complexGenome.emplace_back(new ComplexNode_G(3,3));
+	complexGenome.emplace_back(new ComplexNode_G(2,2));
 
 
 	memoryGenome.resize(0);
-	memoryGenome.emplace_back(new MemoryNode_G(6, 6));  
+	memoryGenome.emplace_back(new MemoryNode_G(4, 4));  
 
 	
 	topNodeG = std::make_unique<ComplexNode_G>(inputSize, outputSize);
 	topNodeG->phenotypicMultiplicity = 1;
+	topNodeG->position = (int)complexGenome.size();
+	topNodeG->complexNodeID = currentComplexNodeID++;
 	topNodeG->createInternalConnexions();
 	topNodeG->addComplexChild(complexGenome[0].get());
 	topNodeG->addMemoryChild(memoryGenome[0].get());
@@ -97,7 +99,7 @@ Network::Network(int inputSize, int outputSize) :
 		complexGenome[i]->createInternalConnexions();
 		complexGenome[i]->complexNodeID = currentComplexNodeID++;
 	}
-	topNodeG->position = (int) complexGenome.size();
+	
 
 	currentMemoryNodeID = 0;
 	for (int i = 0; i < memoryGenome.size(); i++) {
@@ -115,9 +117,10 @@ Network::Network(int inputSize, int outputSize) :
 
 void Network::createIDMaps() {
 	complexIDmap.clear();
-	for (int i = 0; i < complexGenome.size(); i++) {
-		if (complexGenome[i]->phenotypicMultiplicity > 0) {
-			complexIDmap.insert({complexGenome[i]->complexNodeID, complexGenome[i].get()});
+	for (int i = 0; i < complexGenome.size()+1; i++) {
+		ComplexNode_G* n = i == complexGenome.size() ? topNodeG.get() : complexGenome[i].get();
+		if (n->phenotypicMultiplicity > 0) {
+			complexIDmap.insert({n->complexNodeID, n});
 		}
 	}
 
@@ -204,10 +207,10 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 
 
 	// complex nodes
-	for (int i = 0; i < child->complexGenome.size(); i++) {
-		if (child->complexGenome[i]->phenotypicMultiplicity == 0) continue;
+	for (int i = 0; i < child->complexGenome.size()+1; i++) {
+		ComplexNode_G * node = i == child->complexGenome.size() ? child->topNodeG.get() : child->complexGenome[i].get();
+		if (node->phenotypicMultiplicity == 0) continue;
 
-		ComplexNode_G * node = child->complexGenome[i].get();
 		int nodeID = node->complexNodeID;
 		complexPtrs[0] = node;
 
@@ -255,7 +258,7 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 				if (!valid) continue;
 			}
 
-			// same topology:
+			// if same topology:
 			weights[nValidParents] = rawWeights[j];
 			complexPtrs[nValidParents] = n;
 			nValidParents++;
@@ -344,14 +347,14 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 				// Additionnal condition
 				bool sameTopology = true;
 				for (int k = 0; k < n->nLayers+1; k++) {
-					if (n->sizes[k] == node->sizes[k]) 
+					if (n->sizes[k] != node->sizes[k]) 
 					{
 						sameTopology = false;
 						break;
 					}
 				}
 				if (!sameTopology) {
-					break;
+					continue;
 				} 
 #endif
 			}
@@ -388,12 +391,6 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 			}
 		}
 
-#ifdef STDP
-		node->STDP_storage_decay = 0.0f;
-		for (int j = 0; j < nValidParents; j++) {
-			node->STDP_storage_decay += weights[j] * memoryPtrs[j]->STDP_storage_decay;
-		}
-#endif
 
 #ifdef QKV_MEMORY
 		// decay and link
@@ -496,7 +493,7 @@ void Network::postTrialUpdate(float score, int trialID) {
 	if (nInferencesOverTrial != 0) {
 		
 #ifndef CONTINUOUS_LEARNING
-		topNodeP->updateWatTrialEnd(1.0f / (float)nInferencesOverTrial); // the argument averages H.
+		topNodeP->updateWatTrialEnd(.1f / (float)nInferencesOverTrial); // the argument averages H.
 #endif
 
 #if defined GUIDED_MUTATIONS  	
@@ -560,7 +557,7 @@ void Network::zeroAccumulators() {
 			complexGenome[i]->toOutput.zeroAccumulator();
 		}
 	}
-
+#endif
 	for (int i = 0; i < memoryGenome.size(); i++) {
 		if (memoryGenome[i]->phenotypicMultiplicity != 0) {
 
@@ -568,7 +565,7 @@ void Network::zeroAccumulators() {
 			
 		}
 	}
-#endif
+
 }
 #endif
 
@@ -672,33 +669,33 @@ void Network::mutate() {
 	// The second constexpr value in each pair should not be neglible when compared to
 	// the first, to introduce some kind of spontaneous regularization.
 
-	constexpr float incrementComplexInputSizeProbability = .02f;
-	constexpr float decrementComplexInputSizeProbability = .02f;
+	constexpr float incrementComplexInputSizeProbability = .01f;
+	constexpr float decrementComplexInputSizeProbability = .01f;
 
-	constexpr float incrementComplexOutputSizeProbability = .02f;
-	constexpr float decrementComplexOutputSizeProbability = .02f;
+	constexpr float incrementComplexOutputSizeProbability = .01f;
+	constexpr float decrementComplexOutputSizeProbability = .01f;
 
-	constexpr float incrementMemoryInputSizeProbability = .02f;
-	constexpr float decrementMemoryInputSizeProbability = .02f;
+	constexpr float incrementMemoryInputSizeProbability = .01f;
+	constexpr float decrementMemoryInputSizeProbability = .01f;
 
-	constexpr float incrementMemoryOutputSizeProbability = .02f;
-	constexpr float decrementMemoryOutputSizeProbability = .02f;
-
-
-	constexpr float addComplexChildProbability = .03f;
-	constexpr float removeComplexChildProbability = .03f;
-
-	constexpr float addMemoryChildProbability = .02f; 
-	constexpr float removeMemoryChildProbability = .02f; 
+	constexpr float incrementMemoryOutputSizeProbability = .01f;
+	constexpr float decrementMemoryOutputSizeProbability = .01f;
 
 
-	constexpr float replaceComplexChildProbability = .04f;
-	constexpr float replaceMemoryChildProbability = .04f;
+	constexpr float addComplexChildProbability = .015f;
+	constexpr float removeComplexChildProbability = .004f;
 
-	constexpr float duplicateComplexChildProbability = .005f;
-	constexpr float duplicateMemoryChildProbability = .005f; 
+	constexpr float addMemoryChildProbability = .005f; 
+	constexpr float removeMemoryChildProbability = .002f; 
 
-	constexpr float floatParamBaseMutationProbability = .5f;
+
+	constexpr float replaceComplexChildProbability = .03f;
+	constexpr float replaceMemoryChildProbability = .03f;
+
+	constexpr float duplicateComplexChildProbability = .008f;
+	constexpr float duplicateMemoryChildProbability = .004f; 
+
+	constexpr float floatParamBaseMutationProbability = 1.2f;
 
 	constexpr float nodeErasureConstant = .1f;
 
@@ -1817,8 +1814,8 @@ float Network::getRegularizationLoss() {
 
 
 
-	std::vector<int> nMemoryParams(memoryGenome.size() + 1);
-	std::vector<float> memoryAmplitudes(memoryGenome.size() + 1);
+	std::vector<int> nMemoryParams(memoryGenome.size());
+	std::vector<float> memoryAmplitudes(memoryGenome.size());
 	for (int i = 0; i < memoryGenome.size(); i++) {
 
 #ifdef QKV_MEMORY
@@ -1839,16 +1836,20 @@ float Network::getRegularizationLoss() {
 		for (int k = 0; k < size; k++) {
 			memoryAmplitudes[i] += abs(memoryGenome[i]->W0[k]);
 		}
+		nMemoryParams[i] = size;
 #endif
 
 #ifdef DNN_MEMORY
+		nMemoryParams[i] = 0;
 		for (int j = 0; j < memoryGenome[i]->nLayers; j++) {
-			for (int k = 0; k < memoryGenome[i]->sizes[j] * memoryGenome[i]->sizes[j + 1]; k++) {
+			int s = memoryGenome[i]->sizes[j] * memoryGenome[i]->sizes[j + 1];
+			for (int k = 0; k < s; k++) {
 				memoryAmplitudes[i] += abs(memoryGenome[i]->W0s[j][k]);
 			}
+			nMemoryParams[i] += s;
 		}
 #endif
-		
+
 	}
 
 
@@ -1897,9 +1898,9 @@ float Network::getRegularizationLoss() {
 	}
 
 
-	float a = genotypeAmplitude / (float) genotypeSize;			// amplitude term
-	float b = log2f((float)nParams_P[complexGenome.size()]);	// size term
-	return  0.0f * a + b * (0.0f * a + .3f/14.0f);						// normalized or ranked, so multiplying by a constant does nothing.
+	float a = ((float)genotypeSize + genotypeAmplitude); 
+	float b = log2f((float)nParams_P[complexGenome.size()]);
+	return a*b;
 }
 
 

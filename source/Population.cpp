@@ -496,6 +496,8 @@ Network* Population::createChild(PhylogeneticNode* primaryParent) {
 }
 
 void Population::createOffsprings() {
+	uint64_t start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
 	float* phase1Probabilities = new float[nSpecimens];
 	float* phase2Probabilities = new float[nSpecimens];
 	Network** tempNetworks = new Network* [nSpecimens];
@@ -601,4 +603,7 @@ void Population::createOffsprings() {
 	delete[] phase2Probabilities;
 	
 	evolutionStep++;
+
+	uint64_t stop = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	std::cout << "Offspring creation took " << stop - start << " ms." << std::endl;
 }

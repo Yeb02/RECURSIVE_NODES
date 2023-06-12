@@ -29,11 +29,6 @@ struct MemoryNode_G {
 	// multiplicity > 0 (so timeSinceLastUse = 0 for nodes that are phenotypically active.)
 	int timeSinceLastUse;
 
-	
-
-#ifdef STDP
-	float STDP_decay, STDP_storage_decay;
-#endif
 
 #ifdef QKV_MEMORY
 	// controls the exponential average decay speed of candidate memory, the higher the faster.

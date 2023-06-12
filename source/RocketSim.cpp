@@ -42,15 +42,15 @@ void RocketSimTrial::reset(bool sameSeed) {
 		// https://github.com/RLBot/RLBot/wiki/Useful-Game-Values
 		// angles are YPR, YR in -pi,pi and P in -pi/2,pi/2									17 + + UNIFORM_01 * 200.0f ?
 		initialCarState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), 17.0f }; // zGrounded = 17
-		initialCarState.vel = { 400.0f * (UNIFORM_01-.5f), 400.0f * (UNIFORM_01 - .5f), 200 * (UNIFORM_01 - .2f) };
+		initialCarState.vel = { 0.0f, 0.0f, 0.0f };
+		//initialCarState.vel = { 400.0f * (UNIFORM_01-.5f), 400.0f * (UNIFORM_01 - .5f), 200 * (UNIFORM_01 - .2f) };
 		Angle carAng = Angle(M_PI * 2.0f * (UNIFORM_01 - .5f), 0.0f, 0.0f);
 		//Angle carAng = Angle(M_PI * 2.0f * (UNIFORM_01 - .5f), M_PI * .4f * (UNIFORM_01 - .5f), M_PI * .4f * (UNIFORM_01 - .5f));
 		initialCarState.rotMat = carAng.ToRotMat();
 
 		initialCarState.boost = 100.0f * UNIFORM_01;
 
-		initialBallState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), (UNIFORM_01 - .5f) * 1000.0f + 92.75f}; // zGrounded = 92.75f
-		//initialBallState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), 92.75f + UNIFORM_01  * 1900.0f};
+		initialBallState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), UNIFORM_01 * 1000.0f + 92.75f}; // zGrounded = 92.75f
 		initialBallState.vel = { 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f) };
 		//initialBallState.vel = { .0f, .0f, .0f };
 	}
@@ -170,13 +170,13 @@ void RocketSimTrial::setObservations() {
 }
 
 void RocketSimTrial::step(const float* actions) {
-	constexpr int tickStride = 6; // 120 ticks per second in the game. (However the client recieves only 60 per second in the real game)
+	constexpr int tickStride = 12; // 120 ticks per second in the game. (However the client recieves only 60 per second in the real game)
 	constexpr float amplitude = 1.2f; // could be much higher. Never below 1.
 
 
 	if (currentNStep * tickStride >= TICK_LIMIT) {
 	
-		score = 1.0f - (score * inv_d0 + throttleS * throttleR + jumpR * jumpS + boostR * boostS)/ (float)currentNStep; 
+		score = 1.0f + (jumpS > 0)*jumpR - (score * inv_d0 - throttleS * throttleR - boostR * boostS)/ (float)currentNStep; 
 
 
 		isTrialOver = true;
@@ -195,7 +195,7 @@ void RocketSimTrial::step(const float* actions) {
 	car->controls.handbrake = actions[i++] > 0;
 
 	int delta = INT_0X(3) - 1; // random int in {-1,0,1} to reproduce the game's fluctuations.
-	arena->Step(tickStride);
+	arena->Step(tickStride+delta);
 
 	setObservations();
 
