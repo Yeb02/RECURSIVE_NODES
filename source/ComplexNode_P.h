@@ -14,10 +14,6 @@ struct ComplexNode_P {
 
 	float totalM[MODULATION_VECTOR_SIZE]; // parent's + local M.    
 
-#ifdef SATURATION_PENALIZING
-	// A parent updates it for its children (in and out), not for itself.
-	float* globalSaturationAccumulator;		 
-#endif
 	 
 
 	std::vector<ComplexNode_P> complexChildren;
@@ -46,9 +42,11 @@ struct ComplexNode_P {
 
 #ifdef SATURATION_PENALIZING
 	// Layout:
-	// Modulation -> complexChildren->inputSize
-	// inputSize for memory nodes
+	// Modulation -> (complexChildren->inputSize) -> (memoryChildren->inputSize (mn owns it))
 	float* averageActivation;
+
+	// A parent updates it for its children (in and out), not for itself.
+	float* globalSaturationAccumulator;
 #endif
 
 

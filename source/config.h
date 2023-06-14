@@ -52,10 +52,13 @@
 #define SATURATION_PENALIZING
 
 
-// IN DEVELOPPEMENT: several mutually exclusive types of memory. One MUST be active.
+
+
+// Several mutually exclusive types of memory. One MUST be active.
+
 
 // A hopfield/transformer - inspired QueryKeyValue memory with a discrete, increasing number of stored vectors.
-//#define QKV_MEMORY
+#define QKV_MEMORY
 
 // Instead of a discrete, finite set of memorized vectors and an attention mechanism, memory is programmed with
 // ordinary feedforward neural networks, that use online gradient descent during trials. Learning rate and other
@@ -65,17 +68,19 @@
 #define DNN_MEMORY
 #endif
 
-
+// WARNING as of now, unstable in the long term and blows up to Nan. The paper that inspired this states that it 
+// should not happen, but despite my best efforts I cant prevent it. https://arxiv.org/abs/2202.05780
+// Sequences are probably too long for the current implementation.
 #if !defined QKV_MEMORY && !defined DNN_MEMORY
 #define SRWM
 #endif
-
 
 // TODO: a [Self Referencial Weight Matrix applied to a DeltaNet] SR-DeltaNet, (https://arxiv.org/pdf/2202.05780.pdf)
 //  adapted to fit within the ReNo paradigm: modulation, evolution, and unsupervised learning.
 #if !defined QKV_MEMORY && !defined DNN_MEMORY && !defined SRWM
 #define SR_DELTANET
 #endif
+
 
 
 #ifdef QKV_MEMORY
@@ -89,6 +94,7 @@
 #define MEMORY_MODULATION_SIZE 1    // DO NOT CHANGE
 #endif
 
+
 #define MAX_COMPLEX_CHILDREN_PER_COMPLEX  8
 #define MAX_MEMORY_CHILDREN_PER_COMPLEX  3
 #define MAX_COMPLEX_INPUT_NODE_SIZE  10          // Does not apply to the top node
@@ -100,7 +106,7 @@
 #define MODULATION_VECTOR_SIZE (2 + MEMORY_MODULATION_SIZE)      // DO NOT CHANGE
 
 
-// TODO : implement DERIVATOR, that outputs the difference between INPUT_NODE at this step and INPUT_NODE at the previous step.
+// TODO : implement DERIVATOR
 // CENTERED_TANH(x) = tanhf(x) * expf(-x*x) * 1/.375261
 // I dont really know what to expect from non-monotonous functions when it comes to applying 
 // hebbian updates... It does not make much sense. But I plan to add cases where activations
@@ -119,10 +125,12 @@ const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, LOG2 = 2, EXP2 = 3, RELU = 4, SI
 
 
 // Maximum number of generations since last common ancestor of two  (of the) specimens combined to form a new specimen. >= 2.
-#define MAX_MATING_DEPTH 10
+#define MAX_MATING_DEPTH 20
 
-// parameters that have values in the range [0,1] and are stored in R are initialized with mean DECAY_PARAMETERS_STORAGE_BIAS
-#define DECAY_PARAMETERS_STORAGE_BIAS -1.0f
+// parameters that have values in the range [0,1] are initialized with mean DECAY_PARAMETERS_BIAS
+// These parameters (denoted µ) are typically used in exponential moving average updates, i.e.
+// X(t+1) = X(t) * (1-µ)  +  µ * ....
+#define DECAY_PARAMETERS_INIT_BIAS .1f
 
 // When defined, presynaptic activities of complexNodes (topNode excepted) are an exponential moving average. Each node 
 // be it Modulation, complex, memory or output has an evolved parameter (STDP_decay) that parametrizes the average.

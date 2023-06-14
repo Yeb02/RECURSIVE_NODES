@@ -66,6 +66,7 @@ Network::Network(Network* n) {
 	nInferencesOverLifetime = n->nInferencesOverLifetime;
 	nExperiencedTrials = n->nExperiencedTrials;
 
+
 	createIDMaps();
 
 	topNodeP.reset(NULL);
@@ -77,11 +78,7 @@ Network::Network(int inputSize, int outputSize) :
 {
 
 	complexGenome.resize(0);
-	complexGenome.emplace_back(new ComplexNode_G(2,2));
-
-
 	memoryGenome.resize(0);
-	memoryGenome.emplace_back(new MemoryNode_G(4, 4));  
 
 	
 	topNodeG = std::make_unique<ComplexNode_G>(inputSize, outputSize);
@@ -89,6 +86,10 @@ Network::Network(int inputSize, int outputSize) :
 	topNodeG->position = (int)complexGenome.size();
 	topNodeG->complexNodeID = currentComplexNodeID++;
 	topNodeG->createInternalConnexions();
+
+	memoryGenome.emplace_back(new MemoryNode_G(4, 4));
+	complexGenome.emplace_back(new ComplexNode_G(2, 2));
+
 	topNodeG->addComplexChild(complexGenome[0].get());
 	topNodeG->addMemoryChild(memoryGenome[0].get());
 
@@ -132,7 +133,7 @@ void Network::createIDMaps() {
 	}
 }
 
-// static
+// static. TODO more sensible combinations of decay parameters.
 Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& rawWeights) {
 	Network* child = new Network(parents[0]);
 
@@ -157,17 +158,33 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 		}
 	};
 
+	// accumulates in mats[0]
+	auto addDecayMatrices = [mats, weights, &nValidParents](int s)
+	{
+		for (int j = 0; j < s; j++) {
+			mats[0][j] = weights[0] * log2f(-1.0f / log2f(1.0f - mats[0][j]));
+		}
+		for (int i = 1; i < nValidParents; i++) {
+			for (int j = 0; j < s; j++) {
+				mats[0][j] += weights[i] * log2f(-1.0f / log2f(1.0f - mats[i][j]));
+			}
+		}
+		for (int j = 0; j < s; j++) {
+			mats[0][j] = std::clamp(1.0f - exp2f(-exp2f(-mats[0][j])),.001f,.999f);
+		}
+	};
+
 	// accumulates in connexions[0], which must therefore be set to a child's element 
 	// (and not an element of parents[0], ie the primary parent.)
-	auto addConnexions = [connexions, mats, weights, &nValidParents, &addMatrices]()
+	auto addConnexions = [connexions, mats, weights, &nValidParents, &addMatrices, &addDecayMatrices]()
 	{
 
 		int s = connexions[0]->nColumns * connexions[0]->nLines;
 
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->A.get(); }
 		addMatrices(s);
-		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->storage_eta.get(); }
-		addMatrices(s);
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->eta.get(); }
+		addDecayMatrices(s);
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->B.get(); }
 		addMatrices(s);
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->C.get(); }
@@ -181,12 +198,12 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 		addMatrices(s);
 #endif
 #ifdef OJA
-		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->storage_delta.get(); }
-		addMatrices(s);
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->delta.get(); }
+		addDecayMatrices(s);
 #endif
 #ifdef CONTINUOUS_LEARNING
-		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->storage_gamma.get(); }
-		addMatrices(s);
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->gamma.get(); }
+		addDecayMatrices(s);
 #endif
 #ifdef GUIDED_MUTATIONS
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->accumulator.get(); }
@@ -198,10 +215,10 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->biases.get(); }
 		addMatrices(s);
 #ifdef STDP
-		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->STDP_storage_mu.get(); }
-		addMatrices(s);
-		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->STDP_storage_lambda.get(); }
-		addMatrices(s);
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->STDP_mu.get(); }
+		addDecayMatrices(s);
+		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->STDP_lambda.get(); }
+		addDecayMatrices(s);
 #endif
 	};
 
@@ -276,15 +293,20 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 			float s_positive = 0.0f, s_negative = 0.0f;
 			for (int j = 1; j < nValidParents; j++) {
 				// practicing branchless skills...
-				float w = std::max(weights[j], 0.0f);
-				s_positive += w;
-				s_negative += w - weights[j];
+				//float w = std::max(weights[j], 0.0f);
+				//s_positive += w;
+				//s_negative += w - weights[j];
+
+				if (weights[j] > 0) {
+					s_positive += weights[j];
+				}
+				else {
+					s_negative -= weights[j];
+				}
 			}
 			
-			//weights[0] = 1 - (s_positive - s_negative);
-
 			float s_max = std::max(s_positive, s_negative);
-			float s_f = .5f / s_max;
+			float s_f = .4f / s_max;
 			weights[0] = 1 - (s_positive - s_negative) * s_f;
 			for (int j = 1; j < nValidParents; j++) {
 				weights[j] *= s_f;
@@ -292,20 +314,16 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 
 		}
 
-		for (int j = 1; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toComplex;}
-		connexions[0] = &node->toComplex;
+		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toComplex;}
 		addConnexions();
 
-		for (int j = 1; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toMemory; }
-		connexions[0] = &node->toMemory;
+		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toMemory; }
 		addConnexions();
 
-		for (int j = 1; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toOutput; }
-		connexions[0] = &node->toOutput;
+		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toOutput; }
 		addConnexions();
 
-		for (int j = 1; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toModulation; }
-		connexions[0] = &node->toModulation;
+		for (int j = 0; j < nValidParents; j++) { connexions[j] = &complexPtrs[j]->toModulation; }
 		addConnexions();
 	}
 
@@ -377,14 +395,15 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 		{
 			float s_positive = 0.0f, s_negative = 0.0f;
 			for (int j = 1; j < nValidParents; j++) {
-				// practicing branchless skills...
-				float w = std::max(weights[j], 0.0f);
-				s_positive += w;
-				s_negative += w - weights[j];
+				if (weights[j] > 0) {
+					s_positive += weights[j];
+				}
+				else {
+					s_negative -= weights[j];
+				}
 			}
-			//weights[0] = 1 - (s_positive - s_negative); legacy
 
-			float s_f = .5f / std::max(s_positive, s_negative);
+			float s_f = .4f / std::max(s_positive, s_negative);
 			weights[0] = 1 - (s_positive - s_negative) * s_f;
 			for (int j = 1; j < nValidParents; j++) {
 				weights[j] *= s_f;
@@ -393,15 +412,18 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 
 
 #ifdef QKV_MEMORY
-		// decay and link
-		node->storage_decay = 0.0f;
-		connexions[0] = &memoryPtrs[0]->link;
+		// decay 
+		node->QKV_decay = weights[0] * log2f(-1.0f / log2f(1.0f - node->QKV_decay));
+		for (int j = 1; j < nValidParents; j++) {
+			node->QKV_decay += weights[i] * log2f(-1.0f / log2f(1.0f - memoryPtrs[j]->QKV_decay));
+		}
+		node->QKV_decay = std::clamp(1.0f - exp2f(-exp2f(-node->QKV_decay)), .001f, .999f);
+
+
+		// link
 		for (int j = 0; j < nValidParents; j++) {
-			node->storage_decay += weights[j] * memoryPtrs[j]->storage_decay;
 			connexions[j] = &memoryPtrs[j]->link;
 		}
-		connexions[0] = &node->link;
-
 		addConnexions();
 
 		//  Q
@@ -420,10 +442,15 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 		addMatrices(s);
 
 		for (int _i = 0; _i < 4; _i++) {
-			node->SRWM_storage_decay[_i] = 0.0f;
-			for (int j = 0; j < nValidParents; j++) {
-				node->SRWM_storage_decay[_i] += weights[j] * memoryPtrs[j]->SRWM_storage_decay[_i];
+			node->SRWM_decay[_i] = weights[0] * log2f(-1.0f / log2f(1.0f - node->SRWM_decay[_i]));
+		}
+		for (int i = 1; i < nValidParents; i++) {
+			for (int _i = 0; _i < 4; _i++) {
+				node->SRWM_decay[_i] += weights[i] * log2f(-1.0f / log2f(1.0f - memoryPtrs[i]->SRWM_decay[_i]));
 			}
+		}
+		for (int _i = 0; _i < 4; _i++) {
+			node->SRWM_decay[_i] = std::clamp(1.0f - exp2f(-exp2f(-node->SRWM_decay[_i])), .001f, .999f);
 		}
 #endif
 
@@ -462,15 +489,17 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 #endif
 		}
 
-		child->memoryGenome[i]->learningRate_Storage = 0.0f;
-		for (int j = 0; j < nValidParents; j++) {
-			child->memoryGenome[i]->learningRate_Storage += weights[j] * memoryPtrs[j]->learningRate_Storage;
+
+		//node->learningRate = 0.0f; 
+		node->learningRate = weights[0] * log2f(-1.0f / log2f(1.0f - node->learningRate));
+		for (int j = 1; j < nValidParents; j++) {
+			node->learningRate += weights[j] * log2f(-1.0f / log2f(1.0f - memoryPtrs[j]->learningRate));
 		}
+		node->learningRate = std::clamp(1.0f - exp2f(-exp2f(-node->learningRate)), .001f, .999f);
 		
 #endif
-
-
 	}
+
 
 
 	delete[] complexPtrs;
@@ -573,23 +602,7 @@ void Network::createPhenotype() {
 	if (topNodeP.get() == NULL) {
 		topNodeP.reset(new ComplexNode_P(topNodeG.get()));
 
-		// transform [0, 1] range parameters
-		{
-			for (int i = 0; i < complexGenome.size(); i++) {
-				if (complexGenome[i]->phenotypicMultiplicity > 0) {
-					complexGenome[i]->transform01Parameters();
-				}
-			}
-			topNodeG->transform01Parameters();
-			for (int i = 0; i < memoryGenome.size(); i++) {
-				if (memoryGenome[i]->phenotypicMultiplicity > 0) {
-					memoryGenome[i]->transform01Parameters();
-				}
-			}
-		}
-
 		std::vector<int> genomeState(complexGenome.size() + 1);
-
 
 		topNodeG->computePreSynActArraySize(genomeState);
 		preSynActsArraySize = genomeState[(int)complexGenome.size()];
@@ -669,17 +682,17 @@ void Network::mutate() {
 	// The second constexpr value in each pair should not be neglible when compared to
 	// the first, to introduce some kind of spontaneous regularization.
 
-	constexpr float incrementComplexInputSizeProbability = .01f;
-	constexpr float decrementComplexInputSizeProbability = .01f;
+	constexpr float incrementComplexInputSizeProbability = .003f;
+	constexpr float decrementComplexInputSizeProbability = .003f;
 
-	constexpr float incrementComplexOutputSizeProbability = .01f;
-	constexpr float decrementComplexOutputSizeProbability = .01f;
+	constexpr float incrementComplexOutputSizeProbability = .003f;
+	constexpr float decrementComplexOutputSizeProbability = .003f;
 
-	constexpr float incrementMemoryInputSizeProbability = .01f;
-	constexpr float decrementMemoryInputSizeProbability = .01f;
+	constexpr float incrementMemoryInputSizeProbability = .003f;
+	constexpr float decrementMemoryInputSizeProbability = .003f;
 
-	constexpr float incrementMemoryOutputSizeProbability = .01f;
-	constexpr float decrementMemoryOutputSizeProbability = .01f;
+	constexpr float incrementMemoryOutputSizeProbability = .003f;
+	constexpr float decrementMemoryOutputSizeProbability = .003f;
 
 
 	constexpr float addComplexChildProbability = .015f;
@@ -689,13 +702,13 @@ void Network::mutate() {
 	constexpr float removeMemoryChildProbability = .002f; 
 
 
-	constexpr float replaceComplexChildProbability = .03f;
+	constexpr float replaceComplexChildProbability = .04f;
 	constexpr float replaceMemoryChildProbability = .03f;
 
-	constexpr float duplicateComplexChildProbability = .008f;
-	constexpr float duplicateMemoryChildProbability = .004f; 
+	constexpr float duplicateComplexChildProbability = .005f;
+	constexpr float duplicateMemoryChildProbability = .002f; 
 
-	constexpr float floatParamBaseMutationProbability = 1.2f;
+	constexpr float floatParamBaseMutationProbability = .3f;
 
 	constexpr float nodeErasureConstant = .1f;
 
@@ -796,11 +809,12 @@ void Network::mutate() {
 	};
 
 
+
 	// Non topological mutations. (weights, biases, activations...)
 	{
-		float adjustedFMutationP = floatParamBaseMutationProbability *
-			log2f(1.0f + (float)activeGenotypeSize) *
-			powf((float)activeGenotypeSize, -.5);
+		float adjustedFMutationP = floatParamBaseMutationProbability
+			* log2f(1.0f + (float)activeGenotypeSize)
+			* powf((float)activeGenotypeSize, -.5);
 
 		for (int i = 0; i < complexGenome.size(); i++) {
 			if (complexGenome[i]->phenotypicMultiplicity > 0)
@@ -950,7 +964,7 @@ void Network::mutate() {
 		}
 	}
 #endif
-
+	
 
 	// Adding child nodes. 
 	{
@@ -1086,7 +1100,7 @@ void Network::mutate() {
 		}
 	}
 	
-
+	
 	// Replacing child nodes.
 	{
 		ComplexNode_G* parent = nullptr;
@@ -1481,13 +1495,6 @@ void Network::mutate() {
 	}
 
 
-	// these 3 calls are unnecessary, because keeping a correct state is guaranteed by each mutation.
-	/*
-	updateDepths();
-	sortGenome();
-	updatePhenotypicMultiplicities(); 
-	*/
-
 
 	// Update mutationalDistance and timeSinceLastUse.
 	{
@@ -1503,6 +1510,7 @@ void Network::mutate() {
 				complexGenome[i]->timeSinceLastUse++;
 			}
 		}
+
 		for (int i = 0; i < memoryGenome.size(); i++) {
 			if (memoryGenome[i]->phenotypicMultiplicity > 0) {
 				memoryGenome[i]->mutationalDistance++;
@@ -1521,8 +1529,10 @@ void Network::mutate() {
 
 	// Remove unused nodes.
 	{
-
+		
+		
 		for (int i = 0; i < complexGenome.size(); i++) { 
+
 			if (complexGenome[i]->phenotypicMultiplicity > 0) continue;
 
 			float pErasure = .5f * tanhf((float)complexGenome[i]->timeSinceLastUse * nodeErasureConstant - 5.0f) + .5f;
@@ -1533,10 +1543,21 @@ void Network::mutate() {
 				i--;
 			}
 		}
+
+		if (complexGenome.size() == 0) {
+			ComplexNode_G* n = new ComplexNode_G(2, 2);
+			complexGenome.emplace_back(n);
+			n->complexNodeID = currentComplexNodeID++;
+			n->closestNode = NULL;
+			n->depth = 1;
+			n->phenotypicMultiplicity = 0;
+			n->createInternalConnexions();
+		}
 		for (int i = 0; i < complexGenome.size(); i++) complexGenome[i]->position = i;
 		topNodeG->position = (int)complexGenome.size();
 		updateDepths();
 		sortGenome();
+
 
 
 		for (int i = 0; i < memoryGenome.size(); i++) {
@@ -1549,6 +1570,12 @@ void Network::mutate() {
 				eraseMemoryNode(i);
 				i--;
 			}
+		}
+		if (memoryGenome.size() == 0) {
+			memoryGenome.emplace_back(new MemoryNode_G(4, 4));
+			memoryGenome[0]->memoryNodeID = currentMemoryNodeID++;
+			memoryGenome[0]->closestNode = NULL;
+			memoryGenome[0]->phenotypicMultiplicity = 0;
 		}
 		for (int i = 0; i < memoryGenome.size(); i++) memoryGenome[i]->position = i;
 	}

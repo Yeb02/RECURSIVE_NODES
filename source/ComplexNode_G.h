@@ -119,14 +119,6 @@ struct ComplexNode_G {
 	int timeSinceLastUse;
 
 
-	// to be called only by network::createPhenotype
-	void transform01Parameters() {
-		toComplex.transform01Parameters();
-		toMemory.transform01Parameters();
-		toModulation.transform01Parameters();
-		toOutput.transform01Parameters();
-	}
-
 	// returns the number of evolved floating point parameters. As of now, the toX matrices sets and the biases.
 	int getNParameters() 
 	{

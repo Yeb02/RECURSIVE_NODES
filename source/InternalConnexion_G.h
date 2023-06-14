@@ -10,6 +10,7 @@
 
 #include "config.h"
 
+inline float mutateDecayParam(float dp, float m = .15f);
 
 
 struct InternalConnexion_G {
@@ -27,7 +28,6 @@ struct InternalConnexion_G {
 	std::unique_ptr<float[]> C;
 	std::unique_ptr<float[]> D;
 	std::unique_ptr<float[]> eta;	// in [0, 1]
-	std::unique_ptr<float[]> storage_eta;   // in R
 	std::unique_ptr<float[]> alpha;
 
 	std::unique_ptr<ACTIVATION[]> activationFunctions;
@@ -39,12 +39,10 @@ struct InternalConnexion_G {
 
 #ifdef OJA
 	std::unique_ptr<float[]> delta; // in [0, 1]
-	std::unique_ptr<float[]> storage_delta; // in R
 #endif
 
 #ifdef CONTINUOUS_LEARNING
 	std::unique_ptr<float[]> gamma; // in [0, 1]
-	std::unique_ptr<float[]> storage_gamma; // in R
 #endif
 
 #ifdef GUIDED_MUTATIONS
@@ -60,10 +58,7 @@ struct InternalConnexion_G {
 
 #ifdef STDP
 	std::unique_ptr<float[]> STDP_mu;
-	std::unique_ptr<float[]> STDP_storage_mu;
-
 	std::unique_ptr<float[]> STDP_lambda;
-	std::unique_ptr<float[]> STDP_storage_lambda;
 #endif
 
 
@@ -84,10 +79,6 @@ struct InternalConnexion_G {
 		return nEvolvedArrays * nLines * nColumns;
 	}
 
-	// Maps stored_X to X for all parameters X that are used at runtime in the range [0,1]
-	// but stored in the range R. Typically exponential average decays. 
-	// To be called at phenotype creation.
-	void transform01Parameters();
 
 	void mutateFloats(float p);
 

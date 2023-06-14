@@ -255,12 +255,12 @@ void MemoryNode_P::forward() {
 	}
 
 	//Update candidate memory
-	float F = ksi1 * ksi2 * type->decay * powf(1.0f - maxCos, 1.0f);
+	float F = ksi1 * ksi2 * type->QKV_decay * powf(1.0f - maxCos, 1.0f);
 	for (int i = 0; i < type->kernelDimension; i++) {
-		candidateMemory[i] = (1.0f - type->decay) * candidateMemory[i] + F * QX[i];
+		candidateMemory[i] = (1.0f - type->QKV_decay) * candidateMemory[i] + F * QX[i];
 	}
 	for (int i = type->kernelDimension; i < memoryVectorSize; i++) {
-		candidateMemory[i] = (1.0f - type->decay) * candidateMemory[i] + F * output[i - type->kernelDimension];
+		candidateMemory[i] = (1.0f - type->QKV_decay) * candidateMemory[i] + F * output[i - type->kernelDimension];
 	}
 }
 
@@ -338,8 +338,8 @@ void MemoryNode_P::forward()
 	l = type->outputSize;
 	for (int i = f; i < l; i++) {
 		for (int j = 0; j < inS; j++) {
-			float f = beta[0] * k[j];
-			W[i * inS + j] = W[i * inS + j] * type->SRWM_decay[0] + beta[0] * vBuffer[i] * k[j];
+			float f = beta[0] * k[j];										// *type->SRWM_DECAY[0] TODO stability ?
+			W[i * inS + j] = W[i * inS + j] * (1.0f - type->SRWM_decay[0]) + beta[0] * vBuffer[i] * k[j];
 		}
 	}
 
@@ -349,7 +349,7 @@ void MemoryNode_P::forward()
 	for (int i = f; i < l; i++) {
 		for (int j = 0; j < inS; j++) {
 			float f = beta[1] * k[j];
-			W[i * inS + j] = W[i * inS + j] * type->SRWM_decay[1] + beta[1] * vBuffer[i] * k[j];
+			W[i * inS + j] = W[i * inS + j] * (1.0f - type->SRWM_decay[1]) + beta[1] * vBuffer[i] * k[j];
 		}
 	}
 
@@ -359,7 +359,7 @@ void MemoryNode_P::forward()
 	for (int i = f; i < l; i++) {
 		for (int j = 0; j < inS; j++) {
 			float f = beta[2] * k[j];
-			W[i * inS + j] = W[i * inS + j] * type->SRWM_decay[2] + beta[2] * vBuffer[i] * k[j];
+			W[i * inS + j] = W[i * inS + j] * (1.0f - type->SRWM_decay[2]) + beta[2] * vBuffer[i] * k[j];
 		}
 	}
 
@@ -369,7 +369,7 @@ void MemoryNode_P::forward()
 	for (int i = f; i < l; i++) {
 		for (int j = 0; j < inS; j++) {
 			float f = beta[3] * k[j];
-			W[i * inS + j] = W[i * inS + j] * type->SRWM_decay[3] + beta[3] * vBuffer[i] * k[j];
+			W[i * inS + j] = W[i * inS + j] * (1.0f - type->SRWM_decay[3]) + beta[3] * vBuffer[i] * k[j];
 		}
 	}
 

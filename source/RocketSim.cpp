@@ -6,7 +6,7 @@
 
 RocketSimTrial::RocketSimTrial(Arena* _arena, Car* _car)
 {
-	netInSize = 24; 
+	netInSize = 24-4; 
 	netOutSize = 8;
 	observations.resize(netInSize);
 
@@ -40,17 +40,17 @@ void RocketSimTrial::reset(bool sameSeed) {
 	if (!sameSeed) {
 		// data on objects at rest found there:
 		// https://github.com/RLBot/RLBot/wiki/Useful-Game-Values
-		// angles are YPR, YR in -pi,pi and P in -pi/2,pi/2									17 + + UNIFORM_01 * 200.0f ?
-		initialCarState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), 17.0f }; // zGrounded = 17
-		initialCarState.vel = { 0.0f, 0.0f, 0.0f };
-		//initialCarState.vel = { 400.0f * (UNIFORM_01-.5f), 400.0f * (UNIFORM_01 - .5f), 200 * (UNIFORM_01 - .2f) };
+		// angles are YPR, YR in -pi,pi and P in -pi/2,pi/2									
+		initialCarState.pos = { 5800.0f * (UNIFORM_01 - .5f), 7850.0f * (UNIFORM_01 - .5f), 17.0f + UNIFORM_01 * 200.0f }; // zGrounded = 17
+		//initialCarState.vel = { 0.0f, 0.0f, 0.0f };
+		initialCarState.vel = { 400.0f * (UNIFORM_01-.5f), 400.0f * (UNIFORM_01 - .5f), 200 * (UNIFORM_01 - .2f) };
 		Angle carAng = Angle(M_PI * 2.0f * (UNIFORM_01 - .5f), 0.0f, 0.0f);
 		//Angle carAng = Angle(M_PI * 2.0f * (UNIFORM_01 - .5f), M_PI * .4f * (UNIFORM_01 - .5f), M_PI * .4f * (UNIFORM_01 - .5f));
 		initialCarState.rotMat = carAng.ToRotMat();
 
 		initialCarState.boost = 100.0f * UNIFORM_01;
 
-		initialBallState.pos = { 6000.0f * (UNIFORM_01 - .5f), 9800.0f * (UNIFORM_01 - .5f), UNIFORM_01 * 1000.0f + 92.75f}; // zGrounded = 92.75f
+		initialBallState.pos = { 5800.0f * (UNIFORM_01 - .5f), 7850.0f * (UNIFORM_01 - .5f), UNIFORM_01 * 1000.0f + 92.75f}; // zGrounded = 92.75f
 		initialBallState.vel = { 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f) };
 		//initialBallState.vel = { .0f, .0f, .0f };
 	}
@@ -147,9 +147,9 @@ void RocketSimTrial::setObservations() {
 	observations[i++] = carAng.pitch;
 	observations[i++] = carAng.roll;
 
-	observations[i++] = carAngVel[0] * invMaxCarAngVel; // Rocket league does it in the reverse
-	observations[i++] = carAngVel[1] * invMaxCarAngVel; // 2 1 0 order. I changed it on the bot,
-	observations[i++] = carAngVel[2] * invMaxCarAngVel; // in the python script. (it isnt even self coherent with angvels...)
+	//observations[i++] = carAngVel[0] * invMaxCarAngVel; 
+	//observations[i++] = carAngVel[1] * invMaxCarAngVel; 
+	//observations[i++] = carAngVel[2] * invMaxCarAngVel; 
 
 	observations[i++] = ballPos[0] * invFieldX;
 	observations[i++] = ballPos[1] * invFieldY;
@@ -166,7 +166,7 @@ void RocketSimTrial::setObservations() {
 	observations[i++] = carPitch2Ball * .6f; // raw in -pi/2, pi/2
 
 	observations[i++] = (currentCarState.isOnGround * 2.0f) - 1.0f;
-	observations[i++] = (currentCarState.hasJumped * 2.0f) - 1.0f;
+	//observations[i++] = (currentCarState.hasJumped * 2.0f) - 1.0f;
 }
 
 void RocketSimTrial::step(const float* actions) {
@@ -176,7 +176,8 @@ void RocketSimTrial::step(const float* actions) {
 
 	if (currentNStep * tickStride >= TICK_LIMIT) {
 	
-		score = 1.0f + (jumpS > 0)*jumpR - (score * inv_d0 - throttleS * throttleR - boostR * boostS)/ (float)currentNStep; 
+		score = car->GetState().vel.Length() / 2300.0f - (score * inv_d0)/ (float)currentNStep;
+		//score = 1.0f + (jumpS > 0)*jumpR - (score * inv_d0 - throttleS * throttleR - boostR * boostS)/ (float)currentNStep; 
 
 
 		isTrialOver = true;
@@ -208,7 +209,7 @@ void RocketSimTrial::step(const float* actions) {
 
 	if (arena->tickCount - car->GetState().lastHitBallTick < tickStride) // ball was hit at this step
 	{
-		score = 1.0f + (1.0f - (float)(currentNStep * tickStride) / (float)TICK_LIMIT);
+		score = 1.0f + (1.0f - (float)(currentNStep * tickStride) / (float)TICK_LIMIT) + car->GetState().vel.Length() / 2300;
 		isTrialOver = true;
 	}
 	currentNStep++;

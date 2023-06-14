@@ -25,27 +25,6 @@ int MemoryNode_G::getNParameters() {
 #endif
 }
 
-void MemoryNode_G::transform01Parameters() {
-
-
-#ifdef QKV_MEMORY
-	decay = (tanhf(storage_decay) + 1.0f) * .5f;
-	link.transform01Parameters();
-#endif
-
-#ifdef SRWM
-	for (int _i = 0; _i < 4; _i++){
-		SRWM_decay[_i] = (tanhf(SRWM_storage_decay[_i]) + 1.0f) * .5f;
-	}	
-#endif
-
-#ifdef DNN_MEMORY
-	learningRate = (tanhf(learningRate_Storage) + 1.0f) * .5f;
-#endif
-
-}
-
-
 
 MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 	position = n->position;
@@ -61,9 +40,7 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 #ifdef QKV_MEMORY
 	kernelDimension = n->kernelDimension;
 	beta = n->beta;
-	decay = n->decay;
-	storage_decay = n->storage_decay;
-
+	QKV_decay = n->QKV_decay;
 
 	link = n->link; // deep copy assignement using overloaded = operator of genotypeConnexion
 
@@ -76,7 +53,7 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 
 #ifdef SRWM
 	for (int _i = 0; _i < 4; _i++) {
-		SRWM_storage_decay[_i] = n->SRWM_storage_decay[_i];
+		SRWM_decay[_i] = n->SRWM_decay[_i];
 	}
 
 	nLinesW0 = n->nLinesW0;
@@ -87,7 +64,7 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G* n) {
 #endif
 
 #ifdef DNN_MEMORY
-	learningRate_Storage = n->learningRate_Storage;
+	learningRate = n->learningRate;
 	nLayers = n->nLayers;
 
 	sizes = n->sizes; // deep copy.
@@ -120,10 +97,10 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize) :
 	timeSinceLastUse = 0;
 	position = -1;
 	memoryNodeID = -1;
-
+	
 
 #ifdef QKV_MEMORY
-	storage_decay = NORMAL_01 * .2f + DECAY_PARAMETERS_STORAGE_BIAS;
+	QKV_decay = mutateDecayParam(.3f, .4f);
 
 	kernelDimension = inputSize + outputSize;
 	
@@ -140,7 +117,7 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize) :
 
 #ifdef SRWM
 	for (int _i = 0; _i < 4; _i++) {
-		SRWM_storage_decay[_i] = NORMAL_01 * .2f - DECAY_PARAMETERS_STORAGE_BIAS; // "-" to avoid using 1-decay
+		SRWM_decay[_i] = mutateDecayParam(DECAY_PARAMETERS_INIT_BIAS, .4f); 
 	}
 
 	nLinesW0 = 2 * inputSize + outputSize + 4;
@@ -154,7 +131,7 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize) :
 #endif
 
 #ifdef DNN_MEMORY
-	learningRate_Storage = NORMAL_01 * .2f - 1.5f;
+	learningRate = mutateDecayParam(.05f, .4f);
 	nLayers = 1;
 
 	sizes.push_back(inputSize);
@@ -201,8 +178,7 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 #ifdef QKV_MEMORY
 	kernelDimension = n.kernelDimension;
 	beta = n.beta;
-	decay = n.decay;
-	storage_decay = n.storage_decay;
+	QKV_decay = n.QKV_decay;
 
 	link = std::move(n.link);
 	Q = std::move(n.Q);
@@ -210,14 +186,14 @@ MemoryNode_G::MemoryNode_G(MemoryNode_G&& n) noexcept {
 
 #ifdef SRWM
 	for (int _i = 0; _i < 4; _i++) {
-		SRWM_storage_decay[_i] = n.SRWM_storage_decay[_i];
+		SRWM_decay[_i] = n.SRWM_decay[_i];
 	}
 	nLinesW0 = n.nLinesW0;
 	W0 = std::move(n.W0);
 #endif
 
 #ifdef DNN_MEMORY
-	learningRate_Storage = n.learningRate_Storage;
+	learningRate = n.learningRate;
 	nLayers = n.nLayers;
 
 	sizes = std::move(n.sizes); 
@@ -245,7 +221,7 @@ MemoryNode_G::MemoryNode_G(std::ifstream& is)
 
 #ifdef QKV_MEMORY
 	READ_4B(kernelDimension, is);
-	READ_4B(storage_decay, is);
+	READ_4B(QKV_decay, is);
 
 
 	setBeta();
@@ -261,7 +237,7 @@ MemoryNode_G::MemoryNode_G(std::ifstream& is)
 
 #ifdef SRWM
 	for (int _i = 0; _i < 4; _i++) {
-		READ_4B(SRWM_storage_decay[_i], is);
+		READ_4B(SRWM_decay[_i], is);
 	}
 
 	nLinesW0 = 2 * inputSize + outputSize + 4;
@@ -273,7 +249,7 @@ MemoryNode_G::MemoryNode_G(std::ifstream& is)
 
 
 #ifdef DNN_MEMORY
-	READ_4B(learningRate_Storage, is);
+	READ_4B(learningRate, is);
 	READ_4B(nLayers, is);
 
 	sizes.resize(nLayers + 1);
@@ -309,7 +285,7 @@ void MemoryNode_G::save(std::ofstream& os)
 	
 #ifdef QKV_MEMORY
 	WRITE_4B(kernelDimension, os);
-	WRITE_4B(storage_decay, os);
+	WRITE_4B(QKV_decay, os);
 
 	link.save(os);
 
@@ -319,7 +295,7 @@ void MemoryNode_G::save(std::ofstream& os)
 
 #ifdef SRWM
 	for (int _i = 0; _i < 4; _i++) {
-		WRITE_4B(SRWM_storage_decay[_i], os);
+		WRITE_4B(SRWM_decay[_i], os);
 	}
 
 	int s = inputSize * nLinesW0;
@@ -327,7 +303,7 @@ void MemoryNode_G::save(std::ofstream& os)
 #endif
 
 #ifdef DNN_MEMORY
-	WRITE_4B(learningRate_Storage, os);
+	WRITE_4B(learningRate, os);
 	WRITE_4B(nLayers, os);
 
 	os.write(reinterpret_cast<char*>(sizes.data()), (nLayers + 1) * sizeof(float));
@@ -354,8 +330,7 @@ void MemoryNode_G::mutateFloats(float adjustedFMutationP) {
 	link.mutateFloats(p);
 
 	if (UNIFORM_01 < p) {
-		storage_decay *= .9f + NORMAL_01 * .1f;
-		storage_decay += NORMAL_01 * .1f;
+		QKV_decay = mutateDecayParam(QKV_decay);
 	}
 
 
@@ -381,8 +356,7 @@ void MemoryNode_G::mutateFloats(float adjustedFMutationP) {
 
 	for (int _i = 0; _i < 4; _i++) {
 		if (UNIFORM_01 < p) {
-			SRWM_storage_decay[_i] *= .9f + NORMAL_01 * .1f;
-			SRWM_storage_decay[_i] += NORMAL_01 * .1f;
+			SRWM_decay[_i] = mutateDecayParam(SRWM_decay[_i]);
 		}
 	}
 #endif
@@ -390,8 +364,7 @@ void MemoryNode_G::mutateFloats(float adjustedFMutationP) {
 
 #ifdef DNN_MEMORY
 	if (UNIFORM_01 < p) {
-		learningRate_Storage *= .9f + NORMAL_01 * .1f;
-		learningRate_Storage += NORMAL_01 * .1f;
+		learningRate = mutateDecayParam(learningRate);
 	}
 
 	int accId = 0; // only used with GUIDED_MUTATIONS

@@ -1,9 +1,13 @@
 #pragma once
 
 #ifdef _DEBUG
-//#define _CRT_SECURE_NO_WARNINGS
-//#include <float.h>
-//unsigned int fp_control_state = _controlfp(_EM_INEXACT, _MCW_EM);
+// https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/control87-controlfp-control87-2?view=msvc-170
+// These are incompatible with RocketSim that has many float errors, and should be commented when rocketsim.h and 
+// .cpp are included in the project (so exclude them temporarily to use this feature).
+#define _CRT_SECURE_NO_WARNINGS
+#include <float.h>
+unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM);
+
 #endif
 
 #include <iostream>
@@ -42,7 +46,7 @@ int main()
     int nThreads = std::thread::hardware_concurrency();
     LOG(nThreads << " concurrent threads are supported at hardware level.");
 #ifdef _DEBUG
-    //nThreads = 1; // Because multi-threaded functions are difficult to step through line by line.
+    nThreads = 1; // Because multi-threaded functions are difficult to step through line by line.
 #endif
     int nSpecimens = nThreads * 128; //16 -> 512 in most cases
     int nDifferentTrials = 12;
@@ -70,7 +74,7 @@ int main()
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { -3.0f, 0.2f}; 
+    params.selectionPressure = { .0f, -1.f}; 
     params.useSameTrialInit = false; 
     params.rankingFitness = true;
     params.saturationFactor = .01f;
@@ -113,7 +117,7 @@ int main()
 
 #ifdef ROCKET_SIM_T
         if (i < 10.0f) {
-            float jbt[3] = { .002f, .002f, .004f };
+            float jbt[3] = { .002f, .002f, .002f };
             for (int j = 0; j < nDifferentTrials; j++) {
                 trials[j]->outerLoopUpdate(&jbt);
             }

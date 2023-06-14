@@ -52,7 +52,7 @@ public:
 
 	void compare2Game();
 
-	static const int TICK_LIMIT = 3*120; // 3 seconds.
+	static const int TICK_LIMIT = 5*120; // 3 seconds.
 	
 	float jumpR, boostR, throttleR;
 

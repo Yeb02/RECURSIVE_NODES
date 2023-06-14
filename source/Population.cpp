@@ -212,6 +212,8 @@ void Population::threadLoop(const int i0, const int subArraySize) {
 	}
 }
 
+// TODO this order forces all phenotypes to be loaded in RAM during the same period, only one per thread is
+// a priority
 void Population::evaluate(const int i0, const int subArraySize, Trial* trial, float* rawScores) {
 	for (int i = i0; i < i0 + subArraySize; i++) {
 		networks[i]->preTrialReset();
@@ -446,7 +448,7 @@ Network* Population::createChild(PhylogeneticNode* primaryParent) {
 		bool listFilled = false;
 
 		for (int depth = 1; depth < MAX_MATING_DEPTH; depth++) {
-			float w = 1.0f / (1.0f + (float)depth);
+			float w = powf(1.0f + (float)depth, -.5f);
 			std::fill(rawWeights.begin() + (int)parents.size(), rawWeights.end(), w);
 
 			int i0 = INT_0X((int)root->children.size());

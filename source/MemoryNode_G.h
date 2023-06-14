@@ -32,7 +32,7 @@ struct MemoryNode_G {
 
 #ifdef QKV_MEMORY
 	// controls the exponential average decay speed of candidate memory, the higher the faster.
-	float decay, storage_decay;
+	float QKV_decay;
 
 	// The dimension of the scalar product between keys and queries.
 	int kernelDimension;
@@ -57,7 +57,6 @@ struct MemoryNode_G {
 	
 #ifdef SRWM
 	float SRWM_decay[4];
-	float SRWM_storage_decay[4];
 
 	// = 2 * inputSize + outputSize + 4.  Made an attribute to avoid recomputing it all the time.
 	int nLinesW0;
@@ -80,7 +79,7 @@ struct MemoryNode_G {
 	std::vector<int> sizes;
 	
 	// treated as a decay parameter in its mutations/creation.
-	float learningRate, learningRate_Storage;
+	float learningRate;
 
 #ifdef GUIDED_MUTATIONS
 	// concatenated weight matrices then bias vectors of the network.
@@ -114,7 +113,6 @@ struct MemoryNode_G {
 	MemoryNode_G(std::ifstream& is);
 	void save(std::ofstream& os);
 
-	void transform01Parameters();
 
 #ifdef GUIDED_MUTATIONS
 	void zeroAccumulator();

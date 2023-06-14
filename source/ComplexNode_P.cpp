@@ -154,7 +154,6 @@ void ComplexNode_P::setglobalSaturationAccumulator(float* globalSaturationAccumu
 
 void ComplexNode_P::forward() {
 	
-
 	// TODO there are no reasons not to propagate several times through MODULATION and MEMORY, for instance:
 	// MODULATION -> MEMORY -> COMPLEX -> MODULATION -> MEMORY -> OUTPUT ...
 	// And it can even be node specific. To be evolved ?
@@ -275,19 +274,19 @@ void ComplexNode_P::forward() {
 	{
 #ifdef STDP
 		for (int i = 0; i < size; i++) {
-			acc_src[i] = acc_src[i] * mu[i] + src[i];
+			acc_src[i] = acc_src[i] * (1.0f-mu[i]) + src[i]; // * mu[i] ? TODO
 		}
 
 		src = acc_src;
 #endif
-
+		
 		for (int i = 0; i < size; i++) {
 			switch (fcts[i]) {
 			case TANH:
 				dst[i] = tanhf(src[i]);
 				break;
 			case GAUSSIAN:
-				dst[i] = 2.0f * expf(-std::clamp(powf(src[i], 2.0f), -10.0f, 10.0f)) - 1.0f; // technically the bias is not correctly put in. Does it matter ?
+				dst[i] = 2.0f * expf(-std::clamp(powf(src[i], 2.0f), -10.0f, 10.0f)) - 1.0f; 
 				break;
 			case RELU:
 				dst[i] = std::max(src[i], 0.0f);
@@ -306,11 +305,14 @@ void ComplexNode_P::forward() {
 				dst[i] = tanhf(src[i]) * expf(-std::clamp(powf(src[i], 2.0f), -10.0f, 10.0f)) * z;
 				break;
 			}
+			if (src[i] != src[i] || dst[i] != dst[i]) {
+				__debugbreak();
+			}
 		}
 
 #ifdef STDP
 		for (int i = 0; i < size; i++) {
-			acc_src[i] -= lambda[i] * (1.0f - dst[i] * dst[i]) * powf(dst[i], 3.0f); // TODO only works for tanh as of now
+			acc_src[i] -= lambda[i] * (1.0f - dst[i] * dst[i]) * powf(dst[i], 2.0f * 0.0f + 1.0f); // TODO only works for tanh as of now
 		}
 #endif
 	};
@@ -338,6 +340,9 @@ void ComplexNode_P::forward() {
 #ifdef SATURATION_PENALIZING 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
 			float v = postSynActs[i + type->inputSize];
+			if (abs(v) > 1) {
+				__debugbreak();
+			}
 			*globalSaturationAccumulator += powf(abs(v), saturationExponent);
 			averageActivation[i] += v;
 		}
@@ -450,8 +455,7 @@ void ComplexNode_P::forward() {
 	}
 
 
-	// STEP 4: MODULATION B
-	if (complexChildren.size() != 0 && memoryChildren.size() != 0)
+	// STEP 4: MODULATION B. if complexChildren.size() != 0 && memoryChildren.size() != 0   ?
 	{
 		propagate(toModulation, preSynActs + type->outputSize);
 		applyNonLinearities(
@@ -479,8 +483,8 @@ void ComplexNode_P::forward() {
 	}
 
 
-	// STEP 5: MEMORY B
-	if (complexChildren.size() != 0 && memoryChildren.size() != 0) {
+	// STEP 5: MEMORY B. if complexChildren.size() != 0 && memoryChildren.size() != 0   ?
+	{
 		// Nothing is transmitted between this and the memory children, as their pointers
 		// point towards the same data arrays.
 
