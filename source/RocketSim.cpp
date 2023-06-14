@@ -51,8 +51,8 @@ void RocketSimTrial::reset(bool sameSeed) {
 		initialCarState.boost = 100.0f * UNIFORM_01;
 
 		initialBallState.pos = { 5800.0f * (UNIFORM_01 - .5f), 7850.0f * (UNIFORM_01 - .5f), UNIFORM_01 * 1000.0f + 92.75f}; // zGrounded = 92.75f
-		initialBallState.vel = { 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f) };
-		//initialBallState.vel = { .0f, .0f, .0f };
+		//initialBallState.vel = { 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f), 300.0f * (UNIFORM_01 - .5f) };
+		initialBallState.vel = { .0f, .0f, .0f };
 	}
 
 	car->SetState(initialCarState);
@@ -170,14 +170,14 @@ void RocketSimTrial::setObservations() {
 }
 
 void RocketSimTrial::step(const float* actions) {
-	constexpr int tickStride = 12; // 120 ticks per second in the game. (However the client recieves only 60 per second in the real game)
+	constexpr int tickStride = 6; // 120 ticks per second in the game. (However the client recieves only 60 per second in the real game)
 	constexpr float amplitude = 1.2f; // could be much higher. Never below 1.
 
 
 	if (currentNStep * tickStride >= TICK_LIMIT) {
 	
-		score = car->GetState().vel.Length() / 2300.0f - (score * inv_d0)/ (float)currentNStep;
-		//score = 1.0f + (jumpS > 0)*jumpR - (score * inv_d0 - throttleS * throttleR - boostR * boostS)/ (float)currentNStep; 
+		//score = car->GetState().vel.Length() / 2300.0f - (score * inv_d0)/ (float)currentNStep;
+		score = 1.0f + (jumpS > 0)*jumpR - (score * inv_d0 - throttleS * throttleR - boostR * boostS)/ (float)currentNStep; 
 
 
 		isTrialOver = true;
@@ -209,7 +209,7 @@ void RocketSimTrial::step(const float* actions) {
 
 	if (arena->tickCount - car->GetState().lastHitBallTick < tickStride) // ball was hit at this step
 	{
-		score = 1.0f + (1.0f - (float)(currentNStep * tickStride) / (float)TICK_LIMIT) + car->GetState().vel.Length() / 2300;
+		score = 1.0f + (1.0f - (float)(currentNStep * tickStride) / (float)TICK_LIMIT); //+ car->GetState().vel.Length() / 2300;
 		isTrialOver = true;
 	}
 	currentNStep++;

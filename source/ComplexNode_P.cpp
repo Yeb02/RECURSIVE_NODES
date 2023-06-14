@@ -484,7 +484,7 @@ void ComplexNode_P::forward() {
 
 
 	// STEP 5: MEMORY B. if complexChildren.size() != 0 && memoryChildren.size() != 0   ?
-	{
+	if (memoryChildren.size() != 0) {
 		// Nothing is transmitted between this and the memory children, as their pointers
 		// point towards the same data arrays.
 
