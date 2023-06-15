@@ -49,7 +49,7 @@
 // one specimen to another. The vector of [sp/(nA*nS) for each specimen] is normalized (mean 0 var 1), and for each specimen
 // the corresponding value in the vector is substracted to the score in parallel of size and amplitude regularization terms
 // when computing fitness. The lower sum(F), the fitter.
-#define SATURATION_PENALIZING
+//#define SATURATION_PENALIZING
 
 
 
@@ -125,7 +125,7 @@ const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, LOG2 = 2, EXP2 = 3, RELU = 4, SI
 
 
 // Maximum number of generations since last common ancestor of two  (of the) specimens combined to form a new specimen. >= 2.
-#define MAX_MATING_DEPTH 20
+#define MAX_MATING_DEPTH 10
 
 // parameters that have values in the range [0,1] are initialized with mean DECAY_PARAMETERS_BIAS
 // These parameters (denoted µ) are typically used in exponential moving average updates, i.e.

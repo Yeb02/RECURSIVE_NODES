@@ -64,8 +64,8 @@ private:
 	CarState initialCarState;
 	BallState initialBallState;
 
-	// Used for reward computations. The inverse of the initial distance between the car and the ball.
-	float inv_d0;
+	// Used for reward computations. The initial distance between the car and the ball.
+	float d0;
 
 	float jumpS, boostS, throttleS;
 };

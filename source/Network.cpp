@@ -87,11 +87,11 @@ Network::Network(int inputSize, int outputSize) :
 	topNodeG->complexNodeID = currentComplexNodeID++;
 	topNodeG->createInternalConnexions();
 
-	memoryGenome.emplace_back(new MemoryNode_G(4, 4));
-	complexGenome.emplace_back(new ComplexNode_G(2, 2));
+	//memoryGenome.emplace_back(new MemoryNode_G(4, 4));
+	//complexGenome.emplace_back(new ComplexNode_G(2, 2));
 
-	topNodeG->addComplexChild(complexGenome[0].get());
-	topNodeG->addMemoryChild(memoryGenome[0].get());
+	//topNodeG->addComplexChild(complexGenome[0].get());
+	//topNodeG->addMemoryChild(memoryGenome[0].get());
 
 
 	currentComplexNodeID = 0;
@@ -708,7 +708,7 @@ void Network::mutate() {
 	constexpr float duplicateComplexChildProbability = .005f;
 	constexpr float duplicateMemoryChildProbability = .002f; 
 
-	constexpr float floatParamBaseMutationProbability = .3f;
+	constexpr float floatParamBaseMutationProbability = 1.0f;
 
 	constexpr float nodeErasureConstant = .1f;
 
@@ -1544,7 +1544,7 @@ void Network::mutate() {
 			}
 		}
 
-		if (complexGenome.size() == 0) {
+		if (false && complexGenome.size() == 0) { // TODO reenable
 			ComplexNode_G* n = new ComplexNode_G(2, 2);
 			complexGenome.emplace_back(n);
 			n->complexNodeID = currentComplexNodeID++;
@@ -1571,7 +1571,7 @@ void Network::mutate() {
 				i--;
 			}
 		}
-		if (memoryGenome.size() == 0) {
+		if (false && memoryGenome.size() == 0) { // TODO reenable
 			memoryGenome.emplace_back(new MemoryNode_G(4, 4));
 			memoryGenome[0]->memoryNodeID = currentMemoryNodeID++;
 			memoryGenome[0]->closestNode = NULL;

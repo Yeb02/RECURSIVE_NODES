@@ -59,7 +59,7 @@ int main()
 #ifdef CARTPOLE_T
         trials.emplace_back(new CartPoleTrial(true)); // bool : continuous control.
 #elif defined XOR_T
-        trials.emplace_back(new XorTrial(2,5));  // int : vSize, int : delay
+        trials.emplace_back(new XorTrial(4,5));  // int : vSize, int : delay
 #elif defined TMAZE_T
         trials.emplace_back(new TMazeTrial(false));
 #elif defined N_LINKS_PENDULUM_T
@@ -74,14 +74,14 @@ int main()
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { .0f, -1.f}; 
+    params.selectionPressure = { -2.0f, 0.3f}; 
     params.useSameTrialInit = false; 
     params.rankingFitness = true;
-    params.saturationFactor = .01f;
-    params.regularizationFactor = .01f; 
+    params.saturationFactor = .03f;
+    params.regularizationFactor = .03f; 
     params.competitionFactor = .0f; 
     params.scoreBatchTransformation = NONE; // NONE recommended when useSameTrialInit = false
-    params.nParents = 15;
+    params.nParents = 1;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
     population.setEvolutionParameters(params); 
@@ -130,7 +130,7 @@ int main()
 
 
 
-        // params.selectionPressure.second = sinf((float)i / 2.0f) - .5f;
+        //params.selectionPressure.first = 4.5f * sinf((float)i / 2.0f) - 5.0f;
         //population.setEvolutionParameters(params); // parameters can be changed at each step.
         population.step(trials, _nTrialsEvaluated);
 

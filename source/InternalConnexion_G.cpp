@@ -372,7 +372,7 @@ void InternalConnexion_G::mutateFloats(float p) {
 	//param(t+1) = (b+a*N1)*param(t) + c*N2
 	const float sigma = powf((float)nColumns, -.5f);
 	const float a = .3f * sigma;
-	const float b = 1.0f-a;
+	const float b = 1.0f-a*.3f;
 	const float c = a;
 
 #ifdef GUIDED_MUTATIONS
