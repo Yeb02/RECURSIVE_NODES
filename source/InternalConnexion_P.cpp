@@ -57,7 +57,7 @@ void InternalConnexion_P::zeroWlifetime()
 #ifdef RANDOM_W
 void InternalConnexion_P::randomInitW()
 {
-	float normalizator = powf((float)type->nColumns, -.5f);
+	float normalizator = .3f * powf((float)type->nColumns, -.5f);
 	int s = type->nLines * type->nColumns;
 
 	for (int i = 0; i < s; i++) {

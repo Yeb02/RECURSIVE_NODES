@@ -168,7 +168,7 @@ void RocketSimTrial::setObservations() {
 }
 
 void RocketSimTrial::step(const float* actions) {
-	constexpr int tickStride = 6; // 120 ticks per second in the game. (However the client recieves only 60 per second in the real game)
+	constexpr int tickStride = 12; // 120 ticks per second in the game. (However the client recieves only 60 per second in the real game)
 	constexpr float amplitude = 1.2f; // could be much higher. Never below 1.
 
 
@@ -193,8 +193,7 @@ void RocketSimTrial::step(const float* actions) {
 	car->controls.jump = actions[i++] > 0;
 	car->controls.handbrake = actions[i++] > 0;
 
-	//int delta = INT_0X(3) - 1; // random int in {-1,0,1} to reproduce the game's fluctuations.
-	int delta = 0;
+	int delta = INT_0X(3) - 1; // random int in {-1,0,1} to reproduce the game's fluctuations.
 	arena->Step(tickStride+delta);
 
 	setObservations();

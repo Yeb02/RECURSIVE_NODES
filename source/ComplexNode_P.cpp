@@ -133,10 +133,10 @@ void ComplexNode_P::preTrialReset() {
 
 	// TODO commented or not ? 
 #ifdef CONTINUOUS_LEARNING
-	toComplex.zeroWlifetime();
+	/*toComplex.zeroWlifetime();
 	toMemory.zeroWlifetime();
 	toModulation.zeroWlifetime();
-	toOutput.zeroWlifetime();
+	toOutput.zeroWlifetime();*/
 #endif 
 	
 }
@@ -453,7 +453,7 @@ void ComplexNode_P::forward() {
 
 
 	// STEP 4: MODULATION B. if complexChildren.size() != 0 && memoryChildren.size() != 0   ?
-	if (false) 
+	if (true) 
 	{
 		propagate(toModulation, preSynActs + type->outputSize);
 		applyNonLinearities(

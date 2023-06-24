@@ -131,8 +131,8 @@ MemoryNode_G::MemoryNode_G(int inputSize, int outputSize) :
 #endif
 
 #ifdef DNN_MEMORY
-	learningRate = mutateDecayParam(.05f, .4f);
-	nLayers = 1;
+	learningRate = mutateDecayParam(.1f, .4f);
+	nLayers = 2;
 
 	sizes.push_back(inputSize);
 	for (int i = 0; i < nLayers - 1; i++) { // TODO

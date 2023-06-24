@@ -74,14 +74,14 @@ int main()
     // In visual studio, hover your cursor on the parameters name to read their description. They are initialized 
     // by default to safe values, the initialization below is just for demonstration purposes.
     PopulationEvolutionParameters params;
-    params.selectionPressure = { -2.0f, 0.3f}; 
+    params.selectionPressure = { -2.0f, .3f}; 
     params.useSameTrialInit = false; 
     params.rankingFitness = true;
-    params.saturationFactor = .03f;
+    params.saturationFactor = .08f;
     params.regularizationFactor = .03f; 
     params.competitionFactor = .0f; 
     params.scoreBatchTransformation = NONE; // NONE recommended when useSameTrialInit = false
-    params.nParents = 1;
+    params.nParents = 20;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
     population.setEvolutionParameters(params); 
@@ -130,8 +130,10 @@ int main()
 
 
 
-        //params.selectionPressure.first = 4.5f * sinf((float)i / 2.0f) - 5.0f;
-        //population.setEvolutionParameters(params); // parameters can be changed at each step.
+        params.selectionPressure.first = 1.5f * sinf((float)i / 3.0f) - 1.5f;
+        LOG("Pressure was : " << params.selectionPressure.first);
+        population.setEvolutionParameters(params); // parameters can be changed at each step.
+
         population.step(trials, _nTrialsEvaluated);
 
         if ((i + 1) % 30 == 0) {

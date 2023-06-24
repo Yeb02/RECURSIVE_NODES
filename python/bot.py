@@ -1,6 +1,7 @@
 from rlbot.agents.base_agent import BaseAgent, SimpleControllerState
 from rlbot.messages.flat.QuickChatSelection import QuickChatSelection
 from rlbot.utils.structures.game_data_struct import GameTickPacket
+from rlbot.utils.game_state_util import GameState, BallState, CarState, Physics, Vector3, Rotator, GameInfoState
 
 from util.vec import Vec3
 
@@ -9,24 +10,47 @@ from numpy import arctan2, sqrt, pi, clip
 from RECURSIVE_NODES import *
 import ctypes
 
+
+"""
+Data I collected on how the sim behaves compared to the game:
+
+ROCKET LEAGUE :
+
+SetState:  CarAng(Rotator(pitch, yaw, roll)), pitch in - pi / 2 i / 2
+GetState : CarAng(Rotator(yaw, pitch, roll)). 
+
+SetState : CarAngVel(-rollvel, -pitchvel, +yawvel)  
+Get state yields the same as was set.
+
+ROCKET SIM:
+SetState:  CarAng(Rotator(yaw, pitch, roll)), p in - pi / 2 i / 2
+GetState : CarAng(Rotator(yaw, pitch, roll)). 
+
+SetState : CarAngVel(-rollvel, -pitchvel, +yawvel)  
+Get state yields the same as was set.
+"""
 class ReNo(BaseAgent):
 
     def __init__(self, name, team, index):
         super().__init__(name, team, index)
 
-        self.network = load_existing_network(b"src\\topNet_1685528330066_1001.renon")
+        self.network = load_existing_network(b"src\\topNet_1686828256060_751.renon")
         prepare_network(self.network)
-        self.observations = (ctypes.c_float * 24)()                          
-        self.actions = (ctypes.c_float * 8)()    
+        self.observations = (ctypes.c_float * get_observations_size(self.network))()                          
+        self.actions = (ctypes.c_float * get_actions_size(self.network))()  
+        self.physicsFrame = 0  
  
 
     def get_output(self, packet: GameTickPacket) -> SimpleControllerState:
-        """
-        This function will be called by the framework many times per second. This is where you can
-        see the motion of the ball, etc. and return controls to drive your car.
-        """
+        #as of now, reno is active one in 12 physics ticks (i.e. 10 times a second). Im setting 5 to allow for fluctuations.
+        if not packet.game_info.is_round_active:
+            self.physicsFrame = packet.game_info.frame_num
+            return SimpleControllerState()
+        
+        print("delta ticks : " + str(packet.game_info.frame_num - self.physicsFrame))
+        self.physicsFrame = packet.game_info.frame_num
+        
 
-        # Gather some information about our car and the ball
         my_car = packet.game_cars[self.index]
         car_location = Vec3(my_car.physics.location)
         car_velocity = Vec3(my_car.physics.velocity)
@@ -37,7 +61,7 @@ class ReNo(BaseAgent):
 
         invFieldX = 1.0 / 4096.0
         invFieldY = 1.0 / 5120.0
-        invHalfCeilingZ = 1.0 / 2044.0
+        invHalfCeilingZ = 1.0 / 2044.0 #TODO change to 1022
         invMaxCarVel = 1.0 / 2300.0
         invMaxBallVel = 1.0 / 3000.0  
         invMaxCarAngVel = 1.0/ 5.5 
@@ -49,7 +73,7 @@ class ReNo(BaseAgent):
         carDist2Ball = car2Ball.length()
 
         alpha = arctan2(car2Ball.y, car2Ball.x)
-        beta = car_angle.x #yaw
+        beta = car_angle.x 
         carYaw2Ball = alpha - beta
         if carYaw2Ball > pi :
             carYaw2Ball -= 2.0 * pi
@@ -58,7 +82,7 @@ class ReNo(BaseAgent):
         
 
         aleph = arctan2(car2Ball.z, sqrt(car2Ball.x * car2Ball.x + car2Ball.y * car2Ball.y))
-        beth = car_angle.y #pitch
+        beth = car_angle.y 
         carPitch2Ball = aleph - beth
         if carPitch2Ball > pi*.5:
             carPitch2Ball -= pi
@@ -78,15 +102,15 @@ class ReNo(BaseAgent):
         self.observations[i+2] = car_velocity.z * invMaxCarVel
         i += 3
 
-        self.observations[i] = car_angle.x # yaw
-        self.observations[i+1] = car_angle.y #pitch
+        self.observations[i] = car_angle.x 
+        self.observations[i+1] = car_angle.y 
         self.observations[i+2] = car_angle.z
         i+=3
 
-        self.observations[i] = car_angular_velocity.y * invMaxCarAngVel #yaw
-        self.observations[i+1] = car_angular_velocity.x * invMaxCarAngVel #pitch
-        self.observations[i+2] = car_angular_velocity.z * invMaxCarAngVel
-        i+=3
+        # self.observations[i] = car_angular_velocity.x * invMaxCarAngVel 
+        # self.observations[i+1] = car_angular_velocity.y * invMaxCarAngVel 
+        # self.observations[i+2] = car_angular_velocity.z * invMaxCarAngVel
+        # i+=3
 
         self.observations[i] = ball_location.x * invFieldX
         self.observations[i+1] = ball_location.y * invFieldY
@@ -105,8 +129,9 @@ class ReNo(BaseAgent):
         i+=4
 
         self.observations[i] = (my_car.has_wheel_contact * 2.0) - 1.0
-        self.observations[i+1] = (my_car.jumped * 2.0) - 1.0
+        # self.observations[i+1] = (my_car.jumped * 2.0) - 1.0
     
+
         get_actions(self.network, self.observations, self.actions)
 
         amplitude = 1.2
