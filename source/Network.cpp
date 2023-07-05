@@ -87,10 +87,14 @@ Network::Network(int inputSize, int outputSize) :
 	topNodeG->complexNodeID = currentComplexNodeID++;
 	topNodeG->createInternalConnexions();
 
-	//memoryGenome.emplace_back(new MemoryNode_G(4, 4));
-	complexGenome.emplace_back(new ComplexNode_G(2, 2));
-
+	complexGenome.emplace_back(new ComplexNode_G(15, 15));
+	complexGenome.emplace_back(new ComplexNode_G(15, 15));
+	complexGenome.emplace_back(new ComplexNode_G(15, 15));
 	topNodeG->addComplexChild(complexGenome[0].get());
+	topNodeG->addComplexChild(complexGenome[1].get());
+	topNodeG->addComplexChild(complexGenome[2].get());
+
+	//memoryGenome.emplace_back(new MemoryNode_G(4, 4));
 	//topNodeG->addMemoryChild(memoryGenome[0].get());
 
 
@@ -193,7 +197,7 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 		addMatrices(s);
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->alpha.get(); }
 		addMatrices(s);
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->w.get(); }
 		addMatrices(s);
 #endif
@@ -212,8 +216,11 @@ Network* Network::combine(std::vector<Network*>& parents, std::vector<float>& ra
 
 		s = connexions[0]->nLines;
 
+#ifndef RANDOM_WB
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->biases.get(); }
 		addMatrices(s);
+#endif
+
 #ifdef STDP
 		for (int i = 0; i < nValidParents; i++) { mats[i] = connexions[i]->STDP_mu.get(); }
 		addDecayMatrices(s);
@@ -695,17 +702,17 @@ void Network::mutate() {
 	constexpr float decrementMemoryOutputSizeProbability = .003f;
 
 
-	constexpr float addComplexChildProbability = .015f;
-	constexpr float removeComplexChildProbability = .004f;
+	constexpr float addComplexChildProbability = .0f; //.015f
+	constexpr float removeComplexChildProbability = .00f; //.004f
 
-	constexpr float addMemoryChildProbability = .00f; //.005f
+	constexpr float addMemoryChildProbability = .00f; //.005f  
 	constexpr float removeMemoryChildProbability = .00f; // .002f
 
 
 	constexpr float replaceComplexChildProbability = .04f;
 	constexpr float replaceMemoryChildProbability = .03f;
 
-	constexpr float duplicateComplexChildProbability = .005f;
+	constexpr float duplicateComplexChildProbability = .00f; // .005f
 	constexpr float duplicateMemoryChildProbability = .00f; //.002f
 
 	constexpr float floatParamBaseMutationProbability = 1.0f;
@@ -1528,9 +1535,7 @@ void Network::mutate() {
 
 
 	// Remove unused nodes.
-	{
-		
-		
+	{	
 		for (int i = 0; i < complexGenome.size(); i++) { 
 
 			if (complexGenome[i]->phenotypicMultiplicity > 0) continue;
@@ -1544,7 +1549,7 @@ void Network::mutate() {
 			}
 		}
 
-		if (complexGenome.size() == 0) { 
+		if (false && complexGenome.size() == 0) {// TODO reenable
 			ComplexNode_G* n = new ComplexNode_G(2, 2);
 			complexGenome.emplace_back(n);
 			n->complexNodeID = currentComplexNodeID++;
@@ -1818,7 +1823,7 @@ float Network::getSaturationPenalization()
 // L1 value regularization. Bias are not considered.
 float Network::getRegularizationLoss() {
 	// eta's amplitudes are irrelevant here. (and gamma's or delta's too if defined);
-#ifdef RANDOM_W
+#ifdef RANDOM_WB
 	constexpr int nArrays = 5; 
 #else
 	constexpr int nArrays = 6; 
@@ -1833,7 +1838,7 @@ float Network::getRegularizationLoss() {
 			*valueAcc += abs(co.C[k]);
 			*valueAcc += abs(co.D[k]);
 			*valueAcc += abs(co.alpha[k]);
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 			* valueAcc += abs(co.w[k]);
 #endif
 		}

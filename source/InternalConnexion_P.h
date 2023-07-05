@@ -21,13 +21,18 @@ struct InternalConnexion_P {   // responsible of its pointers
 	std::unique_ptr<float[]> avgH;
 #endif
 
-#ifdef RANDOM_W
+#ifdef RANDOM_WB
 	// Reset to random values at the beginning of each trial
 	std::unique_ptr<float[]> w;
+	std::unique_ptr<float[]> biases;
 
-	void randomInitW();
+	void randomInitWB();
 #endif
 
+
+#ifdef DROPOUT
+	void dropout();
+#endif
 
 	// Should not be called !
 	// And strangely, is never called but removing its declaration causes an error.

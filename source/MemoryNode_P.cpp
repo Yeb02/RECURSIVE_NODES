@@ -64,15 +64,11 @@ MemoryNode_P::MemoryNode_P(MemoryNode_G* _type) :
 	{
 		int sW = type->sizes[i] * type->sizes[i + 1];
 		Ws.emplace_back(new float[sW]);
-		for (int j = 0; j < sW; j++) {
-			Ws[i][j] = type->W0s[i][j];
-		}
+		std::copy(type->W0s[i].get(), type->W0s[i].get() + sW, Ws[i].get());
 
 		int sB = type->sizes[i + 1];
 		Bs.emplace_back(new float[sB]);
-		for (int j = 0; j < sB; j++) {
-			Bs[i][j] = type->B0s[i][j];
-		}
+		std::copy(type->B0s[i].get(), type->B0s[i].get() + sB, Bs[i].get());
 	}
 #endif
 
@@ -421,7 +417,7 @@ void MemoryNode_P::forward()
 	// One step of Gradient Descent with (candX, candY).
 	//if (modulation[3] > 0.0f) { // to be tested.
 	{
-		float lr = modulation[3] * type->learningRate;  // = M1 * type->lr
+		float lr = - modulation[3] * type->learningRate;  // = -M1 * type->lr. - to "descend"
 
 		// forward
 		float* prevActs = &activations[0];

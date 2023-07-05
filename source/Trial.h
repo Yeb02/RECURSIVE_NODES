@@ -2,6 +2,8 @@
 
 #include <vector>
 #include "Random.h"
+
+
 // The base virtual class which any trial should inherit from. 
 // The score attribute must be a positive measure of the success of the run.
 class Trial {
@@ -39,6 +41,55 @@ protected:
 
 	// the current elapsed steps in the trial. To be set to 0 in reset.
 	int currentNStep;
+};
+
+
+// Used in trials that have a "positional" component to their output, RocketSIm for instance.
+// Not needed for cartpole, as it is simple enough. 
+struct OctreeEncoder
+{
+	int nDimensions;
+	int depth;
+	float* inOctantPositions;
+
+	OctreeEncoder(int depth, int nDims) : depth(depth), nDimensions(nDims)
+	{
+		inOctantPositions = new float[nDims];
+	};
+
+	// Given an array X of size nDims containing floats in [-1,1], fills the array Y of size  
+	// 1 << nDimensions * depth + nDimensions containing floats indicating which nodes are occupied.
+	// The nDimensions last slots are the "remainder", the position in the leaf octant.
+	int encode(float* X, float* Y)
+	{
+		int ySize = (1 << nDimensions) * depth + nDimensions;
+
+		std::copy(X, X + nDimensions, inOctantPositions);
+		std::fill(Y, Y + ySize, -1.0f);
+
+		int gId = 0;
+		for (int d = 0; d < depth; d++)
+		{
+			int lId = 0;
+			for (int ax = 0; ax < nDimensions; ax++)
+			{
+				if (inOctantPositions[ax] > 0.f) {
+					lId += 1 << ax;
+					inOctantPositions[ax] = inOctantPositions[ax] * 2.0f - 1.0f;
+				}
+				else {
+					inOctantPositions[ax] = inOctantPositions[ax] * 2.0f + 1.0f;
+				}
+			}
+
+			Y[gId] = 1.0f;
+			gId += 1 << nDimensions;
+		}
+
+		std::copy(inOctantPositions, inOctantPositions + nDimensions, Y+gId);
+
+		return ySize;
+	}
 };
 
 

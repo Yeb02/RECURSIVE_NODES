@@ -31,10 +31,10 @@ struct InternalConnexion_G {
 	std::unique_ptr<float[]> alpha;
 
 	std::unique_ptr<ACTIVATION[]> activationFunctions;
-	std::unique_ptr<float[]> biases;
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	std::unique_ptr<float[]> w;
+	std::unique_ptr<float[]> biases;
 #endif
 
 #ifdef OJA

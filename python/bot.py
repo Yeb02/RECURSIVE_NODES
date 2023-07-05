@@ -60,10 +60,10 @@ class ReNo(BaseAgent):
         ball_velocity = Vec3(packet.game_ball.physics.velocity)
 
         invFieldX = 1.0 / 4096.0
-        invFieldY = 1.0 / 5120.0
-        invHalfCeilingZ = 1.0 / 2044.0 #TODO change to 1022
+        invFieldY = 1.0 / (5120.0 + 880)
+        invHalfCeilingZ = 1.0 / 1022
         invMaxCarVel = 1.0 / 2300.0
-        invMaxBallVel = 1.0 / 3000.0  
+        invMaxBallVel = 1.0 / 4600.0  
         invMaxCarAngVel = 1.0/ 5.5 
         invHalfMaxDist = 2. / 13272
 

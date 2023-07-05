@@ -11,10 +11,10 @@
 #define CONTINUOUS_LEARNING_GAMMA 0
 #endif 
 
-#ifdef RANDOM_W
-#define RANDOM_W_W -1
+#ifdef RANDOM_WB
+#define RANDOM_WB_W -1
 #else
-#define RANDOM_W_W 0
+#define RANDOM_WB_W 0
 #endif 
 
 
@@ -26,10 +26,10 @@
 
 int InternalConnexion_G::nEvolvedArrays =   7 + 
 											CONTINUOUS_LEARNING_GAMMA +
-											RANDOM_W_W +
+											RANDOM_WB_W +
 											OJA_DELTA;
 
-// Normal mutation in the space of log(half-life time). m default value is .15f.
+// Normal mutation in the space of log(half-life constant). m default value is .15f.
 inline float mutateDecayParam(float dp, float m) 
 {
 	float exp_r = exp2f(NORMAL_01 * m);
@@ -68,7 +68,7 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 	D = std::make_unique<float[]>(s);
 	alpha = std::make_unique<float[]>(s);
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	w = std::make_unique<float[]>(s);
 #endif
 
@@ -123,14 +123,14 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 	if (init == ZERO) {
 		zero(alpha.get());
 		
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 		zero(w.get());
 #endif
 	}
 	else if (init == RANDOM) {
 		rand(alpha.get(), 0.0f, f0);
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 		rand(w.get(), 0.0f, f0);
 #endif
 	}
@@ -138,8 +138,10 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 
 
 	s = nLines;
-	biases = std::make_unique<float[]>(s);
 	activationFunctions = std::make_unique<ACTIVATION[]>(s);
+	for (int i = 0; i < s; i++) {
+		activationFunctions[i] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
+	}
 
 #ifdef STDP
 	STDP_mu = std::make_unique<float[]>(s);
@@ -148,9 +150,8 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 	rand01(STDP_lambda.get());
 #endif
 
-	for (int i = 0; i < s; i++) {
-		activationFunctions[i] = static_cast<ACTIVATION>(INT_0X(N_ACTIVATIONS));
-	}
+#ifndef RANDOM_WB
+	biases = std::make_unique<float[]>(s);
 
 	if (init == ZERO) {
 		zero(biases.get());
@@ -158,6 +159,7 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns, INITIALIZATIO
 	else if (init == RANDOM) {
 		rand(biases.get(), 0.0f, .2f);
 	}
+#endif
 }
 
 InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
@@ -183,7 +185,7 @@ InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
 	std::copy(gc.D.get(), gc.D.get() + s, D.get());
 	std::copy(gc.alpha.get(), gc.alpha.get() + s, alpha.get());
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	w = std::make_unique<float[]>(s);
 	std::copy(gc.w.get(), gc.w.get() + s, w.get());
 #endif
@@ -205,10 +207,13 @@ InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
 #endif
 
 	s = nLines;
-	biases = std::make_unique<float[]>(s);
 	activationFunctions = std::make_unique<ACTIVATION[]>(s);
-	std::copy(gc.biases.get(), gc.biases.get() + s, biases.get());
 	std::copy(gc.activationFunctions.get(), gc.activationFunctions.get() + s, activationFunctions.get());
+
+#ifndef RANDOM_WB
+	biases = std::make_unique<float[]>(s);
+	std::copy(gc.biases.get(), gc.biases.get() + s, biases.get());
+#endif
 
 #ifdef STDP
 	STDP_mu = std::make_unique<float[]>(s);
@@ -239,7 +244,7 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	std::copy(gc.D.get(), gc.D.get() + s, D.get());
 	std::copy(gc.alpha.get(), gc.alpha.get() + s, alpha.get());
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	w = std::make_unique<float[]>(s);
 	std::copy(gc.w.get(), gc.w.get() + s, w.get());
 #endif
@@ -260,10 +265,13 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 #endif
 
 	s = nLines;
-	biases = std::make_unique<float[]>(s);
 	activationFunctions = std::make_unique<ACTIVATION[]>(s);
-	std::copy(gc.biases.get(), gc.biases.get() + s, biases.get());
 	std::copy(gc.activationFunctions.get(), gc.activationFunctions.get() + s, activationFunctions.get());
+
+#ifndef RANDOM_WB
+	biases = std::make_unique<float[]>(s);
+	std::copy(gc.biases.get(), gc.biases.get() + s, biases.get());
+#endif
 
 #ifdef STDP
 	STDP_mu = std::make_unique<float[]>(s);
@@ -295,7 +303,7 @@ InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
 	alpha = std::make_unique<float[]>(s);
 	is.read(reinterpret_cast<char*>(alpha.get()), s * sizeof(float));
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	w = std::make_unique<float[]>(s);
 	is.read(reinterpret_cast<char*>(w.get()), s * sizeof(float));
 #endif
@@ -316,11 +324,14 @@ InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
 #endif
 
 	s = nLines;
-	biases = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(biases.get()), s * sizeof(float));
 
 	activationFunctions = std::make_unique<ACTIVATION[]>(s);
 	is.read(reinterpret_cast<char*>(activationFunctions.get()), s * sizeof(ACTIVATION));
+
+#ifndef RANDOM_WB
+	biases = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(biases.get()), s * sizeof(float));
+#endif
 
 #ifdef STDP
 	STDP_mu = std::make_unique<float[]>(s);
@@ -344,7 +355,7 @@ void InternalConnexion_G::save(std::ofstream& os)
 	os.write(reinterpret_cast<const char*>(D.get()), s * sizeof(float));
 	os.write(reinterpret_cast<const char*>(alpha.get()), s * sizeof(float));
 	
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	os.write(reinterpret_cast<char*>(w.get()), s * sizeof(float));
 #endif
 
@@ -357,9 +368,12 @@ void InternalConnexion_G::save(std::ofstream& os)
 #endif
 
 	s = nLines;
-	os.write(reinterpret_cast<const char*>(biases.get()), s * sizeof(float));
 
 	os.write(reinterpret_cast<const char*>(activationFunctions.get()), s * sizeof(ACTIVATION));
+
+#ifndef RANDOM_WB
+	os.write(reinterpret_cast<const char*>(biases.get()), s * sizeof(float));
+#endif
 
 #ifdef STDP
 	os.write(reinterpret_cast<const char*>(STDP_mu.get()), s * sizeof(float));
@@ -413,7 +427,7 @@ void InternalConnexion_G::mutateFloats(float p) {
 	mutateMatrix(alpha.get());
 	mutateDecayMatrix(eta.get());
 		
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	mutateMatrix(w.get());
 #endif
 
@@ -434,14 +448,16 @@ void InternalConnexion_G::mutateFloats(float p) {
 
 	
 	SET_BINOMIAL(nLines, p);
+	int _nMutations;
 
-	int _nMutations = BINOMIAL;
+#ifndef RANDOM_WB
+	_nMutations = BINOMIAL;
 	for (int i = 0; i < _nMutations; i++) {
 		int id = INT_0X(nLines);
-		biases[id] *= .95f + NORMAL_01 * .1f; // .9 < 1 to drive the weight towards 0.
+		biases[id] *= .94f + NORMAL_01 * .1f; // .9 < 1 to drive the weight towards 0.
 		biases[id] += NORMAL_01 * .2f;
 	}
-
+#endif
 
 #ifdef STDP
 	size = nLines;
@@ -529,7 +545,7 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 	fDecay(delta);
 #endif
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	f(w, 0.0f);
 #endif
 
@@ -538,7 +554,7 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 #endif
 
 
-	
+#ifndef RANDOM_WB
 	float* newB = new float[nLines + s];
 	std::copy(biases.get(), biases.get() + id, newB);
 	for (int i = id; i < id + s; i++) {
@@ -546,6 +562,8 @@ void InternalConnexion_G::insertLineRange(int id, int s) {
 	}
 	std::copy(biases.get() + id, biases.get() + nLines, newB + id + s);
 	biases.reset(newB);
+#endif
+	
 
 	ACTIVATION* newA = new ACTIVATION[nLines + s];
 	std::copy(activationFunctions.get(), activationFunctions.get() + id, newA);
@@ -647,7 +665,7 @@ void InternalConnexion_G::insertColumnRange(int id, int s) {
 	fDecay(delta);
 #endif
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	f_0(w);
 #endif
 
@@ -678,7 +696,7 @@ void InternalConnexion_G::removeLineRange(int id, int s) {
 	f(gamma);
 #endif
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	f(w);
 #endif
 
@@ -690,10 +708,13 @@ void InternalConnexion_G::removeLineRange(int id, int s) {
 	f(accumulator); // set to 0...
 #endif
 
+#ifndef RANDOM_WB
 	float* newB = new float[nLines - s];
 	std::copy(biases.get(), biases.get() + id, newB);
 	std::copy(biases.get() + id + s, biases.get() + nLines, newB + id);
 	biases.reset(newB);
+#endif
+	
 
 	ACTIVATION* newA = new ACTIVATION[nLines - s];
 	std::copy(activationFunctions.get(), activationFunctions.get() + id, newA);
@@ -739,7 +760,7 @@ void InternalConnexion_G::removeColumnRange(int id, int s) {
 	f(gamma);
 #endif
 
-#ifndef RANDOM_W
+#ifndef RANDOM_WB
 	f(w);
 #endif
 

@@ -418,21 +418,17 @@ void Population::computeFitnesses(std::vector<float>& avgScorePerSpecimen) {
 
 
 	// Then, the fitness is simply a weighted sum of score, regularization, and saturation if enabled.
-	float fMax = -10000.0f;
 	for (int i = 0; i < nSpecimens; i++) {
 		fitnesses[i] = avgScorePerSpecimen[i] - regularizationFactor * regularizationScore[i];
 #ifdef SATURATION_PENALIZING
 		fitnesses[i] -= saturationFactor * saturationScore[i];
 #endif
-
-		if (fitnesses[i] > fMax) {
-			fMax = fitnesses[i];
-			fittestSpecimen = i;
-		}
 	}
 }
 
 Network* Population::createChild(PhylogeneticNode* primaryParent) {
+
+	// Reminder: when this function is called, nParents > 1.
 
 	std::vector<int> parents;
 	parents.push_back(primaryParent->networkIndice);
@@ -440,39 +436,47 @@ Network* Population::createChild(PhylogeneticNode* primaryParent) {
 	std::vector<float> rawWeights;
 	rawWeights.resize(nParents);
 
-	// fill parents, and weights are set to 1/(1+d), where d is the phylogenetic distances.
-	// If this function is called, nParents > 1.
+	// fill parents, and weights are initialized with a function of the phylogenetic distance.
 	{
 		PhylogeneticNode* previousRoot = primaryParent;
 		PhylogeneticNode* root = primaryParent->parent;
 		bool listFilled = false;
 
+		auto distanceValue = [] (float d) 
+		{
+			return powf(1.0f+d, -0.6f);
+		};
+
 		for (int depth = 1; depth < MAX_MATING_DEPTH; depth++) {
-			float w = powf(1.0f + (float)depth, -.5f);
+
+			if (depth <= CONSANGUINITY_DISTANCE) 
+			{
+				previousRoot = root;
+				root = root->parent;
+				continue;
+			}
+
+			float w = distanceValue((float) depth);
 			std::fill(rawWeights.begin() + (int)parents.size(), rawWeights.end(), w);
 
-			int i0 = INT_0X((int)root->children.size());
+			int nC = (int)root->children.size();
 
-			for (int i = i0; i < root->children.size(); i++) {
-				if (root->children[i] != previousRoot) {
-					if (!root->children[i]->addToList(parents, depth-1)) {
-						listFilled = true;
-						break;
-					}
-				}
-			}
-			if (listFilled) break;
-			for (int i = 0; i < i0; i++) {
-				if (root->children[i] != previousRoot) {
-					if (!root->children[i]->addToList(parents, depth-1)) {
+			// we start at a random indice in the root children, so that if the list is filled before the end of this
+			// loop iteration it is not always the same networks that are selected.
+			int i0 = INT_0X(nC); 
+
+			for (int i = 0; i < nC; i++) {
+				int id = (i + i0) % nC;
+				if (root->children[id] != previousRoot) {
+					if (!root->children[id]->addToList(parents, depth-1)) {
 						listFilled = true;
 						break;
 					}
 				}
 			}
 
-			// second case can happen if there were exactly as many parents 
-			// as there was room in the array at this depth.
+			// parents.size() == nParents can happen if there were exactly as many parents 
+			// as there was room left in the array. This does not set listFilled = true.
 			if (listFilled || parents.size() == nParents) break; 
 
 			previousRoot = root;
@@ -480,10 +484,16 @@ Network* Population::createChild(PhylogeneticNode* primaryParent) {
 		}
 	}
 
-	// weights are also an increasing function of the fitness.
+	// weights are an increasing function of the relative fitness.
 	{
 		rawWeights[0] = 1.0f;
-		float f0 = fitnesses[primaryParent->networkIndice];
+		float f0;
+		if (networks[primaryParent->networkIndice]->parentData.isAvailable && USE_PARENT_FITNESS_AS_ZERO) { // TODO experimental
+			f0 = networks[primaryParent->networkIndice]->parentData.f;
+		}
+		else {
+			f0 = fitnesses[primaryParent->networkIndice];
+		}
 		for (int i = 1; i < parents.size(); i++) {
 			rawWeights[i] *= (fitnesses[parents[i]] - f0); // TODO better
 		}
@@ -504,11 +514,11 @@ void Population::createOffsprings() {
 	float* phase2Probabilities = new float[nSpecimens];
 	Network** tempNetworks = new Network* [nSpecimens];
 
-	// already happens in computeFitnesses...
 	float fMax = -10000.0f;
 	for (int i = 0; i < nSpecimens; i++) {
 		if (fitnesses[i] > fMax) {
 			fMax = fitnesses[i];
+			fittestSpecimen = i;
 		}
 	}
 
@@ -548,6 +558,7 @@ void Population::createOffsprings() {
 			for (int i = 0; i < nTrialsAtThisStep; i++) {
 				tempNetworks[childID]->parentData.scores[i] = batchTransformedScores[i * nSpecimens + parentID];
 			}
+			tempNetworks[childID]->parentData.f = fitnesses[parentID];
 		}
 
 		return;

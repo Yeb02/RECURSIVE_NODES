@@ -22,6 +22,8 @@ struct ParentData {
 	//  = trials.size(), and not nTrialsEvaluated.
 	int scoreSize;
 
+	float f; // the final fitness of the parent (post regularization, saturation, ranking, ...)
+
 	ParentData() {
 		isAvailable = false;
 		scores = nullptr;
@@ -31,7 +33,6 @@ struct ParentData {
 		delete scores;
 	}
 };
-
 
 
 class Network {

@@ -4,9 +4,10 @@
 
 
 
-RocketSimTrial::RocketSimTrial(Arena* _arena, Car* _car)
+RocketSimTrial::RocketSimTrial(Arena* _arena, Car* _car) :
+	velocityOctree(2, 3), positionOctree(3,3)
 {
-	netInSize = 24-4; 
+	netInSize = (3+4+1) + (positionOctree.depth * 8 + 3 + velocityOctree.depth * 8 + 3) * 2;
 	netOutSize = 8;
 	observations.resize(netInSize);
 
@@ -23,7 +24,7 @@ RocketSimTrial::RocketSimTrial(Arena* _arena, Car* _car)
 	boostR = .001f;
 	jumpR = .001f;
 	throttleR = .001f;
-
+	
 	reset(false);
 }
 
@@ -87,10 +88,10 @@ void RocketSimTrial::compare2Game()
 
 void RocketSimTrial::setObservations() {
 	constexpr float invFieldX = 1.0f / 4096.0f;
-	constexpr float invFieldY = 1.0f / 5120.0f;
+	constexpr float invFieldY = 1.0f / (5120.0f+880.0f);
 	constexpr float invHalfCeilingZ = 1.0f / 1022.0f; 
 	constexpr float invMaxCarVel = 1.0f / 2300.0f;
-	constexpr float invMaxBallVel = 1.0f / 3000.0f;  // technically 6000, but it rarely reaches such speeds.
+	constexpr float invMaxBallVel = 1.0f / 4600.0f; // technically 6000 but rarely reached
 	constexpr float invMaxCarAngVel = 1.0f / 5.5f;  
 	constexpr float invHalfMaxDist = 2.0f / 13272.f;  
 
@@ -131,15 +132,18 @@ void RocketSimTrial::setObservations() {
 		carPitch2Ball += M_PI;
 	}
 	
-
+	float octreeInput[3];
 	int i = 0;
-	observations[i++] = carPos[0]*invFieldX;
-	observations[i++] = carPos[1]*invFieldY;
-	observations[i++] = carPos[2]*invHalfCeilingZ-1.0f;
 
-	observations[i++] = carVel[0] * invMaxCarVel;
-	observations[i++] = carVel[1] * invMaxCarVel;
-	observations[i++] = carVel[2] * invMaxCarVel;
+	octreeInput[0] = carPos[0]*invFieldX;
+	octreeInput[1] = carPos[1]*invFieldY;
+	octreeInput[2] = carPos[2]*invHalfCeilingZ-1.0f;
+	i += positionOctree.encode(octreeInput, &observations[i]);
+
+	octreeInput[0] = carVel[0] * invMaxCarVel;
+	octreeInput[1] = carVel[1] * invMaxCarVel;
+	octreeInput[2] = carVel[2] * invMaxCarVel;
+	i += velocityOctree.encode(octreeInput, &observations[i]);
 
 	observations[i++] = carAng.yaw;
 	observations[i++] = carAng.pitch;
@@ -149,14 +153,15 @@ void RocketSimTrial::setObservations() {
 	//observations[i++] = carAngVel[1] * invMaxCarAngVel; 
 	//observations[i++] = carAngVel[2] * invMaxCarAngVel; 
 
-	observations[i++] = ballPos[0] * invFieldX;
-	observations[i++] = ballPos[1] * invFieldY;
-	observations[i++] = ballPos[2] * invHalfCeilingZ - 1.0f;
+	octreeInput[0] = ballPos[0] * invFieldX;
+	octreeInput[1] = ballPos[1] * invFieldY;
+	octreeInput[2] = ballPos[2] * invHalfCeilingZ - 1.0f;
+	i += positionOctree.encode(octreeInput, &observations[i]);
 
-	observations[i++] = ballVel[0] * invMaxBallVel;
-	observations[i++] = ballVel[1] * invMaxBallVel;
-	observations[i++] = ballVel[2] * invMaxBallVel;
-
+	octreeInput[0] = ballVel[0] * invMaxBallVel;
+	octreeInput[1] = ballVel[1] * invMaxBallVel;
+	octreeInput[2] = ballVel[2] * invMaxBallVel;
+	i += velocityOctree.encode(octreeInput, &observations[i]);
 
 	observations[i++] = currentCarState.boost * .02f - 1.0f;
 	observations[i++] = carDist2Ball * invHalfMaxDist - 1.0f;
@@ -168,7 +173,9 @@ void RocketSimTrial::setObservations() {
 }
 
 void RocketSimTrial::step(const float* actions) {
-	constexpr int tickStride = 12; // 120 ticks per second in the game. (However the client recieves only 60 per second in the real game)
+	// 120 ticks per second in the game. (But the client recieves only 60 ticks
+	// per second from the server). Inferences per second = 120 / tickStride .
+	constexpr int tickStride = 12; 
 	constexpr float amplitude = 1.2f; // could be much higher. Never below 1.
 
 

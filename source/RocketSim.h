@@ -52,12 +52,15 @@ public:
 
 	void compare2Game();
 
-	static const int TICK_LIMIT = 4*120; // 3 seconds.
+	static const int TICK_LIMIT = 4*120; // 4 seconds.
 	
 	float jumpR, boostR, throttleR;
 
 private:
 	void setObservations();
+
+	OctreeEncoder velocityOctree;
+	OctreeEncoder positionOctree;
 
 	std::unique_ptr<Arena> arena;
 	Car* car; // managed by arena. Used as a shortcut for perfs.

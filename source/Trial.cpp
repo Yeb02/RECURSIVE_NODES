@@ -547,7 +547,10 @@ void MemoryTrial::reset(bool sameSeed) {
 		}
 	}
 
-	// observation is set exclusively by step().
+	// Set the obs to the first motif that will be presented
+	for (int j = 0; j < responseSize + motifSize; j++) {
+		observations[j] = motifResponsePairs[j];
+	}
 }
 
 // During the evaluation, each motif is shown evaluationExposure steps before we actually compute a score,

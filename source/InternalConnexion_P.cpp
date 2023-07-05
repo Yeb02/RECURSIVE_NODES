@@ -12,8 +12,9 @@ InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* type) : type(type)
 	avgH = std::make_unique<float[]>(s);
 #endif
 
-#ifdef RANDOM_W
+#ifdef RANDOM_WB
 	w = std::make_unique<float[]>(s);
+	biases = std::make_unique<float[]>(type->nLines);
 #endif
 
 	zeroWlifetime(); // necessary because ComplexNode_P::preTrialReset() does not have to do it.
@@ -28,6 +29,30 @@ void InternalConnexion_P::updateWatTrialEnd(float factor) {
 
 	for (int i = 0; i < s; i++) {
 		wLifetime[i] += alpha[i] * avgH[i] * factor;
+	}
+}
+#endif
+
+#ifdef DROPOUT
+void InternalConnexion_P::dropout() {
+	int s = type->nLines * type->nColumns;
+	float normalizator = .3f * powf((float)type->nColumns, -.5f);
+
+	SET_BINOMIAL(s, .002f);
+	int _nMutations = BINOMIAL;
+	for (int i = 0; i < _nMutations; i++) {
+		int id = INT_0X(s);
+
+#ifdef CONTINUOUS_LEARNING
+		wLifetime[id] = 0.0f;
+#endif
+		H[id] = 0.0f;
+		E[id] = 0.0f;
+
+#ifdef RANDOM_WB
+		w[id] = NORMAL_01 * normalizator;
+#endif 
+
 	}
 }
 #endif
@@ -54,15 +79,20 @@ void InternalConnexion_P::zeroWlifetime()
 	}
 }
 
-#ifdef RANDOM_W
-void InternalConnexion_P::randomInitW()
+#ifdef RANDOM_WB
+void InternalConnexion_P::randomInitWB()
 {
 	float normalizator = .3f * powf((float)type->nColumns, -.5f);
 	int s = type->nLines * type->nColumns;
 
 	for (int i = 0; i < s; i++) {
-		w[i] = .2f * (UNIFORM_01 - .5f);
-		//w[i] = NORMAL_01 * normalizator;
+		//w[i] = .2f * (UNIFORM_01 - .5f);
+		w[i] = NORMAL_01 * normalizator;
+	}
+
+	for (int i = 0; i < type->nLines; i++) {
+		//biases[i] = NORMAL_01 * .1f; //Seems to hurt results (that was kinda expected.)
+		biases[i] = 0.0f;
 	}
 }
 #endif

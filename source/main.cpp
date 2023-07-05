@@ -65,7 +65,7 @@ int main()
 #elif defined N_LINKS_PENDULUM_T
         trials.emplace_back(new NLinksPendulumTrial(false, 2));
 #elif defined MEMORY_T
-        trials.emplace_back(new MemoryTrial(1, 2, 2, true)); // int nMotifs, int motifSize, int responseSize, bool binary = true
+        trials.emplace_back(new MemoryTrial(2, 5, 5, true)); // int nMotifs, int motifSize, int responseSize, bool binary = true
 #elif defined ROCKET_SIM_T
         trials.emplace_back(new RocketSimTrial());
 #endif
@@ -81,7 +81,7 @@ int main()
     params.regularizationFactor = .03f; 
     params.competitionFactor = .0f; 
     params.scoreBatchTransformation = NONE; // NONE recommended when useSameTrialInit = false
-    params.nParents = 20;
+    params.nParents = 10;
 
     Population population(trials[0]->netInSize, trials[0]->netOutSize, nSpecimens);
     population.setEvolutionParameters(params); 
@@ -129,8 +129,8 @@ int main()
         }
 
 
-
-        params.selectionPressure.first = 1.5f * sinf((float)i / 3.0f) - 1.5f;
+        float c = std::max(.0F, 1.0f - (float)i / 20.0f);
+        params.selectionPressure.first = (1.0f - c) * (1.5f * sinf((float)i / 3.0f) - 1.5f) + c * -1.0f;
         LOG("Pressure was : " << params.selectionPressure.first);
         population.setEvolutionParameters(params); // parameters can be changed at each step.
 

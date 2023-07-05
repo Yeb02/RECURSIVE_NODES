@@ -15,7 +15,7 @@
 
 // Draws one of the fittest specimens at each step, using SFML. Requires the appropriate DLLs 
 // alongside the generated executable, details on setup in readme.md .
-#define DRAWING 
+//#define DRAWING 
 
 
 // Define the trials on which to evolve. One and only one must be defined if compiling the .exe (or tweak main()). 
@@ -34,6 +34,10 @@
 // are multiple trials. 
 #define CONTINUOUS_LEARNING
 
+// Defined if and only if there should not be any lifelong (i.e. inter trial) learning, when CONTINUOUS_LEARNING is used.
+#ifdef CONTINUOUS_LEARNING
+#define ZERO_WL_BEFORE_TRIAL  
+#endif
 
 // When defined, tries to deduce information on the desirable mutation direction from weights learned over lifetime.
 // Adding a factor decreasing the effect over generations could be interesting, TODO .
@@ -51,6 +55,10 @@
 // when computing fitness. The lower sum(F), the fitter.
 #define SATURATION_PENALIZING
 
+
+// At each inference, a small random proportion of the lifetime quantities is reset to either 0 or a random value. These are,
+// when available; wL, H, E, w.
+#define DROPOUT
 
 
 
@@ -125,24 +133,34 @@ const enum ACTIVATION { TANH = 0, GAUSSIAN = 1, LOG2 = 2, EXP2 = 3, RELU = 4, SI
 
 
 // Maximum number of generations since last common ancestor of two  (of the) specimens combined to form a new specimen. >= 2.
-#define MAX_MATING_DEPTH 5
+#define MAX_MATING_DEPTH 10
+
+// When combining specimens, weights are a function of  (spefitness - f0), where f0 is either the primary parent's fitness
+// or the primary parent's parent's fitness (when this directive is = true)
+#define USE_PARENT_FITNESS_AS_ZERO false
+
+// Positive integer value. Specimens whose phenotypic distance to the primary parent are below it are not used for combination.
+#define CONSANGUINITY_DISTANCE 3
+
 
 // parameters that have values in the range [0,1] are initialized with mean DECAY_PARAMETERS_BIAS
 // These parameters (denoted µ) are typically used in exponential moving average updates, i.e.
 // X(t+1) = X(t) * (1-µ)  +  µ * ....
 #define DECAY_PARAMETERS_INIT_BIAS .1f
 
+
+
 // When defined, presynaptic activities of complexNodes (topNode excepted) are an exponential moving average. Each node 
 // be it Modulation, complex, memory or output has an evolved parameter (STDP_decay) that parametrizes the average.
 // WARNING only compatible with N_ACTIVATIONS = 1, I havent implemented all the derivatives in complexNode_P::forward yet
 #define STDP
 
-// The fixed weights w are not evolved anymore, but set randomly (uniform(-.1,.1)) at the beginning of each trial. This also means
-// that it is now InternalConnexion_P and not InternalConnexion_G that handles the w matrix. When used in conjunction with
-// GUIDED_MUTATIONS, w from ordinary connexions are no longer used. 
-#define RANDOM_W
+// The fixed weights w and biases b are not evolved anymore, but set randomly (w -> uniform(-.1,.1), b->NORMAL or 0) 
+// at the beginning of each trial (or lifetime). These parameters are also set per phenotype instance, not per genotype instance.
+// When used in conjunction with GUIDED_MUTATIONS, w are no longer accumulated. 
+#define RANDOM_WB
 
 // Adds Oja's rule to the ABCD rule. This requires the addition of the matrices delta and storage_delta to InternalConnexion_G, 
 // deltas being in the [0, 1] range. The update of E is now :  E = (1-eta)E + eta(ABCD... - delta*yj*yj*w_eff),  where w_eff is the 
 // effective weight, something like w_eff = w + alpha * H + wL. 
-#define OJA
+//#define OJA
