@@ -1,5 +1,7 @@
 # RECURSIVE_NODES
 
+A very modified NEAT algorithm.
+
 Implements a 3 loops optimization algorithm to tackle reinforcement learning challenges and general learning tasks. A population of recursive networks is meta-optimized by a custom genetic algorithm, which evolves both topology and floating point parameters. Networks use evolved local learning rules, cascading neuromodulation and dedicated memory units with various available implementations.
 
 &nbsp;
